@@ -1,0 +1,48 @@
+spring:
+  mail:
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+
+server:
+  forward-headers-strategy: framework
+
+app:
+  auth:
+    password-reset:
+      delivery: ${PASSWORD_RESET_DELIVERY:smtp}
+      reset-url: ${PASSWORD_RESET_URL}
+      from: ${PASSWORD_RESET_FROM}
+  bible:
+    kor1910-html-path: ${KOR1910_HTML_PATH}
+  ai:
+    api-key: ${OPENAI_API_KEY}
+  security:
+    jwt:
+      issuer: ${JWT_ISSUER:mypasture}
+      secret: ${JWT_SECRET}
+      access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:3600}

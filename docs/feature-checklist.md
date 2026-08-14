@@ -1,0 +1,193 @@
+# My Pasture Feature Checklist
+
+작성 기준: 현재 Spring Boot 백엔드 프로젝트 상태
+
+## 상태 범례
+
+- [x] 구현됨: 코드가 있고 빌드 대상에 포함됨
+- [~] 부분 구현: 구조나 골격은 있으나 운영 기능은 미완성
+- [ ] 미구현: 아직 코드 없음
+
+## 1. 회원가입 / 로그인
+
+- [ ] Google OAuth 로그인
+- [ ] Apple OAuth 로그인
+- [ ] Kakao OAuth 로그인
+- [ ] 이메일 회원가입
+- [ ] 이메일 로그인
+- [ ] JWT Access Token 발급
+- [ ] Refresh Token 저장/회전
+- [~] Spring Security 기본 설정
+  - 현재 `SecurityConfig`가 존재하지만 대부분 endpoint를 permit 처리합니다.
+  - 다음 단계: JWT filter, 인증 실패 핸들러, role 기반 권한 체크 추가.
+- [~] Auth Controller 기본 health endpoint
+  - 현재 `/api/v1/auth/health`만 존재합니다.
+
+## 2. 성경 읽기
+
+- [~] 성경 DB 스키마
+  - `bible_books`, `bible_verses`, `bible_embeddings` 테이블이 Flyway migration에 정의되어 있습니다.
+- [~] 성경 검색 골격
+  - `BibleRetrievalPort`와 `JdbcBibleRetrievalAdapter`가 있습니다.
+  - 현재는 단순 `ILIKE` fallback 검색입니다.
+  - 다음 단계: PostgreSQL full-text search + pgvector 유사도 검색 결합.
+- [ ] 성경 읽기 API
+- [ ] 성경 검색 API
+- [ ] 성경 AI 해설 API 분리
+- [~] 하이라이트 DB 스키마
+- [~] 북마크 DB 스키마
+- [~] 읽기 진행률 DB 스키마
+- [ ] 읽기 기록 API
+- [ ] 오프라인 읽기 패키지 API
+
+## 3. AI 성경 비서
+
+- [x] 입력 300자 제한
+  - `AskAiRequest` validation과 `AskBibleAssistantUseCase`에서 제한합니다.
+- [x] 무료 회원 일일 사용량 제한 로직
+  - `AiUsagePort.countToday()` 기준으로 제한합니다.
+- [x] RAG 강제 구조
+  - `BibleRetrievalPort`로 관련 구절을 먼저 조회하고, 구절이 없으면 답변하지 않습니다.
+- [x] AI 캐시 포트
+  - `AiCachePort`와 Redis adapter가 있습니다.
+- [x] AI 사용량 저장 포트
+  - prompt tokens, completion tokens, estimated cost, cache hit 저장 구조가 있습니다.
+- [~] Redis 동일 질문 캐싱
+  - SHA-256 normalized question key 기반 캐시가 있습니다.
+  - 다음 단계: embedding 기반 semantic cache 추가.
+- [~] OpenAI completion adapter
+  - 현재 포트와 prompt 구조는 있으나 실제 OpenAI API 호출 대신 placeholder 답변입니다.
+  - 다음 단계: Responses API streaming, timeout, retry, rate limit 구현.
+- [ ] Streaming 응답 API
+- [ ] 성경 상담
+- [ ] 성경 Q&A
+- [ ] 말씀 추천
+- [ ] 기도문 작성
+- [ ] 기독교적 마인드 코칭
+- [ ] 오늘의 묵상 생성
+
+## 4. 오늘의 말씀
+
+- [ ] 오늘의 말씀 DB 테이블
+- [ ] 하루 1회 AI 생성 batch
+- [ ] 사용자 공통 결과 저장
+- [ ] 묵상
+- [ ] 실천 질문
+- [ ] 푸시 알림 설정
+
+## 5. 성경 챌린지
+
+- [~] 챌린지 DB 스키마
+  - `challenges`, `challenge_participants`가 정의되어 있습니다.
+- [ ] 일간 챌린지
+- [ ] 주간 챌린지
+- [ ] 월간 챌린지
+- [ ] 퀴즈
+- [ ] XP 지급
+- [ ] 달란트 지급
+- [ ] 연속 출석
+
+## 6. 목장
+
+- [~] 목장 DB 스키마
+  - `pastures`, `pasture_members`가 정의되어 있습니다.
+- [ ] 목장 생성 API
+- [ ] 초대 코드/초대 링크
+- [ ] 기도제목 공유
+- [ ] 댓글
+- [ ] 성경 읽기 현황
+- [ ] 공지
+- [ ] 출석
+- [ ] 리더 관리
+
+## 7. 기도
+
+- [~] 기도 DB 스키마
+  - `prayers` 테이블이 정의되어 있습니다.
+- [ ] 기도제목 작성 API
+- [ ] 응답 완료 표시
+- [ ] 기도일기
+- [ ] 목장 공유
+
+## 8. 성경일기
+
+- [~] 성경일기 DB 스키마
+  - `journal_entries` 테이블이 정의되어 있습니다.
+- [ ] 일기 작성 API
+- [ ] AI 리뷰
+- [ ] 감정 분석
+- [ ] 추천 말씀
+- [ ] 묵상 질문
+
+## 9. 말씀 카드
+
+- [ ] 배경 선택
+- [ ] 이미지 생성/저장
+- [ ] Cloudflare R2 업로드
+- [ ] SNS 공유
+
+## 10. 달란트
+
+- [ ] 리워드 상점
+- [ ] 교환
+- [ ] 기록
+- [ ] 중복 지급 방지 idempotency
+
+## 11. 알림센터
+
+- [ ] 알림 테이블
+- [ ] 알림 목록 API
+- [ ] 읽음 처리
+
+## 12. 프로필
+
+- [~] User Entity
+- [ ] 프로필 조회/수정 API
+- [ ] 통계
+- [ ] 업적
+- [ ] 읽기 캘린더
+
+## 13. 관리자
+
+- [ ] 회원관리
+- [ ] 오늘의 말씀 관리
+- [ ] 챌린지 관리
+- [ ] 리워드 관리
+- [ ] 기도제목 관리
+- [ ] 푸시 발송
+- [ ] AI 사용량 조회
+- [ ] 통계
+
+## 14. 인프라 / 운영
+
+- [x] Gradle build 통과
+- [x] Flyway migration 초안
+- [~] PostgreSQL 연결 설정
+- [~] Redis 연결 설정
+- [ ] Docker Compose 운영 정리
+- [ ] GitHub Actions CI
+- [ ] Nginx
+- [ ] GCP 배포
+- [ ] Observability metrics/log/tracing
+
+## 다음 개발 추천 순서
+
+1. 인증 완성: email login, JWT filter, current user resolver
+2. 성경 데이터 ingest: 번역본 라이선스 확인, bible_books/bible_verses import
+3. RAG 고도화: embedding batch, pgvector similarity search, citation 검증
+4. 실제 OpenAI 연동: streaming, timeout, retry, rate limit, token usage 저장
+5. Bible reader API: chapter 조회, search, bookmark, highlight, progress
+6. Daily word batch + push token/device 설정
+7. Pasture/prayer/challenge 도메인 API 확장
+
+## 기능 추가 시 읽을 코드 위치
+
+- AI 정책/흐름: `AskBibleAssistantUseCase.kt`
+- AI 외부 시스템 연결점: `AiPorts.kt`
+- REST API: `presentation/*/*Controller.kt`
+- Redis 캐시: `RedisAiCacheAdapter.kt`
+- OpenAI 연동: `OpenAiCompletionAdapter.kt`
+- DB/RAG 검색: `JdbcBibleRetrievalAdapter.kt`
+- AI 사용량/비용 로그: `JdbcAiUsageAdapter.kt`
+- 설정값: `AiProperties.kt`, `application.yml`
+- DB 스키마: `src/main/resources/db/migration/V1__init.sql`

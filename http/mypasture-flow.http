@@ -1,0 +1,377 @@
+### 00. Health check
+GET {{baseUrl}}/actuator/health
+
+> {%
+client.test("Backend is healthy", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+});
+%}
+
+### 01. Sign up
+POST {{baseUrl}}/api/v1/auth/signup
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "displayName": "Flow Tester"
+}
+
+> {%
+client.test("Signup creates a user", function () {
+  client.assert(response.status === 201, "Expected HTTP 201");
+  client.assert(!!response.body.user.id, "Expected user id");
+});
+client.global.set("userId", response.body.user.id);
+%}
+
+### 02. Login
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("Login returns token", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(!!response.body.token, "Expected token");
+});
+client.global.set("accessToken", response.body.token);
+%}
+
+### 03. Bible versions
+GET {{baseUrl}}/api/v1/bibles/versions
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("KOR1910 version is available", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body[0].code === "KOR1910", "Expected KOR1910");
+});
+%}
+
+### 04. Bible books
+GET {{baseUrl}}/api/v1/bibles/KOR1910/books
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Bible book list is returned", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.length === 66, "Expected 66 books");
+});
+%}
+
+### 05. Read a full chapter
+GET {{baseUrl}}/api/v1/bibles/KOR1910/books/GEN/chapters/1
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Genesis chapter 1 is returned", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.book.code === "GEN", "Expected GEN");
+  client.assert(response.body.verses.length > 0, "Expected verses");
+});
+%}
+
+### 06. Search bible verses by keyword
+GET {{baseUrl}}/api/v1/bibles/KOR1910/search?keyword=하나님&page=0&size=5
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Bible search returns matching verses", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.keyword === "하나님", "Expected keyword");
+  client.assert(response.body.results.length > 0, "Expected search results");
+});
+%}
+
+### 07. Get current faith profile test
+GET {{baseUrl}}/api/v1/faith-profile/tests/current
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Faith profile test definition is returned", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.code === "FAITH_RHYTHM", "Expected FAITH_RHYTHM");
+  client.assert(response.body.questions.length === 8, "Expected 8 questions");
+});
+client.global.set("q1", response.body.questions[0].id);
+client.global.set("q2", response.body.questions[1].id);
+client.global.set("q3", response.body.questions[2].id);
+client.global.set("q4", response.body.questions[3].id);
+client.global.set("q5", response.body.questions[4].id);
+client.global.set("q6", response.body.questions[5].id);
+client.global.set("q7", response.body.questions[6].id);
+client.global.set("q8", response.body.questions[7].id);
+%}
+
+### 08. Start faith profile assessment
+POST {{baseUrl}}/api/v1/faith-profile/assessments
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}"
+}
+
+> {%
+client.test("Faith profile assessment starts", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.status === "IN_PROGRESS", "Expected IN_PROGRESS");
+});
+client.global.set("assessmentId", response.body.id);
+%}
+
+### 09-1. Answer question 1
+POST {{baseUrl}}/api/v1/faith-profile/assessments/{{assessmentId}}/answers
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "questionId": "{{q1}}",
+  "score": 5
+}
+
+### 09-2. Answer question 2
+POST {{baseUrl}}/api/v1/faith-profile/assessments/{{assessmentId}}/answers
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "questionId": "{{q2}}",
+  "score": 1
+}
+
+### 09-3. Answer question 3
+POST {{baseUrl}}/api/v1/faith-profile/assessments/{{assessmentId}}/answers
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "questionId": "{{q3}}",
+  "score": 5
+}
+
+### 09-4. Answer question 4
+POST {{baseUrl}}/api/v1/faith-profile/assessments/{{assessmentId}}/answers
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "questionId": "{{q4}}",
+  "score": 1
+}
+
+### 09-5. Answer question 5
+POST {{baseUrl}}/api/v1/faith-profile/assessments/{{assessmentId}}/answers
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "questionId": "{{q5}}",
+  "score": 5
+}
+
+### 09-6. Answer question 6
+POST {{baseUrl}}/api/v1/faith-profile/assessments/{{assessmentId}}/answers
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "questionId": "{{q6}}",
+  "score": 1
+}
+
+### 09-7. Answer question 7
+POST {{baseUrl}}/api/v1/faith-profile/assessments/{{assessmentId}}/answers
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "questionId": "{{q7}}",
+  "score": 5
+}
+
+### 09-8. Answer question 8
+POST {{baseUrl}}/api/v1/faith-profile/assessments/{{assessmentId}}/answers
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "questionId": "{{q8}}",
+  "score": 1
+}
+
+### 10. Complete faith profile assessment
+POST {{baseUrl}}/api/v1/faith-profile/assessments/{{assessmentId}}/complete
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Faith profile result is WMCG", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.typeCode === "WMCG", "Expected WMCG");
+  client.assert(response.body.dimensionScores.length === 4, "Expected 4 dimension scores");
+});
+client.global.set("faithResultId", response.body.id);
+%}
+
+### 11. Get faith profile result
+GET {{baseUrl}}/api/v1/faith-profile/results/{{faithResultId}}
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Faith profile result can be loaded", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.id === client.global.get("faithResultId"), "Expected same result id");
+});
+%}
+
+### 12. Recommend quiet time passages
+GET {{baseUrl}}/api/v1/quiet-time/passages/recommendations?theme=불안&beginnerOnly=true&size=3
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Quiet time recommendations are returned", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.length > 0, "Expected recommendations");
+  client.assert(!!response.body[0].id, "Expected passage id");
+});
+client.global.set("passageId", response.body[0].id);
+%}
+
+### 13. Create quiet time pasture
+POST {{baseUrl}}/api/v1/quiet-time/pastures
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "플로우 큐티 목장",
+  "leaderName": "Flow Leader"
+}
+
+> {%
+client.test("Quiet time pasture is created", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(!!response.body.id, "Expected pasture id");
+  client.assert(!!response.body.inviteCode, "Expected invite code");
+});
+client.global.set("pastureId", response.body.id);
+%}
+
+### 14. Create offline quiet time session with invite URL
+POST {{baseUrl}}/api/v1/quiet-time/pastures/{{pastureId}}/sessions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "토요 오프라인 큐티",
+  "passageId": "{{passageId}}",
+  "theme": "불안"
+}
+
+> {%
+client.test("Offline quiet time session has frontend invite URL", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(!!response.body.offlineCode, "Expected offline code");
+  client.assert(response.body.inviteUrl.includes(response.body.offlineCode), "Invite URL should contain offline code");
+  client.assert(response.body.qrStatus === "OPEN", "Expected open QR");
+  client.assert(!!response.body.expiresAt, "Expected QR expiry");
+});
+client.global.set("quietTimeSessionId", response.body.id);
+client.global.set("offlineCode", response.body.offlineCode);
+%}
+
+### 15. Simulate QR scan and load offline session
+GET {{baseUrl}}/api/v1/quiet-time/offline/{{offlineCode}}
+
+> {%
+client.test("QR invite URL resolves offline session", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.offlineCode === client.global.get("offlineCode"), "Expected same offline code");
+  client.assert(!!response.body.inviteUrl, "Expected frontend invite URL");
+  client.assert(!!response.body.passage.reference, "Expected passage reference");
+});
+%}
+
+### 16. Join quiet time session from scanned QR
+POST {{baseUrl}}/api/v1/quiet-time/offline/{{offlineCode}}/join
+Content-Type: application/json
+
+{
+  "displayName": "{{displayName}}",
+  "deviceId": "{{deviceId}}"
+}
+
+> {%
+client.test("Scanned QR joins quiet time session", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.session.offlineCode === client.global.get("offlineCode"), "Expected same offline code");
+  client.assert(response.body.participantCount >= 1, "Expected participant count");
+});
+%}
+
+### 17. Reissue QR invite URL
+POST {{baseUrl}}/api/v1/quiet-time/sessions/{{quietTimeSessionId}}/qr/reissue
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("Reissue returns a new invite URL", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.offlineCode !== client.global.get("offlineCode"), "Expected a new offline code");
+  client.assert(response.body.inviteUrl.includes(response.body.offlineCode), "Expected new invite URL");
+});
+client.global.set("oldOfflineCode", client.global.get("offlineCode"));
+client.global.set("offlineCode", response.body.offlineCode);
+%}
+
+### 18. Old invite URL is revoked after reissue
+GET {{baseUrl}}/api/v1/quiet-time/offline/{{oldOfflineCode}}
+
+> {%
+client.test("Old QR is queryable as revoked", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.qrStatus === "REVOKED", "Expected revoked old QR");
+});
+%}
+
+### 19. Revoke current QR immediately
+DELETE {{baseUrl}}/api/v1/quiet-time/sessions/{{quietTimeSessionId}}/qr
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Leader can revoke current QR", function () {
+  client.assert(response.status === 204, "Expected HTTP 204");
+});
+%}
+
+### 20. Revoked QR cannot be used to join
+POST {{baseUrl}}/api/v1/quiet-time/offline/{{offlineCode}}/join
+Content-Type: application/json
+
+{
+  "displayName": "{{displayName}}",
+  "deviceId": "revoked-{{deviceId}}"
+}
+
+> {%
+client.test("Revoked QR is rejected", function () {
+  client.assert(response.status === 410, "Expected HTTP 410");
+  client.assert(response.body.code === "QUIET_TIME_QR_REVOKED", "Expected revoked QR error");
+});
+%}
+
+### 21. Negative case: invalid quiet time recommendation size
+GET {{baseUrl}}/api/v1/quiet-time/passages/recommendations?size=100
+
+> {%
+client.test("Invalid size is rejected", function () {
+  client.assert(response.status === 400, "Expected HTTP 400");
+  client.assert(response.body.code === "INVALID_QUIET_TIME_REQUEST", "Expected INVALID_QUIET_TIME_REQUEST");
+});
+%}

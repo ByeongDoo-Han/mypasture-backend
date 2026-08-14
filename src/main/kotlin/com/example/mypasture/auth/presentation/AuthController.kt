@@ -1,0 +1,40 @@
+package com.example.mypasture.auth.presentation
+
+import com.example.mypasture.auth.application.AuthService
+import com.example.mypasture.auth.infrastructure.JwtPrincipal
+import com.example.mypasture.auth.presentation.dto.DeleteAccountRequest
+import com.example.mypasture.auth.presentation.dto.PasswordResetConfirmRequest
+import com.example.mypasture.auth.presentation.dto.PasswordResetRequest
+import com.example.mypasture.auth.presentation.dto.SocialLoginRequest
+import com.example.mypasture.auth.presentation.dto.UserLoginRequest
+import com.example.mypasture.auth.presentation.dto.UserSignupRequest
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
+
+/** 인증 도메인의 HTTP endpoint를 제공하는 controller입니다. */
+@RestController
+@RequestMapping("/api/v1/auth")
+class AuthController(
+    private val authService: AuthService,
+) : AuthApi {
+    override fun health(): Map<String, String> = mapOf("status" to "auth-ready")
+
+    override fun signup(request: UserSignupRequest) = authService.signup(request)
+
+    override fun login(request: UserLoginRequest) = authService.login(request)
+
+    override fun socialLogin(request: SocialLoginRequest) = authService.socialLogin(request)
+
+    override fun requestPasswordReset(request: PasswordResetRequest) =
+        authService.requestPasswordReset(request)
+
+    override fun confirmPasswordReset(request: PasswordResetConfirmRequest) =
+        authService.confirmPasswordReset(request)
+
+    override fun me(principal: JwtPrincipal) = authService.me(principal.userId)
+
+    override fun deleteMe(
+        principal: JwtPrincipal,
+        request: DeleteAccountRequest,
+    ) = authService.deleteAccount(principal.userId, request)
+}

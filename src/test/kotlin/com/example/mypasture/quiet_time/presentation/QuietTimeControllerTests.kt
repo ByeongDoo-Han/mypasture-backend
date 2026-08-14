@@ -1,0 +1,318 @@
+package com.example.mypasture.quiet_time.presentation
+
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
+import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.http.MediaType
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.delete
+import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.post
+import java.sql.Timestamp
+import java.time.Instant
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+import java.util.UUID
+
+/** 큐티 QR의 생성, 기간 제한, 재발급, 폐기, 중복 참여 정책을 검증하는 통합 테스트입니다. */
+@SpringBootTest
+@AutoConfigureMockMvc
+class QuietTimeControllerTests(
+    @Autowired private val mockMvc: MockMvc,
+    @Autowired private val objectMapper: ObjectMapper,
+    @Autowired private val jdbcTemplate: JdbcTemplate,
+) {
+    private var cachedLeaderToken: String? = null
+
+    @Test
+    fun `recommended passages return selection criteria`() {
+        mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
+            param("theme", "불안")
+            param("beginnerOnly", "true")
+            param("size", "3")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$[0].title") { value("불안한 마음을 하나님께 맡기기") }
+            jsonPath("$[0].criteria.readabilityScore") { value(5) }
+            jsonPath("$[0].criteria.totalScore") { value(25) }
+            jsonPath("$[0].observationQuestions.length()") { value(2) }
+            jsonPath("$[0].sharingQuestions.length()") { value(2) }
+        }
+    }
+
+    @Test
+    fun `pasture session creates expiring invite url for frontend qr`() {
+        val session = createSession(createPasture())
+        val offlineCode = session["offlineCode"].asText()
+        val meetingEndsAt = Instant.parse(session["meetingEndsAt"].asText())
+        val expiresAt = Instant.parse(session["expiresAt"].asText())
+
+        check(ChronoUnit.MINUTES.between(meetingEndsAt, expiresAt) == 30L)
+
+        mockMvc.get("/api/v1/quiet-time/offline/$offlineCode")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.offlineCode") { value(offlineCode) }
+                jsonPath("$.inviteUrl") { value("https://mypasture.app/q/qt/$offlineCode") }
+                jsonPath("$.qrStatus") { value("OPEN") }
+                jsonPath("$.joinStartsAt") { exists() }
+                jsonPath("$.expiresAt") { exists() }
+            }
+
+    }
+
+    @Test
+    fun `scanned qr code joins offline session idempotently`() {
+        val offlineCode = createSession(createPasture())["offlineCode"].asText()
+
+        joinSession(offlineCode)
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.participant.displayName") { value("도한") }
+                jsonPath("$.participantCount") { value(1) }
+                jsonPath("$.joinedAlready") { value(false) }
+            }
+
+        joinSession(offlineCode)
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.participantCount") { value(1) }
+                jsonPath("$.joinedAlready") { value(true) }
+            }
+    }
+
+    @Test
+    fun `scheduled qr rejects participation before join start`() {
+        val session = createSession(
+            pastureId = createPasture(),
+            joinStartsAt = Instant.now().plus(1, ChronoUnit.HOURS),
+        )
+        val offlineCode = session["offlineCode"].asText()
+
+        joinSession(offlineCode)
+            .andExpect {
+                status { isConflict() }
+                jsonPath("$.code") { value("QUIET_TIME_QR_NOT_OPEN") }
+            }
+    }
+
+    @Test
+    fun `expired qr remains queryable but rejects participation`() {
+        val session = createSession(createPasture())
+        val offlineCode = session["offlineCode"].asText()
+        jdbcTemplate.update(
+            "update quiet_time_qr_invitations set expires_at = ? where offline_code = ?",
+            Timestamp.from(Instant.now().minusSeconds(1)),
+            offlineCode,
+        )
+
+        mockMvc.get("/api/v1/quiet-time/offline/$offlineCode")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.qrStatus") { value("EXPIRED") }
+            }
+
+        joinSession(offlineCode)
+            .andExpect {
+                status { isGone() }
+                jsonPath("$.code") { value("QUIET_TIME_QR_EXPIRED") }
+            }
+    }
+
+    @Test
+    fun `reissuing qr revokes previous code and keeps new code open`() {
+        val original = createSession(createPasture())
+        val sessionId = original["id"].asText()
+        val oldCode = original["offlineCode"].asText()
+
+        val result = mockMvc.post("/api/v1/quiet-time/sessions/$sessionId/qr/reissue") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = "{}"
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.qrStatus") { value("OPEN") }
+        }.andReturn()
+        val newCode = objectMapper.readTree(result.response.contentAsString)["offlineCode"].asText()
+        check(oldCode != newCode)
+
+        mockMvc.get("/api/v1/quiet-time/offline/$oldCode")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.qrStatus") { value("REVOKED") }
+            }
+
+        joinSession(oldCode)
+            .andExpect {
+                status { isGone() }
+                jsonPath("$.code") { value("QUIET_TIME_QR_REVOKED") }
+            }
+
+        joinSession(newCode)
+            .andExpect {
+                status { isOk() }
+            }
+    }
+
+    @Test
+    fun `leader can revoke qr immediately`() {
+        val session = createSession(createPasture())
+        val sessionId = session["id"].asText()
+        val offlineCode = session["offlineCode"].asText()
+
+        mockMvc.delete("/api/v1/quiet-time/sessions/$sessionId/qr") {
+            header("Authorization", "Bearer ${leaderToken()}")
+        }.andExpect {
+            status { isNoContent() }
+        }
+
+        joinSession(offlineCode)
+            .andExpect {
+                status { isGone() }
+                jsonPath("$.code") { value("QUIET_TIME_QR_REVOKED") }
+            }
+    }
+
+    @Test
+    fun `closing session blocks participation`() {
+        val session = createSession(createPasture())
+        val sessionId = session["id"].asText()
+        val offlineCode = session["offlineCode"].asText()
+
+        mockMvc.post("/api/v1/quiet-time/sessions/$sessionId/close") {
+            header("Authorization", "Bearer ${leaderToken()}")
+        }.andExpect {
+            status { isNoContent() }
+        }
+
+        joinSession(offlineCode)
+            .andExpect {
+                status { isGone() }
+                jsonPath("$.code") { value("QUIET_TIME_SESSION_CLOSED") }
+            }
+    }
+
+    @Test
+    fun `another user cannot manage leader qr`() {
+        val session = createSession(createPasture())
+        val otherToken = createUserToken()
+
+        mockMvc.delete("/api/v1/quiet-time/sessions/${session["id"].asText()}/qr") {
+            header("Authorization", "Bearer $otherToken")
+        }.andExpect {
+            status { isForbidden() }
+            jsonPath("$.code") { value("QUIET_TIME_LEADER_REQUIRED") }
+        }
+    }
+
+    @Test
+    fun `leader endpoints require authentication`() {
+        mockMvc.post("/api/v1/quiet-time/pastures") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"name":"인증 필요 목장","leaderName":"리더"}"""
+        }.andExpect {
+            status { isUnauthorized() }
+        }
+    }
+
+    @Test
+    fun `invalid recommendation size is rejected`() {
+        mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
+            param("size", "100")
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("INVALID_QUIET_TIME_REQUEST") }
+        }
+    }
+
+    private fun joinSession(offlineCode: String) =
+        mockMvc.post("/api/v1/quiet-time/offline/$offlineCode/join") {
+            contentType = MediaType.APPLICATION_JSON
+            content =
+                """
+                {
+                  "displayName": "도한",
+                  "deviceId": "test-device-001"
+                }
+                """.trimIndent()
+        }
+
+    private fun createPasture(): UUID {
+        val result = mockMvc.post("/api/v1/quiet-time/pastures") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content =
+                """
+                {
+                  "name": "오프라인 큐티 목장",
+                  "leaderName": "도한"
+                }
+                """.trimIndent()
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.inviteCode") { exists() }
+        }.andReturn()
+        return UUID.fromString(objectMapper.readTree(result.response.contentAsString)["id"].asText())
+    }
+
+    private fun createSession(
+        pastureId: UUID,
+        joinStartsAt: Instant = Instant.now().minusSeconds(60),
+    ): JsonNode {
+        val meetingStartsAt = Instant.now().plusSeconds(60)
+        val meetingEndsAt = meetingStartsAt.plus(1, ChronoUnit.HOURS)
+        val result = mockMvc.post("/api/v1/quiet-time/pastures/$pastureId/sessions") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content =
+                """
+                {
+                  "title": "토요 오프라인 큐티",
+                  "theme": "불안",
+                  "meetingDate": "${LocalDate.now()}",
+                  "meetingStartsAt": "$meetingStartsAt",
+                  "meetingEndsAt": "$meetingEndsAt",
+                  "joinStartsAt": "$joinStartsAt"
+                }
+                """.trimIndent()
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.offlineCode") { exists() }
+            jsonPath("$.expiresAt") { exists() }
+        }.andReturn()
+        return objectMapper.readTree(result.response.contentAsString)
+    }
+
+    private fun leaderToken(): String =
+        cachedLeaderToken ?: createUserToken().also { cachedLeaderToken = it }
+
+    private fun createUserToken(): String {
+        val email = "quiet-time-${UUID.randomUUID()}@example.com"
+        val password = "password123!"
+        mockMvc.post("/api/v1/auth/signup") {
+            contentType = MediaType.APPLICATION_JSON
+            content =
+                """
+                {
+                  "email": "$email",
+                  "password": "$password",
+                  "displayName": "큐티 리더"
+                }
+                """.trimIndent()
+        }.andExpect {
+            status { isCreated() }
+        }
+
+        val result = mockMvc.post("/api/v1/auth/login") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"$password"}"""
+        }.andExpect {
+            status { isOk() }
+        }.andReturn()
+        return objectMapper.readTree(result.response.contentAsString)["token"].asText()
+    }
+}

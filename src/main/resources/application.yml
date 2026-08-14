@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: mypasture
+  profiles:
+    default: dev
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+app:
+  auth:
+    password-reset:
+      token-ttl-minutes: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
+      request-cooldown-seconds: ${PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS:60}
+      reset-url: ${PASSWORD_RESET_URL:mypasture://password-reset}
+      delivery: ${PASSWORD_RESET_DELIVERY:log}
+      from: ${PASSWORD_RESET_FROM:no-reply@mypasture.app}
+  firebase:
+    enabled: ${FIREBASE_ENABLED:false}
+    project-id: ${FIREBASE_PROJECT_ID:}
+    credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+  quiet-time:
+    qr:
+      default-meeting-duration-minutes: ${QUIET_TIME_DEFAULT_MEETING_DURATION_MINUTES:120}
+      expiry-grace-minutes: ${QUIET_TIME_QR_EXPIRY_GRACE_MINUTES:30}
+      invite-base-url: ${QUIET_TIME_INVITE_BASE_URL:https://mypasture.app/q/qt}
+  ai:
+    model: ${OPENAI_MODEL:gpt-5-mini}
+    embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    api-key: ${OPENAI_API_KEY:test}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+    max-input-chars: ${AI_MAX_INPUT_CHARS:300}
+    max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:700}
+    free-daily-limit: ${AI_FREE_DAILY_LIMIT:10}
+    timeout-ms: ${AI_TIMEOUT_MS:12000}
+    cache-ttl-seconds: ${AI_CACHE_TTL_SECONDS:86400}
+    commentary-generation-enabled: ${AI_COMMENTARY_GENERATION_ENABLED:false}
+    commentary-poll-delay-ms: ${AI_COMMENTARY_POLL_DELAY_MS:5000}
+    commentary-prompt-version: ${AI_COMMENTARY_PROMPT_VERSION:chapter-commentary-v1}
+    commentary-max-output-tokens: ${AI_COMMENTARY_MAX_OUTPUT_TOKENS:1800}
+    commentary-input-cost-per-million: ${AI_COMMENTARY_INPUT_COST_PER_MILLION:0.25}
+    commentary-output-cost-per-million: ${AI_COMMENTARY_OUTPUT_COST_PER_MILLION:2.00}
+
+  oauth:
+    google:
+      client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+      issuer: ${GOOGLE_OAUTH_ISSUER:https://accounts.google.com}
+      jwk-set-uri: ${GOOGLE_OAUTH_JWK_SET_URI:https://www.googleapis.com/oauth2/v3/certs}
+    apple:
+      client-id: ${APPLE_OAUTH_CLIENT_ID:}
+      issuer: ${APPLE_OAUTH_ISSUER:https://appleid.apple.com}
+      jwk-set-uri: ${APPLE_OAUTH_JWK_SET_URI:https://appleid.apple.com/auth/keys}
+    kakao:
+      user-info-uri: ${KAKAO_USER_INFO_URI:https://kapi.kakao.com/v2/user/me}

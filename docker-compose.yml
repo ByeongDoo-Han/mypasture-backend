@@ -1,0 +1,100 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: mypasture-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mypasture}
+      POSTGRES_USER: ${POSTGRES_USER:-mypasture}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mypasture}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: mypasture-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mypasture-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-mypasture}
+      DATABASE_USERNAME: ${POSTGRES_USER:-mypasture}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-mypasture}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-test}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      FIREBASE_ENABLED: ${FIREBASE_ENABLED:-false}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-}
+      AI_MAX_INPUT_CHARS: ${AI_MAX_INPUT_CHARS:-300}
+      AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-700}
+      AI_FREE_DAILY_LIMIT: ${AI_FREE_DAILY_LIMIT:-10}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-12000}
+      AI_CACHE_TTL_SECONDS: ${AI_CACHE_TTL_SECONDS:-86400}
+      AI_COMMENTARY_GENERATION_ENABLED: ${AI_COMMENTARY_GENERATION_ENABLED:-false}
+      AI_COMMENTARY_POLL_DELAY_MS: ${AI_COMMENTARY_POLL_DELAY_MS:-5000}
+      AI_COMMENTARY_PROMPT_VERSION: ${AI_COMMENTARY_PROMPT_VERSION:-chapter-commentary-v1}
+      AI_COMMENTARY_MAX_OUTPUT_TOKENS: ${AI_COMMENTARY_MAX_OUTPUT_TOKENS:-1800}
+      AI_COMMENTARY_INPUT_COST_PER_MILLION: ${AI_COMMENTARY_INPUT_COST_PER_MILLION:-0.25}
+      AI_COMMENTARY_OUTPUT_COST_PER_MILLION: ${AI_COMMENTARY_OUTPUT_COST_PER_MILLION:-2.00}
+      JWT_ISSUER: ${JWT_ISSUER:-mypasture-docker}
+      JWT_SECRET: ${JWT_SECRET:-local-docker-jwt-secret-change-me-32-bytes-min}
+      JWT_ACCESS_TOKEN_TTL_SECONDS: ${JWT_ACCESS_TOKEN_TTL_SECONDS:-3600}
+      PASSWORD_RESET_TOKEN_TTL_MINUTES: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:-30}
+      PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS: ${PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS:-60}
+      PASSWORD_RESET_URL: ${PASSWORD_RESET_URL:-mypasture://password-reset}
+      PASSWORD_RESET_DELIVERY: ${PASSWORD_RESET_DELIVERY:-log}
+      PASSWORD_RESET_FROM: ${PASSWORD_RESET_FROM:-no-reply@mypasture.app}
+      QUIET_TIME_DEFAULT_MEETING_DURATION_MINUTES: ${QUIET_TIME_DEFAULT_MEETING_DURATION_MINUTES:-120}
+      QUIET_TIME_QR_EXPIRY_GRACE_MINUTES: ${QUIET_TIME_QR_EXPIRY_GRACE_MINUTES:-30}
+      QUIET_TIME_INVITE_BASE_URL: ${QUIET_TIME_INVITE_BASE_URL:-https://mypasture.app/q/qt}
+      KOR1910_HTML_PATH: ${KOR1910_HTML_PATH:-/app/data/kor_html}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      APPLE_OAUTH_CLIENT_ID: ${APPLE_OAUTH_CLIENT_ID:-}
+      KAKAO_USER_INFO_URI: ${KAKAO_USER_INFO_URI:-https://kapi.kakao.com/v2/user/me}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - ./data/kor_html:/app/data/kor_html:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: mypasture-nginx
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+
+volumes:
+  postgres-data:
+  redis-data:
+

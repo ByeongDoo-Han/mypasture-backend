@@ -1,0 +1,31 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: ${DATABASE_URL:jdbc:h2:mem:mypasture;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}
+    username: ${DATABASE_USERNAME:sa}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: ${DATABASE_DRIVER:org.h2.Driver}
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:create-drop}
+  flyway:
+    enabled: ${FLYWAY_ENABLED:false}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+app:
+  bible:
+    kor1910-html-path: ${KOR1910_HTML_PATH:data/kor_html}
+  ai:
+    api-key: ${OPENAI_API_KEY:test}
+    mock-enabled: ${AI_MOCK_ENABLED:true}
+  security:
+    jwt:
+      issuer: ${JWT_ISSUER:mypasture-dev}
+      secret: ${JWT_SECRET:local-dev-jwt-secret-change-me-32-bytes-minimum}
+      access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:3600}
+

@@ -22,7 +22,7 @@ interface QuietTimeApi {
     fun offlineSession(@PathVariable offlineCode: String): QuietTimeSessionResponse
 
     @PostMapping("/offline/{offlineCode}/join")
-    fun joinOfflineSession(@PathVariable offlineCode: String, @AuthenticationPrincipal principal: JwtPrincipal?, @Valid @RequestBody request: JoinQuietTimeSessionRequest): JoinQuietTimeSessionResponse
+    fun joinOfflineSession(@PathVariable offlineCode: String, @AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: JoinQuietTimeSessionRequest): JoinQuietTimeSessionResponse
 
     @PutMapping("/sessions/{sessionId}/reflection")
     fun saveReflection(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable sessionId: UUID, @Valid @RequestBody request: SaveQuietTimeReflectionRequest): QuietTimeReflectionResponse

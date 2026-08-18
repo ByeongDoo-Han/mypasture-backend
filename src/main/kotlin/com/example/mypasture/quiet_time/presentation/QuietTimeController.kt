@@ -49,10 +49,10 @@ class QuietTimeController(
 
     override fun joinOfflineSession(
         offlineCode: String,
-        principal: JwtPrincipal?,
+        principal: JwtPrincipal,
         request: JoinQuietTimeSessionRequest,
     ): JoinQuietTimeSessionResponse =
-        quietTimeService.joinOfflineSession(offlineCode, request.displayName, request.deviceId, principal?.userId).toResponse()
+        quietTimeService.joinOfflineSession(offlineCode, request.displayName, request.deviceId, principal.userId).toResponse()
 
     override fun saveReflection(principal: JwtPrincipal, sessionId: UUID, request: SaveQuietTimeReflectionRequest) = reflectionService.save(sessionId, principal.userId, request.content, request.sharedWithPasture).toResponse()
 

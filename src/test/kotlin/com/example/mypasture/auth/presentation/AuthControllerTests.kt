@@ -4,11 +4,14 @@ import com.example.mypasture.auth.application.SocialLoginCommand
 import com.example.mypasture.auth.application.SocialUserProfile
 import com.example.mypasture.auth.domain.AuthProvider
 import com.example.mypasture.auth.application.PasswordResetNotificationSender
+import com.example.mypasture.auth.infrastructure.AppleOidcOAuthClient
 import com.example.mypasture.auth.infrastructure.GoogleOidcOAuthClient
+import com.example.mypasture.auth.infrastructure.KakaoOAuthClient
 import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.BDDMockito.given
 import org.mockito.Mockito.doAnswer
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -31,7 +34,20 @@ class AuthControllerTests(
     private lateinit var googleOidcOAuthClient: GoogleOidcOAuthClient
 
     @MockitoBean
+    private lateinit var appleOidcOAuthClient: AppleOidcOAuthClient
+
+    @MockitoBean
+    private lateinit var kakaoOAuthClient: KakaoOAuthClient
+
+    @MockitoBean
     private lateinit var passwordResetNotificationSender: PasswordResetNotificationSender
+
+    @BeforeEach
+    fun configureSocialProviders() {
+        given(googleOidcOAuthClient.provider).willReturn(AuthProvider.GOOGLE)
+        given(appleOidcOAuthClient.provider).willReturn(AuthProvider.APPLE)
+        given(kakaoOAuthClient.provider).willReturn(AuthProvider.KAKAO)
+    }
 
     @Test
     fun `signup creates email user`() {
@@ -132,7 +148,6 @@ class AuthControllerTests(
 
     @Test
     fun `social login creates google user and returns jwt`() {
-        given(googleOidcOAuthClient.provider).willReturn(AuthProvider.GOOGLE)
         given(googleOidcOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.GOOGLE, "valid-google-id-token", null, null))).willReturn(
             SocialUserProfile(
                 provider = AuthProvider.GOOGLE,
@@ -169,6 +184,66 @@ class AuthControllerTests(
         }.andExpect {
             status { isOk() }
             jsonPath("$.email") { value("google-user@example.com") }
+        }
+    }
+
+    @Test
+    fun `social login creates apple user and returns jwt`() {
+        given(appleOidcOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.APPLE, "valid-apple-id-token", null, "Apple User"))).willReturn(
+            SocialUserProfile(
+                provider = AuthProvider.APPLE,
+                providerUserId = "apple-sub-001",
+                email = "apple-user@privaterelay.appleid.com",
+                emailVerified = true,
+                displayName = "Apple User",
+            ),
+        )
+
+        mockMvc.post("/api/v1/auth/social-login") {
+            contentType = MediaType.APPLICATION_JSON
+            content =
+                """
+                {
+                  "provider": "APPLE",
+                  "idToken": "valid-apple-id-token",
+                  "displayName": "Apple User"
+                }
+                """.trimIndent()
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.token") { exists() }
+            jsonPath("$.tokenType") { value("Bearer") }
+            jsonPath("$.user.email") { value("apple-user@privaterelay.appleid.com") }
+        }
+    }
+
+    @Test
+    fun `social login creates kakao user and returns jwt`() {
+        given(kakaoOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.KAKAO, null, "valid-kakao-access-token", "Kakao User"))).willReturn(
+            SocialUserProfile(
+                provider = AuthProvider.KAKAO,
+                providerUserId = "kakao-sub-001",
+                email = "kakao-user@example.com",
+                emailVerified = true,
+                displayName = "Kakao User",
+            ),
+        )
+
+        mockMvc.post("/api/v1/auth/social-login") {
+            contentType = MediaType.APPLICATION_JSON
+            content =
+                """
+                {
+                  "provider": "KAKAO",
+                  "accessToken": "valid-kakao-access-token",
+                  "displayName": "Kakao User"
+                }
+                """.trimIndent()
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.token") { exists() }
+            jsonPath("$.tokenType") { value("Bearer") }
+            jsonPath("$.user.email") { value("kakao-user@example.com") }
         }
     }
 

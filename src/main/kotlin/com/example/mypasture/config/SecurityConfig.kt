@@ -69,7 +69,6 @@ class SecurityConfig {
                 ).permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/bibles/**", "/api/v1/today-word").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/quiet-time/passages/**", "/api/v1/quiet-time/offline/**").permitAll()
-                it.requestMatchers(HttpMethod.POST, "/api/v1/quiet-time/offline/*/join").permitAll()
                 it.requestMatchers("/api/v1/faith-profile/**").permitAll()
                 it.anyRequest().authenticated()
             }

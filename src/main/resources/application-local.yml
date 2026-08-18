@@ -1,7 +1,9 @@
 spring:
   config:
     activate:
-      on-profile: dev
+      on-profile: local
+    # 로컬 서버를 IDE/Gradle로 실행해도 프로젝트 루트의 환경 파일을 읽습니다.
+    import: optional:file:.env.local[.properties]
   datasource:
     url: ${DATABASE_URL:jdbc:h2:mem:mypasture;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}
     username: ${DATABASE_USERNAME:sa}
@@ -25,7 +27,6 @@ app:
     mock-enabled: ${AI_MOCK_ENABLED:true}
   security:
     jwt:
-      issuer: ${JWT_ISSUER:mypasture-dev}
-      secret: ${JWT_SECRET:local-dev-jwt-secret-change-me-32-bytes-minimum}
+      issuer: ${JWT_ISSUER:mypasture-local}
+      secret: ${JWT_SECRET:local-jwt-secret-change-me-32-bytes-minimum}
       access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:3600}
-

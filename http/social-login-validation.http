@@ -1,0 +1,71 @@
+### 00. Auth API 상태 확인
+GET {{baseUrl}}/api/v1/auth/health
+
+> {%
+client.test("Auth API is ready", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.status === "auth-ready", "Expected auth-ready");
+});
+%}
+
+### 01. 이메일 제공자는 소셜 로그인에서 거부
+POST {{baseUrl}}/api/v1/auth/social-login
+Content-Type: application/json
+
+{
+  "provider": "EMAIL",
+  "idToken": "not-a-social-token"
+}
+
+> {%
+client.test("Email provider is rejected", function () {
+  client.assert(response.status === 400, "Expected HTTP 400");
+  client.assert(response.body.code === "UNSUPPORTED_SOCIAL_PROVIDER", "Expected UNSUPPORTED_SOCIAL_PROVIDER");
+});
+%}
+
+### 02. Google ID Token 누락
+POST {{baseUrl}}/api/v1/auth/social-login
+Content-Type: application/json
+
+{
+  "provider": "GOOGLE"
+}
+
+> {%
+client.test("Google requires idToken", function () {
+  client.assert(response.status === 400, "Expected HTTP 400");
+  client.assert(response.body.code === "MISSING_SOCIAL_TOKEN", "Expected MISSING_SOCIAL_TOKEN");
+});
+%}
+
+### 03. Apple ID Token 누락
+POST {{baseUrl}}/api/v1/auth/social-login
+Content-Type: application/json
+
+{
+  "provider": "APPLE",
+  "displayName": "Apple Test User"
+}
+
+> {%
+client.test("Apple requires idToken", function () {
+  client.assert(response.status === 400, "Expected HTTP 400");
+  client.assert(response.body.code === "MISSING_SOCIAL_TOKEN", "Expected MISSING_SOCIAL_TOKEN");
+});
+%}
+
+### 04. Kakao Access Token 누락
+POST {{baseUrl}}/api/v1/auth/social-login
+Content-Type: application/json
+
+{
+  "provider": "KAKAO"
+}
+
+> {%
+client.test("Kakao requires accessToken", function () {
+  client.assert(response.status === 400, "Expected HTTP 400");
+  client.assert(response.body.code === "MISSING_SOCIAL_TOKEN", "Expected MISSING_SOCIAL_TOKEN");
+});
+%}

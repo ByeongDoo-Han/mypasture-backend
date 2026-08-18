@@ -4,6 +4,11 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
+.env
+.env.*
+!.env.local.example
+!.env.prod.example
+http/http-client.private.env.json
 
 ### STS ###
 .apt_generated

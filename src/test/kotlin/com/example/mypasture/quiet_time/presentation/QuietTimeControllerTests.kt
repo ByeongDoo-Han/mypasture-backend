@@ -220,6 +220,18 @@ class QuietTimeControllerTests(
     }
 
     @Test
+    fun `joining a qt meeting requires authentication`() {
+        val offlineCode = createSession(createPasture())["offlineCode"].asText()
+
+        mockMvc.post("/api/v1/quiet-time/offline/$offlineCode/join") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"displayName":"도한","deviceId":"test-device-unauthorized"}"""
+        }.andExpect {
+            status { isUnauthorized() }
+        }
+    }
+
+    @Test
     fun `invalid recommendation size is rejected`() {
         mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
             param("size", "100")
@@ -231,6 +243,7 @@ class QuietTimeControllerTests(
 
     private fun joinSession(offlineCode: String) =
         mockMvc.post("/api/v1/quiet-time/offline/$offlineCode/join") {
+            header("Authorization", "Bearer ${leaderToken()}")
             contentType = MediaType.APPLICATION_JSON
             content =
                 """

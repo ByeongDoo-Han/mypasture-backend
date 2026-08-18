@@ -13,6 +13,8 @@ spring:
   config:
     activate:
       on-profile: prod
+    # 로컬 운영 검증용이며, 실제 배포 환경변수가 있으면 그 값이 우선합니다.
+    import: optional:file:.env.prod[.properties]
   datasource:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}

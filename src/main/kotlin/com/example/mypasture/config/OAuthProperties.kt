@@ -18,10 +18,20 @@ data class OAuthProperties(
 
 /** Google/Apple처럼 OIDC identity token을 검증하는 제공자의 설정입니다. */
 data class OidcProviderProperties(
-    val clientId: String = "",
+    val clientIds: List<String> = emptyList(),
+    val webClientIds: List<String> = emptyList(),
+    val iosClientIds: List<String> = emptyList(),
+    val androidClientIds: List<String> = emptyList(),
     val issuer: String = "",
     val jwkSetUri: String = "",
-)
+) {
+    /** 플랫폼별로 나뉜 Client ID를 토큰 audience 검증용 단일 목록으로 합칩니다. */
+    fun acceptedClientIds(): List<String> =
+        (clientIds + webClientIds + iosClientIds + androidClientIds)
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .distinct()
+}
 
 /** Kakao access token으로 사용자 정보를 조회할 때 사용하는 설정입니다. */
 data class KakaoProviderProperties(

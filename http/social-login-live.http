@@ -1,0 +1,92 @@
+### Google 실제 로그인
+# @name googleSocialLogin
+POST {{baseUrl}}/api/v1/auth/social-login
+Content-Type: application/json
+
+{
+  "provider": "GOOGLE",
+  "idToken": "{{googleIdToken}}"
+}
+
+> {%
+client.test("Google social login returns JWT", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.tokenType === "Bearer", "Expected Bearer token");
+  client.assert(!!response.body.token, "Expected access token");
+  client.assert(!!response.body.user.id, "Expected user id");
+});
+client.global.set("googleAccessToken", response.body.token);
+%}
+
+### Google 로그인 사용자 조회
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{googleAccessToken}}
+
+> {%
+client.test("Google JWT resolves current user", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(!!response.body.id, "Expected user id");
+});
+%}
+
+### Apple 실제 로그인
+# @name appleSocialLogin
+POST {{baseUrl}}/api/v1/auth/social-login
+Content-Type: application/json
+
+{
+  "provider": "APPLE",
+  "idToken": "{{appleIdToken}}",
+  "displayName": "{{appleDisplayName}}"
+}
+
+> {%
+client.test("Apple social login returns JWT", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.tokenType === "Bearer", "Expected Bearer token");
+  client.assert(!!response.body.token, "Expected access token");
+});
+client.global.set("appleAccessToken", response.body.token);
+%}
+
+### Apple 로그인 사용자 조회
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{appleAccessToken}}
+
+> {%
+client.test("Apple JWT resolves current user", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(!!response.body.id, "Expected user id");
+});
+%}
+
+### Kakao 실제 로그인
+# @name kakaoSocialLogin
+POST {{baseUrl}}/api/v1/auth/social-login
+Content-Type: application/json
+
+{
+  "provider": "KAKAO",
+  "accessToken": "{{kakaoAccessToken}}",
+  "displayName": "{{kakaoDisplayName}}"
+}
+
+> {%
+client.test("Kakao social login returns JWT", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.tokenType === "Bearer", "Expected Bearer token");
+  client.assert(!!response.body.token, "Expected access token");
+});
+client.global.set("kakaoJwt", response.body.token);
+%}
+
+### Kakao 로그인 사용자 조회
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{kakaoJwt}}
+
+> {%
+client.test("Kakao JWT resolves current user", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(!!response.body.id, "Expected user id");
+});
+%}

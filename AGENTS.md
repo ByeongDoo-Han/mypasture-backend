@@ -1,0 +1,74 @@
+# My Pasture Backend Agent Rules
+
+이 규칙은 `mypasture-backend` 저장소 전체에 적용됩니다.
+
+## 도메인 소유권
+
+| 역할 | 기본 소유 패키지 |
+| --- | --- |
+| Backend Foundation | `auth`, `user`, `config` |
+| Scripture Intelligence | `bible`, `reading`, `ai`, `daily_word` |
+| Community | `quiet_time`, `attendance`, `notification`, `faith_profile` |
+
+작업 계약에 다른 Owner가 명시되지 않으면 위 표를 따릅니다.
+
+## 공유 경로
+
+다음 경로는 Coordinator가 단일 작성자를 지정해야 합니다.
+
+- `src/main/resources/db/migration/**`
+- `src/main/resources/application*.yml`
+- `build.gradle.kts`, `Dockerfile`, `docker-compose.yml`
+- `http/**`
+- 여러 도메인이 사용하는 공통 DTO와 Security 설정
+
+## 아키텍처 규칙
+
+- 도메인 패키지 아래 `presentation`, `application`, `domain`, `infrastructure` 책임을 유지합니다.
+- Presentation은 HTTP 변환, Application은 use case, Domain은 규칙, Infrastructure는 외부 연동을 담당합니다.
+- Swagger 계약은 `*Api` interface에 두고 Controller가 구현합니다.
+- Entity를 API 응답으로 직접 노출하지 않습니다.
+- 생성자 주입과 Repository interface를 사용합니다.
+- 클래스에는 역할을 설명하는 짧은 한글 KDoc을 작성합니다.
+
+## 데이터와 동시성
+
+- 기존 Flyway migration은 수정하지 않습니다.
+- migration 번호를 만들기 전에 다른 작업과 충돌 여부를 확인합니다.
+- 중복 가입, 참여, 출석, 보상 지급은 DB unique constraint 또는 동등한 영속적 멱등성을 가집니다.
+- Redis lock만으로 영구적인 중복 방지를 주장하지 않습니다.
+- H2 테스트를 통과해도 PostgreSQL/Flyway 영향이 있으면 Docker 환경에서 추가 확인합니다.
+
+## API와 보안
+
+- API 변경 시 OpenAPI interface와 `http/*.http`를 함께 수정합니다.
+- 인증과 객체 소유권을 서버에서 검증합니다.
+- 토큰, 비밀번호, OAuth code, 개인정보를 로그에 남기지 않습니다.
+- 운영 환경변수에는 안전하지 않은 기본값을 두지 않습니다.
+- AI 요청은 입력/출력 제한, RAG 근거, 비용 기록, timeout/retry/rate limit 정책을 지킵니다.
+
+## 필수 검증
+
+```bash
+./gradlew test
+git diff --check
+```
+
+변경 범위가 좁으면 담당 테스트를 먼저 실행하되, 인수인계 전 전체 테스트 결과를 남깁니다. 외부 서비스가 없어 실행하지 못한 검사는 이유와 잔여 위험을 기록합니다.
+
+## GitHub 작업 흐름
+
+- 기능 구현 전 GitHub Issue를 만들고 최신 `dev`에서 작업을 시작합니다.
+- 브랜치 이름은 `feat/<domain>-<issue-number>-<feature-slug>` 형식을 사용합니다.
+- 커밋은 `feat(<domain>): <summary> (#<issue-number>)` 형식을 기본으로 합니다.
+- PR의 base는 `dev`이며 본문에 `Closes #<issue-number>`를 포함합니다.
+- `./gradlew test`와 CI가 통과한 뒤 merge하고 원격 기능 브랜치를 삭제합니다.
+- `main` 대상 PR과 운영 배포는 사람의 별도 승인이 필요합니다.
+
+## 완료 보고
+
+- 구현한 use case와 정책
+- API/DB/환경변수 변경
+- 실행한 테스트와 결과
+- 모바일/관리자에 필요한 후속 작업
+- 미해결 위험

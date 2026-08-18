@@ -1,0 +1,17 @@
+# HTTP API 테스트
+
+IntelliJ HTTP Client에서 실행 환경을 `local`로 선택한 뒤 각 요청 왼쪽의 실행 버튼을 사용합니다.
+
+## 자동 검증
+
+`social-login-validation.http`는 실제 OAuth 토큰 없이 실행할 수 있습니다. 지원하지 않는 제공자와 제공자별 필수 토큰 누락 응답을 검증합니다.
+
+## 실제 제공자 연동
+
+```bash
+cp http/http-client.private.env.json.example http/http-client.private.env.json
+```
+
+모바일 로그인 과정에서 받은 짧은 수명의 Google/Apple ID Token과 Kakao Access Token을 private 파일에 입력한 뒤 `social-login-live.http`를 실행합니다. 이 파일은 Git에서 제외되며 Client Secret은 입력하지 않습니다.
+
+Google/Apple 토큰의 `aud`는 서버 `.env.local`에 등록한 Client ID 중 하나와 일치해야 합니다. 실제 로그인 요청 다음의 `/me` 요청까지 실행하면 My Pasture JWT 발급과 인증을 함께 확인할 수 있습니다.

@@ -26,7 +26,7 @@ class GoogleOidcOAuthClient(
             idToken = command.idToken ?: throw MissingSocialTokenException("Google idToken is required"),
             decoder = decoder,
             expectedIssuer = oauthProperties.google.issuer,
-            expectedAudience = oauthProperties.google.clientId,
+            expectedAudiences = oauthProperties.google.acceptedClientIds(),
         )
         return SocialUserProfile(
             provider = provider,
@@ -51,7 +51,7 @@ class AppleOidcOAuthClient(
             idToken = command.idToken ?: throw MissingSocialTokenException("Apple idToken is required"),
             decoder = decoder,
             expectedIssuer = oauthProperties.apple.issuer,
-            expectedAudience = oauthProperties.apple.clientId,
+            expectedAudiences = oauthProperties.apple.acceptedClientIds(),
         )
         return SocialUserProfile(
             provider = provider,
@@ -99,7 +99,7 @@ private fun decodeOidcToken(
     idToken: String,
     decoder: NimbusJwtDecoder,
     expectedIssuer: String,
-    expectedAudience: String,
+    expectedAudiences: List<String>,
 ): Jwt {
     val jwt = try {
         decoder.decode(idToken)
@@ -108,8 +108,9 @@ private fun decodeOidcToken(
     }
 
     if (jwt.issuer?.toString() != expectedIssuer) throw InvalidSocialTokenException("OIDC issuer is invalid")
-    if (expectedAudience.isBlank()) throw SocialOAuthProviderMisconfiguredException("OIDC client id is required")
-    if (expectedAudience !in jwt.audience) throw InvalidSocialTokenException("OIDC audience is invalid")
+    val configuredAudiences = expectedAudiences.map { it.trim() }.filter { it.isNotBlank() }.toSet()
+    if (configuredAudiences.isEmpty()) throw SocialOAuthProviderMisconfiguredException("OIDC client id is required")
+    if (jwt.audience.none { it in configuredAudiences }) throw InvalidSocialTokenException("OIDC audience is invalid")
     if (jwt.subject.isNullOrBlank()) throw InvalidSocialTokenException("OIDC subject is missing")
     return jwt
 }

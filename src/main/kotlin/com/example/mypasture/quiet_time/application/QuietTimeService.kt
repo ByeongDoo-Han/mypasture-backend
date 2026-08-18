@@ -128,7 +128,7 @@ class QuietTimeService(
         offlineCode: String,
         displayName: String,
         deviceId: String,
-        userId: UUID? = null,
+        userId: UUID,
     ): QuietTimeJoinResult {
         require(displayName.trim().length in 1..40) { "Display name length must be between 1 and 40." }
         require(deviceId.trim().length in 8..120) { "Device id length must be between 8 and 120." }
@@ -142,7 +142,7 @@ class QuietTimeService(
 
         val session = invitation.session
         val normalizedDeviceId = deviceId.trim()
-        val existing = userId?.let { participantRepository.findBySessionIdAndUserId(session.id, it) }
+        val existing = participantRepository.findBySessionIdAndUserId(session.id, userId)
             ?: participantRepository.findBySessionIdAndDeviceId(session.id, normalizedDeviceId)
         val participant = existing ?: participantRepository.save(
             QuietTimeParticipantEntity(
@@ -153,8 +153,8 @@ class QuietTimeService(
                 joinedAt = now,
             ),
         )
-        if (participant.userId == null && userId != null) participant.userId = userId
-        if (userId != null) attendanceService.recordQuietTime(userId, session.pasture.id, session.id)
+        if (participant.userId == null) participant.userId = userId
+        attendanceService.recordQuietTime(userId, session.pasture.id, session.id)
 
         return QuietTimeJoinResult(
             sessionView = QuietTimeSessionQrView(session, invitation, qrStatus),

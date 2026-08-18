@@ -1,0 +1,41 @@
+name: Feature
+description: My Pasture backend 기능 구현 작업
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: dropdown
+    id: domain
+    attributes:
+      label: 담당 도메인
+      options:
+        - auth-user
+        - scripture-ai
+        - community-quiet-time
+        - platform
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: 목적
+      description: 사용자가 얻는 결과를 설명해 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 조건
+      description: 성공, 실패, 권한, 동시성 조건을 체크리스트로 작성해 주세요.
+      value: |
+        - [ ] 성공 흐름
+        - [ ] 실패 흐름
+        - [ ] 인증과 권한
+        - [ ] 테스트
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: 영향 범위
+      description: API, DB, 환경변수, 모바일, 관리자 영향을 기록해 주세요.

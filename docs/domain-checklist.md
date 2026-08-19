@@ -39,7 +39,7 @@ Package: `com.example.mypasture.ai`
 
 구현됨:
 
-- [x] `presentation/AiController`: `POST /api/v1/ai/chat` 요청 진입점
+- [x] `presentation/AiApi`, `AiController`: 일반 응답과 실시간 SSE 요청 진입점
 - [x] `application/AskBibleAssistantUseCase`: 입력 길이 제한, 무료 사용자 일일 quota, cache, RAG, completion, usage log 순서 보장
 - [x] `application/AiPorts`: Bible retrieval, text embedding, embedding store, AI completion/cache/usage port 정의
 - [x] `domain/AiModels`: `BibleCitation`, `GroundedAnswer`, usage policy 모델
@@ -53,12 +53,12 @@ Package: `com.example.mypasture.ai`
 구현 필요:
 
 - [x] OpenAI Responses API 실제 연동
-- [~] SSE endpoint 추가 완료, OpenAI upstream 실시간 streaming 전환 필요
+- [x] OpenAI Responses API delta 기반 실시간 SSE와 bounded executor 적용
 - [~] Retry, timeout 적용 완료, 분산 rate limit filter 필요
 - [x] pgvector embedding 검색과 로컬 lexical fallback 적용
 - [ ] 유사 질문 semantic cache 구현
 - [ ] conversation/session 저장
-- [x] AI 답변 안전 정책: 검색되지 않은 verse ID와 장·절 차단
+- [x] AI 답변 안전 정책: 검색되지 않은 verse ID와 장·절을 SSE 전송 전 차단
 - [x] AI 예외를 표준 API error response로 변환하는 exception handler
 - [~] 단위 테스트: RAG 결과 없음과 index batch 완료, quota/cache 추가 필요
 - [~] 통합 테스트: AI usage log 완료, 실제 Redis 장애 테스트 필요

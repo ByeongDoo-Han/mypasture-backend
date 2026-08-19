@@ -29,4 +29,8 @@ data class AiProperties(
     val commentaryMaxOutputTokens: Int,
     val commentaryInputCostPerMillion: BigDecimal,
     val commentaryOutputCostPerMillion: BigDecimal,
+    val streamTimeoutMs: Long = 60_000,
+    val streamCorePoolSize: Int = 8,
+    val streamMaxPoolSize: Int = 64,
+    val streamQueueCapacity: Int = 200,
 )

@@ -293,7 +293,7 @@ Errors:
 
 ### 1.9 Refresh token / logout
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
 Access token 외 refresh token 회전, 재사용 탐지, 서버 측 로그아웃은 아직 구현되지 않았다.
 
@@ -684,27 +684,27 @@ POST는 분산 lock을 획득한 서버만 설정된 크기의 단일 batch를 �
 
 ### 4.3 Streaming AI Assistant
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
 ```http
 POST /api/v1/ai/chat/stream
 Accept: text/event-stream
 ```
 
-Events:
+정상 완료 이벤트 순서:
 
 ```text
-event: citation
-data: {"verseId":1001,"book":"시편","chapter":23,"verse":1}
+event: delta
+data: 근거: [1001] 주님은
 
-event: token
-data: {"text":"주님은"}
+event: citations
+data: [{"verseId":1001,"book":"시편","chapter":23,"verse":1}]
 
 event: usage
-data: {"promptTokens":123,"completionTokens":456,"estimatedCostUsd":0.000123}
+data: {"promptTokens":123,"completionTokens":456,"embeddingTokens":18,"estimatedCostUsd":0.000123,"retrievalStrategy":"PGVECTOR","cacheHit":false}
 
 event: done
-data: {}
+data: {"status":"completed"}
 ```
 
 ### 4.4 AI Conversations

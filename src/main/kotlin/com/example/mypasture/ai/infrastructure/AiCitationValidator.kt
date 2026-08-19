@@ -11,7 +11,15 @@ class AiCitationValidator {
         val allowedById = citations.associateBy { it.verseId }
         val usedIds = CITATION_ID_REGEX.findAll(answer).map { it.groupValues[1].toLong() }.toSet()
         if (usedIds.isEmpty()) throw AiProviderException("AI 답변에 검증 가능한 성경 근거가 없습니다.")
-        if (!allowedById.keys.containsAll(usedIds)) throw AiProviderException("AI 답변이 검색되지 않은 성경 절을 인용했습니다.")
+        validateReferences(answer, citations)
+        return usedIds.map(allowedById::getValue)
+    }
+
+    /** streaming 조각을 내보내기 전에 현재까지 완성된 ID와 장·절이 RAG 범위 안인지 확인합니다. */
+    fun validateReferences(answer: String, citations: List<BibleCitation>) {
+        val allowedIds = citations.map { it.verseId }.toSet()
+        val usedIds = CITATION_ID_REGEX.findAll(answer).map { it.groupValues[1].toLong() }.toSet()
+        if (!allowedIds.containsAll(usedIds)) throw AiProviderException("AI 답변이 검색되지 않은 성경 절을 인용했습니다.")
 
         val allowedReferences = citations.map { it.chapter to it.verse }.toSet()
         val explicitReferences = CHAPTER_VERSE_REGEX.findAll(answer)
@@ -20,7 +28,6 @@ class AiCitationValidator {
         if (!allowedReferences.containsAll(explicitReferences)) {
             throw AiProviderException("AI 답변이 검증되지 않은 장·절을 생성했습니다.")
         }
-        return usedIds.map(allowedById::getValue)
     }
 
     companion object {

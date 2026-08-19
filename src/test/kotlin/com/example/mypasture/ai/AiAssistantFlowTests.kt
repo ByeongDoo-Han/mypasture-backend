@@ -61,4 +61,17 @@ class AiAssistantFlowTests(
         assertTrue(first.vectors.single().contentEquals(second.vectors.single()))
         assertTrue(first.promptTokens > 0)
     }
+
+    @Test
+    fun `streaming assistant emits deltas and records grounded answer`() {
+        val user = userRepository.save(UserEntity(email = "ai-stream-${UUID.randomUUID()}@example.com", displayName = "AI Stream"))
+        val deltas = mutableListOf<String>()
+
+        val answer = useCase.stream(user.id, SubscriptionTier.FREE, "창세기 말씀을 설명해주세요") { deltas += it }
+
+        assertEquals(answer.answer, deltas.joinToString(""))
+        assertTrue(answer.citations.isNotEmpty())
+        assertTrue(answer.citations.all { answer.answer.contains("[${it.verseId}]") })
+        assertEquals(1, usageRepository.countByUserIdAndCreatedAtGreaterThanEqual(user.id, java.time.Instant.EPOCH))
+    }
 }

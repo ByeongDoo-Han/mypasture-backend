@@ -2,6 +2,7 @@ package com.example.mypasture.config
 
 import com.example.mypasture.auth.infrastructure.JwtAuthenticationFilter
 import com.example.mypasture.auth.infrastructure.RestAuthenticationEntryPoint
+import jakarta.servlet.DispatcherType
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpHeaders
@@ -12,6 +13,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+import org.springframework.security.web.util.matcher.AndRequestMatcher
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher
+import org.springframework.security.web.util.matcher.DispatcherTypeRequestMatcher
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
@@ -51,6 +55,13 @@ class SecurityConfig {
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .exceptionHandling { it.authenticationEntryPoint(restAuthenticationEntryPoint) }
             .authorizeHttpRequests {
+                // 최초 POST에서 JWT를 확인한 AI SSE 요청의 ASYNC 재-dispatch만 허용합니다.
+                it.requestMatchers(
+                    AndRequestMatcher(
+                        DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
+                        AntPathRequestMatcher("/api/v1/ai/chat/stream", "POST"),
+                    ),
+                ).permitAll()
                 it.requestMatchers(
                     "/actuator/health",
                     "/v3/api-docs/**",

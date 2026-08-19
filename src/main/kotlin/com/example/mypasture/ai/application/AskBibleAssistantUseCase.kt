@@ -26,6 +26,7 @@ class AskBibleAssistantUseCase(
     private val properties: AiProperties,
     private val retrievalPort: BibleRetrievalPort,
     private val completionPort: AiCompletionPort,
+    private val streamingCompletionPort: AiStreamingCompletionPort,
     private val cachePort: AiCachePort,
     private val usagePort: AiUsagePort,
 ) {
@@ -33,6 +34,31 @@ class AskBibleAssistantUseCase(
         userId: UUID,
         subscriptionTier: SubscriptionTier,
         question: String,
+    ): GroundedAnswer = execute(userId, subscriptionTier, question) { normalized, citations ->
+        completionPort.answerWithCitations(normalized, citations)
+    }
+
+    /** RAG 검색이 끝난 뒤 LLM의 답변 조각을 생성 즉시 호출자에게 전달합니다. */
+    fun stream(
+        userId: UUID,
+        subscriptionTier: SubscriptionTier,
+        question: String,
+        onDelta: (String) -> Unit,
+    ): GroundedAnswer = execute(
+        userId = userId,
+        subscriptionTier = subscriptionTier,
+        question = question,
+        onCacheHit = { onDelta(it.answer) },
+    ) { normalized, citations ->
+        streamingCompletionPort.answerWithCitations(normalized, citations, onDelta)
+    }
+
+    private fun execute(
+        userId: UUID,
+        subscriptionTier: SubscriptionTier,
+        question: String,
+        onCacheHit: (GroundedAnswer) -> Unit = {},
+        complete: (String, List<com.example.mypasture.ai.domain.BibleCitation>) -> GroundedAnswer,
     ): GroundedAnswer {
         // 모든 AI 입력 정책은 여기서 먼저 막습니다. Controller validation만 믿지 말고 use case에서도 한 번 더 방어합니다.
         val normalized = question.trim()
@@ -54,6 +80,7 @@ class AskBibleAssistantUseCase(
                 embeddingCostUsd = java.math.BigDecimal.ZERO,
             )
             usagePort.save(userId, normalized, cacheHit)
+            onCacheHit(cacheHit)
             return cacheHit
         }
 
@@ -61,8 +88,8 @@ class AskBibleAssistantUseCase(
         val retrieval = retrievalPort.searchRelevantVerses(normalized)
         if (retrieval.citations.isEmpty()) throw AiGroundingNotFoundException()
 
-        // OpenAI 호출은 port 뒤에 숨깁니다. streaming, retry, timeout은 infrastructure adapter에서 구현하세요.
-        val completion = completionPort.answerWithCitations(normalized, retrieval.citations)
+        // 일반 응답과 streaming 응답 모두 같은 RAG, 비용 기록, cache 정책을 통과합니다.
+        val completion = complete(normalized, retrieval.citations)
         val answer = completion.copy(
             estimatedCostUsd = completion.estimatedCostUsd.add(retrieval.embeddingCostUsd),
             embeddingTokens = retrieval.embeddingTokens,

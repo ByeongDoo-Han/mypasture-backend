@@ -88,6 +88,43 @@ client.test("Bible search returns matching verses", function () {
 });
 %}
 
+### 06-1. Ask AI pastor with server-side RAG
+POST {{baseUrl}}/api/v1/ai/chat
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "창세기 말씀을 설명해주세요"
+}
+
+> {%
+client.test("AI answer contains verified Bible citations", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.citations.length > 0, "Expected grounded citations");
+  client.assert(!!response.body.retrievalStrategy, "Expected retrieval strategy");
+});
+%}
+
+### 06-2. Stream AI pastor answer with server-side RAG
+POST {{baseUrl}}/api/v1/ai/chat/stream
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+Accept: text/event-stream
+
+{
+  "question": "불안할 때 붙들 말씀을 알려주세요"
+}
+
+> {%
+client.test("AI stream completes with citations and usage", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.indexOf("event:delta") >= 0, "Expected delta event");
+  client.assert(response.body.indexOf("event:citations") >= 0, "Expected citations event");
+  client.assert(response.body.indexOf("event:usage") >= 0, "Expected usage event");
+  client.assert(response.body.indexOf("event:done") >= 0, "Expected done event");
+});
+%}
+
 ### 07. Get current faith profile test
 GET {{baseUrl}}/api/v1/faith-profile/tests/current
 Authorization: Bearer {{accessToken}}

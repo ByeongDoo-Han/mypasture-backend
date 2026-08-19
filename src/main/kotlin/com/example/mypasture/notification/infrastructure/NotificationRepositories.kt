@@ -6,6 +6,7 @@ import java.util.UUID
 
 interface NotificationDeviceRepository : JpaRepository<NotificationDeviceEntity, UUID> {
     fun findByUserIdAndDeviceId(userId: UUID, deviceId: String): NotificationDeviceEntity?
+    fun findByFcmToken(fcmToken: String): NotificationDeviceEntity?
     fun findAllByUserIdAndActiveTrue(userId: UUID): List<NotificationDeviceEntity>
     fun deleteByUserIdAndDeviceId(userId: UUID, deviceId: String)
 }

@@ -29,9 +29,31 @@ class NotificationService(
     @Transactional
     fun register(userId: UUID, deviceId: String, token: String, platform: DevicePlatform): NotificationDeviceEntity {
         val now = Instant.now(clock)
-        val device = deviceRepository.findByUserIdAndDeviceId(userId, deviceId)
-            ?: NotificationDeviceEntity(userId = userId, deviceId = deviceId.trim(), fcmToken = token.trim(), platform = platform, updatedAt = now)
-        device.fcmToken = token.trim(); device.active = true; device.updatedAt = now
+        val normalizedDeviceId = deviceId.trim()
+        val normalizedToken = token.trim()
+        val installation = deviceRepository.findByUserIdAndDeviceId(userId, normalizedDeviceId)
+        val tokenOwner = deviceRepository.findByFcmToken(normalizedToken)
+        val device = when {
+            tokenOwner != null -> {
+                if (installation != null && installation.id != tokenOwner.id) {
+                    deviceRepository.delete(installation)
+                    deviceRepository.flush()
+                }
+                tokenOwner.userId = userId
+                tokenOwner.deviceId = normalizedDeviceId
+                tokenOwner.platform = platform
+                tokenOwner
+            }
+            installation != null -> installation
+            else -> NotificationDeviceEntity(
+                userId = userId,
+                deviceId = normalizedDeviceId,
+                fcmToken = normalizedToken,
+                platform = platform,
+                updatedAt = now,
+            )
+        }
+        device.fcmToken = normalizedToken; device.active = true; device.updatedAt = now
         return deviceRepository.save(device)
     }
 

@@ -10,8 +10,8 @@ enum class DevicePlatform { IOS, ANDROID }
 enum class DeliveryStatus { PENDING, SENT, FAILED }
 
 /** 사용자 기기의 FCM 등록 토큰과 활성 상태를 저장합니다. */
-@Entity @Table(name = "notification_devices", uniqueConstraints = [UniqueConstraint(columnNames = ["user_id", "device_id"])])
-class NotificationDeviceEntity(@Id val id: UUID = UUID.randomUUID(), @Column(name = "user_id") val userId: UUID, @Column(name = "device_id") val deviceId: String, var fcmToken: String, @Enumerated(EnumType.STRING) val platform: DevicePlatform, var active: Boolean = true, var updatedAt: Instant = Instant.now())
+@Entity @Table(name = "notification_devices", uniqueConstraints = [UniqueConstraint(columnNames = ["user_id", "device_id"]), UniqueConstraint(columnNames = ["fcm_token"])])
+class NotificationDeviceEntity(@Id val id: UUID = UUID.randomUUID(), @Column(name = "user_id") var userId: UUID, @Column(name = "device_id") var deviceId: String, var fcmToken: String, @Enumerated(EnumType.STRING) var platform: DevicePlatform, var active: Boolean = true, var updatedAt: Instant = Instant.now())
 
 /** 사용자별 오늘의 말씀 알림 시각과 시간대를 저장합니다. */
 @Entity @Table(name = "daily_word_notification_settings")

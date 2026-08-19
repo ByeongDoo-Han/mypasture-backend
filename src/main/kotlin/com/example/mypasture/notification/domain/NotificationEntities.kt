@@ -7,7 +7,7 @@ import java.time.LocalTime
 import java.util.UUID
 
 enum class DevicePlatform { IOS, ANDROID }
-enum class DeliveryStatus { SENT, FAILED }
+enum class DeliveryStatus { PENDING, SENT, FAILED }
 
 /** 사용자 기기의 FCM 등록 토큰과 활성 상태를 저장합니다. */
 @Entity @Table(name = "notification_devices", uniqueConstraints = [UniqueConstraint(columnNames = ["user_id", "device_id"])])
@@ -19,4 +19,4 @@ class DailyWordNotificationSettingEntity(@Id val id: UUID = UUID.randomUUID(), @
 
 /** 사용자와 오늘의 말씀 조합별 푸시 발송 결과를 저장해 중복 발송을 방지합니다. */
 @Entity @Table(name = "notification_deliveries", uniqueConstraints = [UniqueConstraint(columnNames = ["user_id", "daily_word_id"])])
-class NotificationDeliveryEntity(@Id val id: UUID = UUID.randomUUID(), @Column(name = "user_id") val userId: UUID, @ManyToOne(fetch = FetchType.LAZY) val dailyWord: DailyWordEntity, @Enumerated(EnumType.STRING) val status: DeliveryStatus, val errorMessage: String? = null, val sentAt: Instant? = null, val createdAt: Instant = Instant.now())
+class NotificationDeliveryEntity(@Id val id: UUID = UUID.randomUUID(), @Column(name = "user_id") val userId: UUID, @ManyToOne(fetch = FetchType.LAZY) val dailyWord: DailyWordEntity, @Enumerated(EnumType.STRING) var status: DeliveryStatus = DeliveryStatus.PENDING, var errorMessage: String? = null, var sentAt: Instant? = null, val createdAt: Instant = Instant.now())

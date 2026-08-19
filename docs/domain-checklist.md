@@ -172,6 +172,8 @@ Package: `com.example.mypasture.bible`
 - [x] 장별 AI 해설, 구간 해설, 주제, 질문, 교차 참조 DB 모델
 - [x] 생성 작업 큐와 OpenAI Structured Outputs adapter
 - [x] 실제 성경 파일 기반 장·절 참조 및 전체 구간 자동 검증
+- [x] 전체 1910 성경 본문의 PostgreSQL 멱등 import와 절 ID 유지
+- [x] 누락 장 `EMPTY` 상태 관리와 DB 기반 페이지 검색
 - [x] 원문 해시, 모델, 프롬프트 버전, 토큰, 예상 비용 저장
 - [x] 관리자 생성 요청, 목록, 게시, 거절 API와 ADMIN 권한
 - [x] 게시된 최신 해설만 반환하는 공개 API
@@ -183,12 +185,14 @@ Package: `com.example.mypasture.bible`
 - [ ] 1,189개 장 대량 생성용 OpenAI Batch API importer
 - [ ] 관리자 해설 비교·편집·검수 UI
 - [ ] 중단된 PROCESSING 작업 lease 회수와 재처리
-- [ ] 전체 1910 성경 본문의 PostgreSQL import와 verse FK 연결
+- [ ] 북마크·하이라이트·스크랩의 `verse_id` FK 전환
+- [ ] 모바일 SQLite 스냅샷과 증분 오프라인 동기화
 - [ ] 번역본별 해설 재사용 및 번역 특화 해설 정책
 - [ ] 해설 오프라인 동기화와 오류 신고
 - [ ] 목회자·신학 검수 기준과 감사 이력 확정
 
-정책 문서: [성경 장별 AI 해설 생성 및 게시 운영 가이드](bible-commentary-pipeline.ko.md)
+정책 문서: [성경 장별 AI 해설 생성 및 게시 운영 가이드](bible-commentary-pipeline.ko.md),
+[성경 저장 및 오프라인 설계](bible-storage-and-offline.ko.md)
 
 ## Pasture Domain
 

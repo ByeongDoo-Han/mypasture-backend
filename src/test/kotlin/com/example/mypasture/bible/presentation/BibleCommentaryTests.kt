@@ -30,7 +30,7 @@ import java.util.UUID
 /** 장별 해설의 생성 큐, 검증, 관리자 게시와 공개 조회 흐름을 검증합니다. */
 @SpringBootTest
 @AutoConfigureMockMvc
-@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html"])
+@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html", "app.bible.import-enabled=true"])
 class BibleCommentaryTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val commentaryService: BibleCommentaryService,

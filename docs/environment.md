@@ -33,6 +33,23 @@ KAKAO_USER_INFO_URI=https://kapi.kakao.com/v2/user/me
 
 `local`이 기본 Profile이며 Spring이 `.env.local`을 가져옵니다. 직접 실행할 때는 기본적으로 H2를 사용합니다.
 
+### 1910 성경 DB 적재
+
+로컬 Docker에서는 `BIBLE_IMPORT_ENABLED=true`가 기본값입니다. 서버 시작 시 `data/kor_html`을 검증하고
+66권, 1,189장과 각 절을 DB에 멱등 적재합니다. 원본 파일이 없는 장은 `bible_chapters.content_status=EMPTY`로
+저장하며 가짜 절 번호나 빈 절 행은 만들지 않습니다.
+
+```dotenv
+KOR1910_HTML_PATH=data/kor_html
+BIBLE_IMPORT_ENABLED=true
+```
+
+반복 실행해도 `(version, book_id, chapter, verse)`가 같은 기존 절의 ID를 유지하므로 북마크와 하이라이트
+참조가 끊기지 않습니다. 운영에서는 여러 서버가 동시에 원본을 읽지 않도록 배포 작업 한 인스턴스에만
+`BIBLE_IMPORT_ENABLED=true`를 주입하세요. PostgreSQL advisory lock이 실수로 겹친 실행도 한 번만 허용합니다.
+
+적재 결과는 시작 로그의 `KOR1910 Bible import complete` 항목에서 권, 장, 빈 장, 절 개수를 확인할 수 있습니다.
+
 ### 3. Docker Compose로 실행
 
 ```bash

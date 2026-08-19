@@ -38,10 +38,18 @@ data class BibleChapter(
     val version: String,
     val book: BibleBook,
     val chapter: Int,
+    val contentStatus: BibleChapterContentStatus,
     val previous: BibleChapterPointer?,
     val next: BibleChapterPointer?,
     val verses: List<BibleVerse>,
 )
+
+/** 장 원문의 적재 상태를 구분하며 EMPTY는 원본 파일이 처음부터 없음을 뜻합니다. */
+enum class BibleChapterContentStatus {
+    AVAILABLE,
+    EMPTY,
+    SOURCE_MISSING,
+}
 
 /** 성경 읽기 화면의 이전/다음 장 이동에 필요한 최소 위치 정보입니다. */
 data class BibleChapterPointer(

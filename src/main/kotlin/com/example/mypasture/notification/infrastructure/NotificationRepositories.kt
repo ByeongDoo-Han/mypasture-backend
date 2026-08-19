@@ -15,4 +15,5 @@ interface DailyWordNotificationSettingRepository : JpaRepository<DailyWordNotifi
 }
 interface NotificationDeliveryRepository : JpaRepository<NotificationDeliveryEntity, UUID> {
     fun existsByUserIdAndDailyWordId(userId: UUID, dailyWordId: UUID): Boolean
+    fun findByUserIdAndDailyWordId(userId: UUID, dailyWordId: UUID): NotificationDeliveryEntity?
 }

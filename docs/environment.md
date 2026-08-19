@@ -50,6 +50,22 @@ BIBLE_IMPORT_ENABLED=true
 
 적재 결과는 시작 로그의 `KOR1910 Bible import complete` 항목에서 권, 장, 빈 장, 절 개수를 확인할 수 있습니다.
 
+### AI 목자 pgvector index
+
+성경 DB 적재 후 AI 목자의 의미 검색을 사용하려면 절 embedding을 한 번 생성해야 합니다. 운영 방법과
+안전한 모델 전환 절차는 [AI 목자 pgvector RAG 운영 가이드](ai-rag-operations.ko.md)를 따릅니다.
+
+```dotenv
+AI_MOCK_ENABLED=false
+AI_EMBEDDING_INDEXING_ENABLED=true
+AI_EMBEDDING_BATCH_SIZE=100
+AI_RAG_LEXICAL_FALLBACK_ENABLED=false
+```
+
+백필 worker는 한 서버에서만 활성화하고, 관리자 상태 API에서 `remainingVerses=0`을 확인한 후 다시
+비활성화합니다. 로컬의 `AI_MOCK_ENABLED=true`는 결정적 가짜 embedding과 lexical fallback으로 흐름만
+검증하며 실제 OpenAI 검색 품질을 의미하지 않습니다.
+
 ### 3. Docker Compose로 실행
 
 ```bash

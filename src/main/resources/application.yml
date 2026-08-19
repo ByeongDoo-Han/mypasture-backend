@@ -39,6 +39,11 @@ app:
   ai:
     model: ${OPENAI_MODEL:gpt-5-mini}
     embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    embedding-dimensions: ${AI_EMBEDDING_DIMENSIONS:1536}
+    embedding-batch-size: ${AI_EMBEDDING_BATCH_SIZE:100}
+    embedding-indexing-enabled: ${AI_EMBEDDING_INDEXING_ENABLED:false}
+    embedding-index-poll-delay-ms: ${AI_EMBEDDING_INDEX_POLL_DELAY_MS:10000}
+    embedding-input-cost-per-million: ${AI_EMBEDDING_INPUT_COST_PER_MILLION:0.02}
     api-key: ${OPENAI_API_KEY:test}
     base-url: ${OPENAI_BASE_URL:https://api.openai.com}
     max-input-chars: ${AI_MAX_INPUT_CHARS:300}
@@ -46,6 +51,9 @@ app:
     free-daily-limit: ${AI_FREE_DAILY_LIMIT:10}
     timeout-ms: ${AI_TIMEOUT_MS:12000}
     cache-ttl-seconds: ${AI_CACHE_TTL_SECONDS:86400}
+    rag-top-k: ${AI_RAG_TOP_K:10}
+    rag-min-similarity: ${AI_RAG_MIN_SIMILARITY:0.35}
+    rag-lexical-fallback-enabled: ${AI_RAG_LEXICAL_FALLBACK_ENABLED:true}
     commentary-generation-enabled: ${AI_COMMENTARY_GENERATION_ENABLED:false}
     commentary-poll-delay-ms: ${AI_COMMENTARY_POLL_DELAY_MS:5000}
     commentary-prompt-version: ${AI_COMMENTARY_PROMPT_VERSION:chapter-commentary-v1}

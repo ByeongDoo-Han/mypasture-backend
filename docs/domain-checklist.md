@@ -41,25 +41,29 @@ Package: `com.example.mypasture.ai`
 
 - [x] `presentation/AiController`: `POST /api/v1/ai/chat` 요청 진입점
 - [x] `application/AskBibleAssistantUseCase`: 입력 길이 제한, 무료 사용자 일일 quota, cache, RAG, completion, usage log 순서 보장
-- [x] `application/AiPorts`: Bible retrieval, AI completion, AI cache, AI usage port 정의
+- [x] `application/AiPorts`: Bible retrieval, text embedding, embedding store, AI completion/cache/usage port 정의
 - [x] `domain/AiModels`: `BibleCitation`, `GroundedAnswer`, usage policy 모델
-- [x] `infrastructure/JdbcBibleRetrievalAdapter`: PostgreSQL 기반 성경 구절 검색 fallback
-- [x] `infrastructure/OpenAiCompletionAdapter`: OpenAI 호출 경계 adapter 형태와 비용 추정 stub
+- [x] `infrastructure/JdbcBibleRetrievalAdapter`: pgvector cosine Top-K와 실제 성경 원문 재검증
+- [x] `infrastructure/OpenAiCompletionAdapter`: OpenAI Responses API와 citation 후검증
+- [x] `infrastructure/OpenAiTextEmbeddingAdapter`: 질문/성경 본문 embedding batch, retry, timeout, 비용 집계
+- [x] `application/BibleEmbeddingIndexService`: 본문 hash 기반 멱등 backfill과 다중 서버 advisory lock
 - [x] `infrastructure/RedisAiCacheAdapter`: 동일 질문 Redis 캐시
 - [x] `infrastructure/JdbcAiUsageAdapter`: AI 사용량/토큰/비용 기록
 
 구현 필요:
 
-- [ ] OpenAI Responses API 실제 연동
-- [ ] Streaming 응답 API 추가: `POST /api/v1/ai/chat/stream`
-- [ ] Retry, timeout, rate limit 정책을 adapter와 filter 레벨에 적용
-- [ ] pgvector embedding 검색과 PostgreSQL FTS hybrid 검색 적용
+- [x] OpenAI Responses API 실제 연동
+- [~] SSE endpoint 추가 완료, OpenAI upstream 실시간 streaming 전환 필요
+- [~] Retry, timeout 적용 완료, 분산 rate limit filter 필요
+- [x] pgvector embedding 검색과 로컬 lexical fallback 적용
 - [ ] 유사 질문 semantic cache 구현
 - [ ] conversation/session 저장
-- [ ] AI 답변 안전 정책: 성경 구절 환각 방지 검증, citation 누락 방지
-- [ ] AI 예외를 표준 API error response로 변환하는 exception handler
-- [ ] 단위 테스트: quota 초과, 300자 초과, cache hit, RAG 결과 없음
-- [ ] 통합 테스트: Redis/JDBC adapter, AI usage log 저장
+- [x] AI 답변 안전 정책: 검색되지 않은 verse ID와 장·절 차단
+- [x] AI 예외를 표준 API error response로 변환하는 exception handler
+- [~] 단위 테스트: RAG 결과 없음과 index batch 완료, quota/cache 추가 필요
+- [~] 통합 테스트: AI usage log 완료, 실제 Redis 장애 테스트 필요
+
+운영 문서: [AI 목자 pgvector RAG 운영 가이드](ai-rag-operations.ko.md)
 
 ## Quiet Time QR Domain
 

@@ -25,12 +25,12 @@
 
 ## 2. 성경 읽기
 
-- [~] 성경 DB 스키마
+- [x] 성경 DB 스키마
   - `bible_books`, `bible_verses`, `bible_embeddings` 테이블이 Flyway migration에 정의되어 있습니다.
-- [~] 성경 검색 골격
+- [x] 성경 검색과 RAG index
   - `BibleRetrievalPort`와 `JdbcBibleRetrievalAdapter`가 있습니다.
-  - 현재는 단순 `ILIKE` fallback 검색입니다.
-  - 다음 단계: PostgreSQL full-text search + pgvector 유사도 검색 결합.
+  - pgvector cosine Top-K 검색과 실제 `bible_verses` 재검증을 적용했습니다.
+  - 본문 hash 기반 embedding 재생성과 관리자 진행률 API가 있습니다.
 - [ ] 성경 읽기 API
 - [ ] 성경 검색 API
 - [ ] 성경 AI 해설 API 분리
@@ -51,7 +51,7 @@
 - [x] AI 캐시 포트
   - `AiCachePort`와 Redis adapter가 있습니다.
 - [x] AI 사용량 저장 포트
-  - prompt tokens, completion tokens, estimated cost, cache hit 저장 구조가 있습니다.
+  - embedding/prompt/completion tokens, 각 비용, retrieval strategy, cache hit을 저장합니다.
 - [~] Redis 동일 질문 캐싱
   - SHA-256 normalized question key 기반 캐시가 있습니다.
   - 다음 단계: embedding 기반 semantic cache 추가.
@@ -172,13 +172,12 @@
 
 ## 다음 개발 추천 순서
 
-1. 인증 완성: email login, JWT filter, current user resolver
-2. 성경 데이터 ingest: 번역본 라이선스 확인, bible_books/bible_verses import
-3. RAG 고도화: embedding batch, pgvector similarity search, citation 검증
-4. 실제 OpenAI 연동: streaming, timeout, retry, rate limit, token usage 저장
-5. Bible reader API: chapter 조회, search, bookmark, highlight, progress
-6. Daily word batch + push token/device 설정
-7. Pasture/prayer/challenge 도메인 API 확장
+1. OpenAI upstream 실시간 streaming과 Redis 분산 rate limit
+2. embedding 기반 유사 질문 semantic cache
+3. 북마크·하이라이트·스크랩의 실제 `verse_id` 연결
+4. AI 대화 conversation/session 저장과 삭제 정책
+5. 관리자 AI 사용량·비용·RAG 품질 대시보드
+6. Pasture/prayer/challenge 도메인 API 확장
 
 ## 기능 추가 시 읽을 코드 위치
 

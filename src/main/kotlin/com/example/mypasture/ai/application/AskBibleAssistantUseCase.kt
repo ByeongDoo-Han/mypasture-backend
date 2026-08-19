@@ -44,17 +44,31 @@ class AskBibleAssistantUseCase(
         }
 
         // 동일 질문 비용 절감을 위한 1차 캐시입니다. 향후 semantic cache를 추가해도 이 위치에서 먼저 확인하면 됩니다.
-        cachePort.get(normalized)?.let {
-            usagePort.save(userId, normalized, it.copy(cacheHit = true))
-            return it.copy(cacheHit = true)
+        cachePort.get(normalized)?.let { cached ->
+            val cacheHit = cached.copy(
+                promptTokens = 0,
+                completionTokens = 0,
+                estimatedCostUsd = java.math.BigDecimal.ZERO,
+                cacheHit = true,
+                embeddingTokens = 0,
+                embeddingCostUsd = java.math.BigDecimal.ZERO,
+            )
+            usagePort.save(userId, normalized, cacheHit)
+            return cacheHit
         }
 
         // RAG 강제 지점입니다. AI는 이 검색 결과가 없으면 답변하지 않아야 합니다.
-        val citations = retrievalPort.searchRelevantVerses(normalized)
-        if (citations.isEmpty()) throw AiGroundingNotFoundException()
+        val retrieval = retrievalPort.searchRelevantVerses(normalized)
+        if (retrieval.citations.isEmpty()) throw AiGroundingNotFoundException()
 
         // OpenAI 호출은 port 뒤에 숨깁니다. streaming, retry, timeout은 infrastructure adapter에서 구현하세요.
-        val answer = completionPort.answerWithCitations(normalized, citations)
+        val completion = completionPort.answerWithCitations(normalized, retrieval.citations)
+        val answer = completion.copy(
+            estimatedCostUsd = completion.estimatedCostUsd.add(retrieval.embeddingCostUsd),
+            embeddingTokens = retrieval.embeddingTokens,
+            embeddingCostUsd = retrieval.embeddingCostUsd,
+            retrievalStrategy = retrieval.strategy,
+        )
         usagePort.save(userId, normalized, answer)
         cachePort.put(normalized, answer)
         return answer

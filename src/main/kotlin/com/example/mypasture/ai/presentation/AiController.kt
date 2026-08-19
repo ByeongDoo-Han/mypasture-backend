@@ -12,7 +12,17 @@ import java.math.BigDecimal
 import java.util.concurrent.CompletableFuture
 
 data class AskAiRequest(@field:Size(min = 1, max = 300) val question: String)
-data class AskAiResponse(val answer: String, val citations: List<BibleCitation>, val promptTokens: Int, val completionTokens: Int, val estimatedCostUsd: BigDecimal, val cacheHit: Boolean)
+data class AskAiResponse(
+    val answer: String,
+    val citations: List<BibleCitation>,
+    val promptTokens: Int,
+    val completionTokens: Int,
+    val embeddingTokens: Int,
+    val estimatedCostUsd: BigDecimal,
+    val embeddingCostUsd: BigDecimal,
+    val retrievalStrategy: String,
+    val cacheHit: Boolean,
+)
 
 /** JWT 사용자의 신앙 질문을 RAG 기반 AI 목자에게 전달합니다. */
 @RestController @RequestMapping("/api/v1/ai")
@@ -34,4 +44,15 @@ class AiController(private val askBibleAssistant: AskBibleAssistantUseCase) {
         return emitter
     }
 }
-private fun com.example.mypasture.ai.domain.GroundedAnswer.toResponse() = AskAiResponse(answer, citations, promptTokens, completionTokens, estimatedCostUsd, cacheHit)
+private fun com.example.mypasture.ai.domain.GroundedAnswer.toResponse() =
+    AskAiResponse(
+        answer,
+        citations,
+        promptTokens,
+        completionTokens,
+        embeddingTokens,
+        estimatedCostUsd,
+        embeddingCostUsd,
+        retrievalStrategy.name,
+        cacheHit,
+    )

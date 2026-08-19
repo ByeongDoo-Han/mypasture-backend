@@ -14,6 +14,45 @@ data class BibleCitation(
     val text: String,
 )
 
+/** RAG가 사용한 검색 방식으로 운영 중 vector index 누락과 lexical fallback을 구분합니다. */
+enum class RagRetrievalStrategy {
+    PGVECTOR,
+    LEXICAL_FALLBACK,
+}
+
+/** 검색된 성경 근거와 질문 embedding 사용량을 completion 단계로 전달합니다. */
+data class BibleRetrievalResult(
+    val citations: List<BibleCitation>,
+    val embeddingTokens: Int = 0,
+    val embeddingCostUsd: BigDecimal = BigDecimal.ZERO,
+    val strategy: RagRetrievalStrategy = RagRetrievalStrategy.LEXICAL_FALLBACK,
+)
+
+/** embedding 제공자가 반환한 순서가 보존된 vector batch와 사용량입니다. */
+data class TextEmbeddingBatch(
+    val vectors: List<FloatArray>,
+    val promptTokens: Int,
+    val estimatedCostUsd: BigDecimal,
+)
+
+/** 성경 절 하나를 embedding index에 적재하기 위한 검증된 원본입니다. */
+data class BibleEmbeddingSource(
+    val verseId: Long,
+    val content: String,
+    val contentHash: String,
+)
+
+/** 관리자와 worker가 사용하는 성경 embedding index 진행 상태입니다. */
+data class BibleEmbeddingIndexSummary(
+    val totalVerses: Long,
+    val indexedVerses: Long,
+    val processedInBatch: Int,
+    val remainingVerses: Long,
+    val lockAcquired: Boolean,
+    val promptTokens: Int = 0,
+    val estimatedCostUsd: BigDecimal = BigDecimal.ZERO,
+)
+
 /** AI 답변, 근거 구절, 토큰 사용량, 비용 정보를 함께 담는 응답 모델입니다. */
 data class GroundedAnswer(
     val conversationId: UUID?,
@@ -23,6 +62,9 @@ data class GroundedAnswer(
     val completionTokens: Int,
     val estimatedCostUsd: BigDecimal,
     val cacheHit: Boolean,
+    val embeddingTokens: Int = 0,
+    val embeddingCostUsd: BigDecimal = BigDecimal.ZERO,
+    val retrievalStrategy: RagRetrievalStrategy = RagRetrievalStrategy.LEXICAL_FALLBACK,
 )
 
 /** AI 입력 제한과 무료 사용자 사용량 제한 정책을 표현하는 도메인 모델입니다. */

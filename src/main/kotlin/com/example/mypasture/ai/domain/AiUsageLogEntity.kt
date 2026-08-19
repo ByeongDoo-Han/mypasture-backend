@@ -28,6 +28,14 @@ class AiUsageLogEntity(
     val promptTokens: Int,
     @Column(name = "completion_tokens", nullable = false)
     val completionTokens: Int,
+    @Column(name = "embedding_tokens", nullable = false)
+    val embeddingTokens: Int = 0,
+    @Column(name = "embedding_cost_usd", nullable = false, precision = 12, scale = 6)
+    val embeddingCostUsd: BigDecimal = BigDecimal.ZERO,
+    @Column(name = "embedding_model", length = 80)
+    val embeddingModel: String? = null,
+    @Column(name = "retrieval_strategy", nullable = false, length = 40)
+    val retrievalStrategy: String = "LEXICAL_FALLBACK",
     @Column(name = "estimated_cost_usd", nullable = false, precision = 12, scale = 6)
     val estimatedCostUsd: BigDecimal,
     @Column(name = "cache_hit", nullable = false)

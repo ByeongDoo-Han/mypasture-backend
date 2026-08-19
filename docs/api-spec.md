@@ -662,12 +662,27 @@ Response `200`:
   ],
   "promptTokens": 123,
   "completionTokens": 456,
+  "embeddingTokens": 18,
   "estimatedCostUsd": 0.000123,
+  "embeddingCostUsd": 0.00000036,
+  "retrievalStrategy": "PGVECTOR",
   "cacheHit": false
 }
 ```
 
-### 4.2 Streaming AI Assistant
+### 4.2 Bible Embedding Index Admin
+
+Status: `IMPLEMENTED`
+
+```http
+GET  /api/v1/admin/ai/embeddings
+POST /api/v1/admin/ai/embeddings/index-next-batch
+```
+
+두 API 모두 `ADMIN` 권한이 필요합니다. GET은 전체 절, 현재 모델로 index된 절, 남은 절 수를 반환하고,
+POST는 분산 lock을 획득한 서버만 설정된 크기의 단일 batch를 처리합니다.
+
+### 4.3 Streaming AI Assistant
 
 Status: `PLANNED`
 
@@ -692,7 +707,7 @@ event: done
 data: {}
 ```
 
-### 4.3 AI Conversations
+### 4.4 AI Conversations
 
 Status: `PLANNED`
 
@@ -703,7 +718,7 @@ GET    /api/v1/ai/conversations/{conversationId}
 DELETE /api/v1/ai/conversations/{conversationId}
 ```
 
-### 4.4 Daily Meditation AI Batch
+### 4.5 Daily Meditation AI Batch
 
 Status: `PLANNED`
 
@@ -1385,8 +1400,8 @@ Response `200`:
 |---|---|
 | Auth | signup implemented, login partial, OAuth/JWT planned |
 | User/Profile | planned |
-| Bible | planned, AI RAG retrieval fallback exists internally |
-| AI Assistant | basic non-streaming chat implemented, streaming/OpenAI real call planned |
+| Bible | 66권 DB 조회·검색과 pgvector RAG index 구현 |
+| AI Assistant | OpenAI Responses/Embeddings, citation 검증 구현; upstream streaming 보완 필요 |
 | Today Word | planned |
 | Challenge | planned |
 | Pasture | planned |

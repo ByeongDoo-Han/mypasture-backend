@@ -20,6 +20,7 @@ interface AiUsageLogRepository : JpaRepository<AiUsageLogEntity, UUID> {
 @Repository
 class JdbcAiUsageAdapter(
     private val repository: AiUsageLogRepository,
+    private val properties: com.example.mypasture.config.AiProperties,
 ) : AiUsagePort {
     override fun countToday(userId: UUID): Long =
         repository.countByUserIdAndCreatedAtGreaterThanEqual(
@@ -32,9 +33,13 @@ class JdbcAiUsageAdapter(
             AiUsageLogEntity(
                 userId = userId,
                 requestHash = hash(question),
-                model = "gpt-5-mini",
+                model = properties.model,
                 promptTokens = answer.promptTokens,
                 completionTokens = answer.completionTokens,
+                embeddingTokens = answer.embeddingTokens,
+                embeddingCostUsd = answer.embeddingCostUsd,
+                embeddingModel = properties.embeddingModel,
+                retrievalStrategy = answer.retrievalStrategy.name,
                 estimatedCostUsd = answer.estimatedCostUsd,
                 cacheHit = answer.cacheHit,
             ),

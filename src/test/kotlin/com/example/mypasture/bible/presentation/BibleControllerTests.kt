@@ -11,7 +11,7 @@ import org.springframework.test.web.servlet.get
 /** BibleController의 1910 성경 목록/장/절/검색 조회 HTTP 흐름을 검증하는 통합 테스트입니다. */
 @SpringBootTest
 @AutoConfigureMockMvc
-@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html"])
+@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html", "app.bible.import-enabled=true"])
 class BibleControllerTests(
     @Autowired private val mockMvc: MockMvc,
 ) {
@@ -44,10 +44,33 @@ class BibleControllerTests(
                 status { isOk() }
                 jsonPath("$.book.code") { value("GEN") }
                 jsonPath("$.chapter") { value(1) }
+                jsonPath("$.contentStatus") { value("AVAILABLE") }
                 jsonPath("$.next.chapter") { value(2) }
                 jsonPath("$.verses.length()") { value(2) }
                 jsonPath("$.verses[0].verse") { value(1) }
                 jsonPath("$.verses[0].text") { value("태초에 하나님이 천지를 창조하시니라") }
+            }
+    }
+
+    @Test
+    fun `missing source chapter returns empty chapter metadata`() {
+        mockMvc.get("/api/v1/bibles/KOR1910/books/1PE/chapters/5")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.book.code") { value("1PE") }
+                jsonPath("$.chapter") { value(5) }
+                jsonPath("$.contentStatus") { value("EMPTY") }
+                jsonPath("$.verses.length()") { value(0) }
+            }
+    }
+
+    @Test
+    fun `psalm three digit source filename is imported`() {
+        mockMvc.get("/api/v1/bibles/KOR1910/books/PSA/chapters/1")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.contentStatus") { value("AVAILABLE") }
+                jsonPath("$.verses[0].verse") { value(1) }
             }
     }
 

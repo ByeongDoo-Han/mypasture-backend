@@ -6,14 +6,13 @@ import com.example.mypasture.bible.domain.BibleChapter
 import com.example.mypasture.bible.domain.BibleSearchResult
 import com.example.mypasture.bible.domain.BibleVerse
 import com.example.mypasture.bible.domain.BibleVersion
-import kotlin.math.min
 import org.springframework.stereotype.Service
 
 /** 성경 본문 저장소가 제공해야 하는 읽기/검색 동작을 정의하는 application port입니다. */
 interface BibleContentRepository {
     fun getChapter(version: String, book: BibleBook, chapter: Int): BibleChapter?
 
-    fun searchVerses(version: String, keyword: String): List<BibleVerse>
+    fun searchVerses(version: String, keyword: String, page: Int, size: Int): BibleSearchResult
 }
 
 /** 성경 번역본, 권, 장, 절 조회 규칙을 조합하는 application service입니다. */
@@ -37,7 +36,7 @@ class BibleReaderService(
         val book = requireBook(bookCodeOrName)
         requireChapter(book, chapter)
         return bibleContentRepository.getChapter(version.uppercase(), book, chapter)
-            ?: throw BibleNotFoundException("Bible chapter file was not found: ${book.code} $chapter")
+            ?: throw BibleNotFoundException("Bible chapter was not imported: ${book.code} $chapter")
     }
 
     fun getVerse(
@@ -63,20 +62,7 @@ class BibleReaderService(
         require(page >= 0) { "Page must be greater than or equal to 0." }
         require(size in 1..100) { "Size must be between 1 and 100." }
 
-        val allMatches = bibleContentRepository.searchVerses(version.uppercase(), normalizedKeyword)
-        val fromIndex = min(page * size, allMatches.size)
-        val toIndex = min(fromIndex + size, allMatches.size)
-        val pageItems = allMatches.subList(fromIndex, toIndex)
-
-        return BibleSearchResult(
-            version = version.uppercase(),
-            keyword = normalizedKeyword,
-            page = page,
-            size = size,
-            total = allMatches.size,
-            hasNext = toIndex < allMatches.size,
-            verses = pageItems,
-        )
+        return bibleContentRepository.searchVerses(version.uppercase(), normalizedKeyword, page, size)
     }
 
     private fun requireSupportedVersion(version: String) {

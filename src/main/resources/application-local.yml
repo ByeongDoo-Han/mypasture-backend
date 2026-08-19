@@ -22,6 +22,7 @@ spring:
 app:
   bible:
     kor1910-html-path: ${KOR1910_HTML_PATH:data/kor_html}
+    import-enabled: ${BIBLE_IMPORT_ENABLED:false}
   ai:
     api-key: ${OPENAI_API_KEY:test}
     mock-enabled: ${AI_MOCK_ENABLED:true}

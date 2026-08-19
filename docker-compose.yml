@@ -75,6 +75,7 @@ services:
       QUIET_TIME_INVITE_BASE_URL: ${QUIET_TIME_INVITE_BASE_URL:-https://mypasture.app/q/qt}
       # 호스트의 local 경로와 분리해 컨테이너 내부 mount 경로를 사용합니다.
       KOR1910_HTML_PATH: /app/data/kor_html
+      BIBLE_IMPORT_ENABLED: ${BIBLE_IMPORT_ENABLED:-true}
       GOOGLE_OAUTH_CLIENT_IDS: ${GOOGLE_OAUTH_CLIENT_IDS:-}
       GOOGLE_OAUTH_WEB_CLIENT_IDS: ${GOOGLE_OAUTH_WEB_CLIENT_IDS:-}
       GOOGLE_OAUTH_IOS_CLIENT_IDS: ${GOOGLE_OAUTH_IOS_CLIENT_IDS:-}

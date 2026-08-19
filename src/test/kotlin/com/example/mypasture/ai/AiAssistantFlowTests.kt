@@ -16,7 +16,7 @@ import java.util.UUID
 
 /** 개발 환경 AI가 실제 성경 원문을 근거로 답하고 사용량을 기록하는지 검증합니다. */
 @SpringBootTest
-@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html", "app.ai.mock-enabled=true"])
+@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html", "app.bible.import-enabled=true", "app.ai.mock-enabled=true"])
 class AiAssistantFlowTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val useCase: AskBibleAssistantUseCase,

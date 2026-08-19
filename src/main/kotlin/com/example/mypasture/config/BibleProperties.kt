@@ -6,4 +6,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 @ConfigurationProperties("app.bible")
 data class BibleProperties(
     val kor1910HtmlPath: String,
+    val importEnabled: Boolean = false,
 )

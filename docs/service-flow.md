@@ -57,7 +57,8 @@ flowchart LR
     F --> C
 ```
 
-현재 1910 성경은 `data/kor_html` 파일을 읽어 장 단위로 파싱합니다. 운영에서 DB 검색으로 바꾸더라도 presentation API는 유지할 수 있습니다.
+서버 시작 시 import가 활성화되어 있으면 `data/kor_html` 원본을 검증해 PostgreSQL에 멱등 적재합니다.
+읽기와 검색 API는 DB만 조회하며, 원본 파일이 없는 장도 `EMPTY` 상태로 구분해 정상 응답합니다.
 
 ## 신앙 성향 테스트 흐름
 
@@ -133,4 +134,3 @@ IntelliJ HTTP Client에서 요청 실행 시 `Run with environment`를 `local`�
 13. 큐티목장 생성 및 pasture id 저장
 14. 오프라인 큐티 세션 생성 및 offlineCode 저장
 15. QR scan 이후 오프라인 세션 조회
-

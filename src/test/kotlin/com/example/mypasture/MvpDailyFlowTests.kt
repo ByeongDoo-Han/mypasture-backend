@@ -23,7 +23,7 @@ import java.util.UUID
 
 /** 초기 MVP의 말씀 읽기, 일일 콘텐츠, 현장 QT, 출석, AI 안전 정책을 검증합니다. */
 @SpringBootTest
-@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html"])
+@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html", "app.bible.import-enabled=true"])
 class MvpDailyFlowTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val readingService: ReadingService,

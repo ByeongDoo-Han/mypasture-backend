@@ -428,22 +428,37 @@ Response `200`:
 
 ```json
 {
-  "version": "KRV",
-  "book": "창세기",
+  "version": "KOR1910",
+  "book": {
+    "code": "GEN",
+    "name": "창세기",
+    "testament": "OLD",
+    "displayOrder": 1,
+    "chapterCount": 50
+  },
   "chapter": 1,
+  "contentStatus": "AVAILABLE",
+  "previous": null,
+  "next": {
+    "bookCode": "GEN",
+    "bookName": "창세기",
+    "chapter": 2
+  },
   "verses": [
     {
-      "verseId": 1,
+      "version": "KOR1910",
+      "bookCode": "GEN",
+      "bookName": "창세기",
+      "chapter": 1,
       "verse": 1,
       "text": "태초에 하나님이 천지를 창조하시니라"
     }
-  ],
-  "progress": {
-    "completed": false,
-    "lastReadAt": "2026-08-03T00:00:00Z"
-  }
+  ]
 }
 ```
+
+`contentStatus`는 `AVAILABLE`, `EMPTY`, `SOURCE_MISSING` 중 하나입니다. `EMPTY` 장은 존재하지만
+원본 파일이 없는 상태이므로 `200 OK`와 빈 `verses` 배열을 반환합니다.
 
 ### 3.3 Bible Search
 

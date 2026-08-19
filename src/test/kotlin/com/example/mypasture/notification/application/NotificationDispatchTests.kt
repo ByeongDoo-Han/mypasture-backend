@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit
 /** 반복되거나 겹친 스케줄 실행이 동일한 오늘의 말씀 푸시를 다시 보내지 않는지 검증합니다. */
 @SpringBootTest
 @Import(NotificationDispatchTests.FixedClockConfig::class)
-@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html"])
+@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html", "app.bible.import-enabled=true"])
 class NotificationDispatchTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val notificationService: NotificationService,

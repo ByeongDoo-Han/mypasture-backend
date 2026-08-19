@@ -8,7 +8,7 @@ AI 목자 요청은 모바일에 저장된 성경이 아니라 서버의 검증�
 2. 질문을 `OPENAI_EMBEDDING_MODEL`로 embedding 합니다.
 3. 같은 모델과 차원의 `bible_embeddings`에서 cosine similarity Top-K를 조회합니다.
 4. `bible_verses`, `bible_books`와 조인한 실제 절 ID와 본문만 RAG context로 만듭니다.
-5. LLM 응답의 `[verseId]`와 장·절이 검색 결과에 포함되는지 후검증합니다.
+5. LLM 응답의 `[verseId]`와 장·절을 streaming 전송 직전에 검증합니다.
 6. embedding, prompt, completion 토큰과 각각의 예상 비용을 저장합니다.
 
 전체 절의 index가 준비되기 전에는 일부 데이터만으로 vector 검색하지 않습니다. 로컬은 명시적인 lexical
@@ -56,3 +56,28 @@ OpenAI Embeddings API는 문자열 배열 입력과 `dimensions` 옵션을 지�
 - 검색 근거가 없거나 LLM citation 검증에 실패하면 답변을 저장하거나 캐싱하지 않습니다.
 - API Key는 서버 Secret Manager에만 두고 모바일 앱과 관리자 프론트에는 전달하지 않습니다.
 - 질문 원문은 usage log에 저장하지 않고 SHA-256 hash만 저장합니다.
+
+## 실시간 응답
+
+`POST /api/v1/ai/chat/stream`은 OpenAI Responses API의 `response.output_text.delta`를 SSE로 전달합니다.
+답변은 첫 번째 유효한 `[verseId]`가 확인될 때까지 잠시 보류하며, 검색 결과에 없는 ID나 장·절은
+클라이언트에 전송하기 전에 차단합니다. 정상 완료 이벤트 순서는 다음과 같습니다.
+
+```text
+event: delta
+data: 근거: [123] ...
+
+event: citations
+data: [{"verseId":123,...}]
+
+event: usage
+data: {"promptTokens":100,"completionTokens":80,"retrievalStrategy":"PGVECTOR",...}
+
+event: done
+data: {"status":"completed"}
+```
+
+`AI_STREAM_TIMEOUT_MS`는 전체 응답 제한 시간이며, 전용 thread pool 크기는
+`AI_STREAM_CORE_POOL_SIZE`, `AI_STREAM_MAX_POOL_SIZE`, `AI_STREAM_QUEUE_CAPACITY`로 제한합니다.
+429 또는 5xx와 연결 오류는 delta 전까지만 최대 3회 재시도합니다. 일부 문자를 전송한 뒤에는 중복
+표시를 막기 위해 자동 재시도하지 않습니다.

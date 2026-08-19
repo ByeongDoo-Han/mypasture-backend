@@ -43,6 +43,15 @@ interface AiCompletionPort {
     ): GroundedAnswer
 }
 
+/** LLM이 생성한 답변 조각을 완료 전부터 전달하는 실시간 completion 포트입니다. */
+interface AiStreamingCompletionPort {
+    fun answerWithCitations(
+        question: String,
+        citations: List<BibleCitation>,
+        onDelta: (String) -> Unit,
+    ): GroundedAnswer
+}
+
 /** 동일하거나 재사용 가능한 AI 질문 답변을 저장해 비용을 줄이는 캐시 포트입니다. */
 interface AiCachePort {
     fun get(question: String): GroundedAnswer?

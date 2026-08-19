@@ -55,10 +55,10 @@
 - [~] Redis 동일 질문 캐싱
   - SHA-256 normalized question key 기반 캐시가 있습니다.
   - 다음 단계: embedding 기반 semantic cache 추가.
-- [~] OpenAI completion adapter
-  - 현재 포트와 prompt 구조는 있으나 실제 OpenAI API 호출 대신 placeholder 답변입니다.
-  - 다음 단계: Responses API streaming, timeout, retry, rate limit 구현.
-- [ ] Streaming 응답 API
+- [x] OpenAI completion adapter
+  - Responses API 일반/streaming 호출, timeout, delta 전 최대 3회 retry를 구현했습니다.
+- [x] Streaming 응답 API
+  - `delta`, `citations`, `usage`, `done`, `error` SSE 이벤트와 전송 전 citation 검증을 적용했습니다.
 - [ ] 성경 상담
 - [ ] 성경 Q&A
 - [ ] 말씀 추천
@@ -172,7 +172,7 @@
 
 ## 다음 개발 추천 순서
 
-1. OpenAI upstream 실시간 streaming과 Redis 분산 rate limit
+1. Redis 분산 rate limit
 2. embedding 기반 유사 질문 semantic cache
 3. 북마크·하이라이트·스크랩의 실제 `verse_id` 연결
 4. AI 대화 conversation/session 저장과 삭제 정책

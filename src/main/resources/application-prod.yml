@@ -44,6 +44,8 @@ app:
     import-enabled: ${BIBLE_IMPORT_ENABLED:false}
   ai:
     api-key: ${OPENAI_API_KEY}
+    embedding-indexing-enabled: ${AI_EMBEDDING_INDEXING_ENABLED:false}
+    rag-lexical-fallback-enabled: ${AI_RAG_LEXICAL_FALLBACK_ENABLED:false}
   security:
     jwt:
       issuer: ${JWT_ISSUER:mypasture}

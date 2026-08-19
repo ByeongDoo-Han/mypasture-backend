@@ -1,7 +1,10 @@
 package com.example.mypasture.ai.application
 
 import com.example.mypasture.ai.domain.BibleCitation
+import com.example.mypasture.ai.domain.BibleEmbeddingSource
+import com.example.mypasture.ai.domain.BibleRetrievalResult
 import com.example.mypasture.ai.domain.GroundedAnswer
+import com.example.mypasture.ai.domain.TextEmbeddingBatch
 import java.util.UUID
 
 /** 성경 구절 검색 구현체를 application layer와 분리하는 RAG 검색 포트입니다. */
@@ -9,7 +12,27 @@ interface BibleRetrievalPort {
     fun searchRelevantVerses(
         question: String,
         limit: Int = 10,
-    ): List<BibleCitation>
+    ): BibleRetrievalResult
+}
+
+/** 질문과 성경 본문을 같은 embedding model과 차원으로 변환하는 외부 AI 포트입니다. */
+interface TextEmbeddingPort {
+    fun embed(inputs: List<String>): TextEmbeddingBatch
+}
+
+/** PostgreSQL의 성경 embedding index 상태와 멱등 upsert를 application layer에 제공합니다. */
+interface BibleEmbeddingStorePort {
+    fun isAvailable(): Boolean
+
+    fun tryAcquireIndexLock(): AutoCloseable?
+
+    fun findPendingSources(model: String, dimensions: Int, limit: Int): List<BibleEmbeddingSource>
+
+    fun upsert(model: String, dimensions: Int, sources: List<BibleEmbeddingSource>, vectors: List<FloatArray>)
+
+    fun countTotalVerses(): Long
+
+    fun countIndexedVerses(model: String, dimensions: Int): Long
 }
 
 /** OpenAI 같은 LLM 호출 구현체를 application layer와 분리하는 completion 포트입니다. */

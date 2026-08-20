@@ -63,12 +63,20 @@ data class UserLoginRequest(
 /** Google/Apple/Kakao 로그인 요청 DTO입니다. 제공자별로 idToken 또는 accessToken 중 필요한 값을 전달합니다. */
 data class SocialLoginRequest(
     val provider: AuthProvider,
+    val challengeId: UUID? = null,
     @field:Size(max = 5000)
     val idToken: String? = null,
     @field:Size(max = 5000)
     val accessToken: String? = null,
     @field:Size(max = 80)
     val displayName: String? = null,
+)
+
+/** 클라이언트가 OIDC 요청에 넣고 서버가 일회성으로 검증하는 nonce challenge입니다. */
+data class SocialLoginChallengeResponse(
+    val challengeId: UUID,
+    val nonce: String,
+    val expiresAt: Instant,
 )
 
 /** 회원가입 완료 응답 DTO입니다. */
@@ -79,10 +87,18 @@ data class UserSignupResponse(
 /** 로그인 완료 응답 DTO입니다. */
 data class UserLoginResponse(
     val token: String,
+    val refreshToken: String,
     val tokenType: String,
     val expiresIn: Long,
     val expiresAt: Instant,
     val user: UserDto,
+)
+
+/** 만료된 access token을 회전형 refresh token으로 갱신하는 요청입니다. */
+data class RefreshAccessTokenRequest(
+    @field:NotBlank
+    @field:Size(max = 1000)
+    val refreshToken: String,
 )
 
 /** 계정 존재 여부를 노출하지 않고 비밀번호 재설정을 요청하는 DTO입니다. */

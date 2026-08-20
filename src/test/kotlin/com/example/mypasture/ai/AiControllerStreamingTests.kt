@@ -24,6 +24,7 @@ import java.util.UUID
         "app.bible.kor1910-html-path=src/test/resources/bible/kor_html",
         "app.bible.import-enabled=true",
         "app.ai.mock-enabled=true",
+        "app.ai.rag-lexical-fallback-enabled=true",
     ],
 )
 class AiControllerStreamingTests(

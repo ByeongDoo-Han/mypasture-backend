@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.bean.override.mockito.MockitoBean
+import org.springframework.test.context.TestPropertySource
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
@@ -27,6 +28,7 @@ import java.time.Instant
 /** AuthController의 회원가입 HTTP 흐름을 검증하는 통합 테스트입니다. */
 @SpringBootTest
 @AutoConfigureMockMvc
+@TestPropertySource(properties = ["app.security.jwt.access-token-ttl-seconds=900"])
 class AuthControllerTests(
     @Autowired private val mockMvc: MockMvc,
 ) {
@@ -128,7 +130,7 @@ class AuthControllerTests(
             status { isOk() }
             jsonPath("$.token") { exists() }
             jsonPath("$.tokenType") { value("Bearer") }
-            jsonPath("$.expiresIn") { value(3600) }
+            jsonPath("$.expiresIn") { value(900) }
             jsonPath("$.user.email") { value(email) }
         }.andReturn()
 
@@ -148,6 +150,7 @@ class AuthControllerTests(
 
     @Test
     fun `social login creates google user and returns jwt`() {
+        val challenge = createSocialChallenge()
         given(googleOidcOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.GOOGLE, "valid-google-id-token", null, null))).willReturn(
             SocialUserProfile(
                 provider = AuthProvider.GOOGLE,
@@ -155,6 +158,7 @@ class AuthControllerTests(
                 email = "google-user@example.com",
                 emailVerified = true,
                 displayName = "Google User",
+                nonce = challenge["nonce"].asText(),
             ),
         )
 
@@ -164,7 +168,8 @@ class AuthControllerTests(
                 """
                 {
                   "provider": "GOOGLE",
-                  "idToken": "valid-google-id-token"
+                  "idToken": "valid-google-id-token",
+                  "challengeId": "${challenge["challengeId"].asText()}"
                 }
                 """.trimIndent()
         }.andExpect {
@@ -189,6 +194,7 @@ class AuthControllerTests(
 
     @Test
     fun `social login creates apple user and returns jwt`() {
+        val challenge = createSocialChallenge()
         given(appleOidcOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.APPLE, "valid-apple-id-token", null, "Apple User"))).willReturn(
             SocialUserProfile(
                 provider = AuthProvider.APPLE,
@@ -196,6 +202,7 @@ class AuthControllerTests(
                 email = "apple-user@privaterelay.appleid.com",
                 emailVerified = true,
                 displayName = "Apple User",
+                nonce = challenge["nonce"].asText(),
             ),
         )
 
@@ -206,7 +213,8 @@ class AuthControllerTests(
                 {
                   "provider": "APPLE",
                   "idToken": "valid-apple-id-token",
-                  "displayName": "Apple User"
+                  "displayName": "Apple User",
+                  "challengeId": "${challenge["challengeId"].asText()}"
                 }
                 """.trimIndent()
         }.andExpect {
@@ -264,6 +272,17 @@ class AuthControllerTests(
         }
     }
 
+    private fun createSocialChallenge(): com.fasterxml.jackson.databind.JsonNode {
+        val result = mockMvc.post("/api/v1/auth/social-login/challenges")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.challengeId") { exists() }
+                jsonPath("$.nonce") { exists() }
+            }
+            .andReturn()
+        return com.fasterxml.jackson.databind.ObjectMapper().readTree(result.response.contentAsString)
+    }
+
     @Test
     fun `me rejects request without bearer token`() {
         mockMvc.get("/api/v1/auth/me")
@@ -271,6 +290,71 @@ class AuthControllerTests(
                 status { isUnauthorized() }
                 jsonPath("$.code") { value("UNAUTHORIZED") }
             }
+    }
+
+    @Test
+    fun `refresh token rotates once and reuse revokes the token family`() {
+        val email = "refresh-${java.util.UUID.randomUUID()}@example.com"
+        val password = "password123!"
+        mockMvc.post("/api/v1/auth/signup") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"$password","displayName":"Refresh User"}"""
+        }.andExpect { status { isCreated() } }
+        val login = mockMvc.post("/api/v1/auth/login") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"$password"}"""
+        }.andReturn()
+        val loginBody = com.fasterxml.jackson.databind.ObjectMapper().readTree(login.response.contentAsString)
+        val originalRefreshToken = loginBody["refreshToken"].asText()
+
+        val refresh = mockMvc.post("/api/v1/auth/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"$originalRefreshToken"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.refreshToken") { exists() }
+        }.andReturn()
+        val rotatedAccessToken = com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(refresh.response.contentAsString)["token"].asText()
+
+        mockMvc.post("/api/v1/auth/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"$originalRefreshToken"}"""
+        }.andExpect {
+            status { isUnauthorized() }
+            jsonPath("$.code") { value("INVALID_REFRESH_TOKEN") }
+        }
+        mockMvc.get("/api/v1/auth/me") {
+            header("Authorization", "Bearer $rotatedAccessToken")
+        }.andExpect { status { isUnauthorized() } }
+    }
+
+    @Test
+    fun `logout revokes access and refresh sessions`() {
+        val email = "logout-${java.util.UUID.randomUUID()}@example.com"
+        val password = "password123!"
+        mockMvc.post("/api/v1/auth/signup") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"$password","displayName":"Logout User"}"""
+        }.andExpect { status { isCreated() } }
+        val login = mockMvc.post("/api/v1/auth/login") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"$password"}"""
+        }.andReturn()
+        val body = com.fasterxml.jackson.databind.ObjectMapper().readTree(login.response.contentAsString)
+        val accessToken = body["token"].asText()
+        val refreshToken = body["refreshToken"].asText()
+
+        mockMvc.post("/api/v1/auth/logout") {
+            header("Authorization", "Bearer $accessToken")
+        }.andExpect { status { isNoContent() } }
+        mockMvc.get("/api/v1/auth/me") {
+            header("Authorization", "Bearer $accessToken")
+        }.andExpect { status { isUnauthorized() } }
+        mockMvc.post("/api/v1/auth/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"$refreshToken"}"""
+        }.andExpect { status { isUnauthorized() } }
     }
 
     @Test

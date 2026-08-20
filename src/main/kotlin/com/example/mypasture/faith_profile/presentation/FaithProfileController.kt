@@ -1,5 +1,6 @@
 package com.example.mypasture.faith_profile.presentation
 
+import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.faith_profile.application.FaithProfileService
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -14,18 +15,19 @@ class FaithProfileController(
     override fun currentTest(): FaithTestResponse =
         faithProfileService.getCurrentTest().toResponse()
 
-    override fun startAssessment(request: StartFaithAssessmentRequest): FaithAssessmentResponse =
-        faithProfileService.startAssessment(request.userId).toResponse()
+    override fun startAssessment(principal: JwtPrincipal, request: StartFaithAssessmentRequest): FaithAssessmentResponse =
+        faithProfileService.startAssessment(principal.userId).toResponse()
 
     override fun submitAnswer(
+        principal: JwtPrincipal,
         assessmentId: UUID,
         request: SubmitFaithAnswerRequest,
     ): FaithAnswerResponse =
-        faithProfileService.answerQuestion(assessmentId, request.questionId, request.score).toResponse()
+        faithProfileService.answerQuestion(principal.userId, assessmentId, request.questionId, request.score).toResponse()
 
-    override fun completeAssessment(assessmentId: UUID): FaithResultResponse =
-        faithProfileService.completeAssessment(assessmentId).toResponse()
+    override fun completeAssessment(principal: JwtPrincipal, assessmentId: UUID): FaithResultResponse =
+        faithProfileService.completeAssessment(principal.userId, assessmentId).toResponse()
 
-    override fun result(resultId: UUID): FaithResultResponse =
-        faithProfileService.getResult(resultId).toResponse()
+    override fun result(principal: JwtPrincipal, resultId: UUID): FaithResultResponse =
+        faithProfileService.getResult(principal.userId, resultId).toResponse()
 }

@@ -55,21 +55,29 @@ interface AiStreamingCompletionPort {
 
 /** 동일하거나 재사용 가능한 AI 질문 답변을 저장해 비용을 줄이는 캐시 포트입니다. */
 interface AiCachePort {
-    fun get(question: String): GroundedAnswer?
+    fun get(userId: UUID, question: String): GroundedAnswer?
 
     fun put(
+        userId: UUID,
         question: String,
         answer: GroundedAnswer,
     )
 }
 
-/** AI 사용 횟수, 토큰, 예상 비용을 기록하고 quota 판단에 사용하는 사용량 포트입니다. */
+/** AI 요청을 호출 전에 예약하고 성공/실패를 확정해 quota 우회를 방지하는 사용량 포트입니다. */
 interface AiUsagePort {
     fun countToday(userId: UUID): Long
 
-    fun save(
+    fun reserve(
         userId: UUID,
         question: String,
+        dailyLimit: Long,
+    ): UUID?
+
+    fun complete(
+        reservationId: UUID,
         answer: GroundedAnswer,
     )
+
+    fun fail(reservationId: UUID, errorCode: String)
 }

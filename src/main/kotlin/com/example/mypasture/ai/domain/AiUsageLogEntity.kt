@@ -2,12 +2,20 @@ package com.example.mypasture.ai.domain
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.Id
 import jakarta.persistence.Index
 import jakarta.persistence.Table
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
+
+enum class AiUsageStatus {
+    PENDING,
+    COMPLETED,
+    FAILED,
+}
 
 /** AI 요청의 토큰 사용량, 비용, 캐시 적중 여부를 영구 저장하는 엔티티입니다. */
 @Entity
@@ -25,23 +33,47 @@ class AiUsageLogEntity(
     @Column(nullable = false, length = 80)
     val model: String,
     @Column(name = "prompt_tokens", nullable = false)
-    val promptTokens: Int,
+    var promptTokens: Int = 0,
     @Column(name = "completion_tokens", nullable = false)
-    val completionTokens: Int,
+    var completionTokens: Int = 0,
     @Column(name = "embedding_tokens", nullable = false)
-    val embeddingTokens: Int = 0,
+    var embeddingTokens: Int = 0,
     @Column(name = "embedding_cost_usd", nullable = false, precision = 12, scale = 6)
-    val embeddingCostUsd: BigDecimal = BigDecimal.ZERO,
+    var embeddingCostUsd: BigDecimal = BigDecimal.ZERO,
     @Column(name = "embedding_model", length = 80)
-    val embeddingModel: String? = null,
+    var embeddingModel: String? = null,
     @Column(name = "retrieval_strategy", nullable = false, length = 40)
-    val retrievalStrategy: String = "LEXICAL_FALLBACK",
+    var retrievalStrategy: String = "LEXICAL_FALLBACK",
     @Column(name = "question_intent", nullable = false, length = 40)
-    val questionIntent: String = "BIBLE_QA",
+    var questionIntent: String = "BIBLE_QA",
     @Column(name = "estimated_cost_usd", nullable = false, precision = 12, scale = 6)
-    val estimatedCostUsd: BigDecimal,
+    var estimatedCostUsd: BigDecimal = BigDecimal.ZERO,
     @Column(name = "cache_hit", nullable = false)
-    val cacheHit: Boolean,
+    var cacheHit: Boolean = false,
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    var status: AiUsageStatus = AiUsageStatus.PENDING,
+    @Column(name = "error_code", length = 80)
+    var errorCode: String? = null,
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
-)
+) {
+    fun complete(answer: GroundedAnswer, embeddingModel: String) {
+        promptTokens = answer.promptTokens
+        completionTokens = answer.completionTokens
+        embeddingTokens = answer.embeddingTokens
+        embeddingCostUsd = answer.embeddingCostUsd
+        this.embeddingModel = embeddingModel
+        retrievalStrategy = answer.retrievalStrategy.name
+        questionIntent = answer.questionIntent.name
+        estimatedCostUsd = answer.estimatedCostUsd
+        cacheHit = answer.cacheHit
+        status = AiUsageStatus.COMPLETED
+        errorCode = null
+    }
+
+    fun fail(code: String) {
+        status = AiUsageStatus.FAILED
+        errorCode = code.take(80)
+    }
+}

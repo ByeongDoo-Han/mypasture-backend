@@ -18,6 +18,14 @@ class AiGroundingNotFoundException : RuntimeException("No relevant Bible verses 
 class AiSafetyException : RuntimeException("지금 즉시 자신이나 다른 사람을 해칠 위험이 있다면 112 또는 119에 연락하고, 가까운 사람과 전문 상담기관의 도움을 받으세요.")
 class AiProviderException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
+/** 사용자의 구독 정책을 반영한 당일 AI 사용량입니다. null 한도는 무제한을 의미합니다. */
+data class AiDailyUsage(
+    val limit: Long?,
+    val used: Long,
+    val remaining: Long?,
+    val unlimited: Boolean,
+)
+
 // AI assistant의 application layer 진입점입니다.
 // 새 AI 기능(기도문 작성, 말씀 추천, 묵상 리뷰 등)은 이 유스케이스를 복사하기보다
 // 입력 검증 -> quota -> cache -> RAG -> completion -> usage log 순서를 유지하면서 별도 UseCase로 확장하세요.
@@ -30,6 +38,22 @@ class AskBibleAssistantUseCase(
     private val cachePort: AiCachePort,
     private val usagePort: AiUsagePort,
 ) {
+    /** AI 호출 전에도 모바일이 정확한 남은 횟수를 표시할 수 있게 합니다. */
+    fun dailyUsage(userId: UUID, subscriptionTier: SubscriptionTier): AiDailyUsage {
+        val used = usagePort.countToday(userId)
+        if (subscriptionTier == SubscriptionTier.PREMIUM) {
+            return AiDailyUsage(limit = null, used = used, remaining = null, unlimited = true)
+        }
+
+        val limit = properties.freeDailyLimit.toLong()
+        return AiDailyUsage(
+            limit = limit,
+            used = used,
+            remaining = (limit - used).coerceAtLeast(0),
+            unlimited = false,
+        )
+    }
+
     fun ask(
         userId: UUID,
         subscriptionTier: SubscriptionTier,

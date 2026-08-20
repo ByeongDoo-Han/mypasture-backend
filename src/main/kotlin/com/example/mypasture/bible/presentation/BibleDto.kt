@@ -91,9 +91,6 @@ data class BibleChapterCommentaryResponse(
     val publishedAt: Instant?,
 )
 
-/** 성경 API 에러 응답 DTO입니다. */
-data class BibleErrorResponse(val code: String, val message: String)
-
 fun BibleVersion.toResponse(): BibleVersionResponse = BibleVersionResponse(code, name, language, copyright)
 
 fun BibleBook.toResponse(): BibleBookResponse =

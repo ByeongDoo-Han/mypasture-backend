@@ -1,7 +1,9 @@
 package com.example.mypasture.config
 
 import com.example.mypasture.auth.infrastructure.JwtAuthenticationFilter
+import com.example.mypasture.auth.infrastructure.RestAccessDeniedHandler
 import com.example.mypasture.auth.infrastructure.RestAuthenticationEntryPoint
+import com.example.mypasture.common.error.RequestCorrelationFilter
 import jakarta.servlet.DispatcherType
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -33,7 +35,7 @@ class SecurityConfig {
             allowedOrigins = properties.allowedOrigins
             allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             allowedHeaders = listOf(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE, "X-App-Environment")
-            exposedHeaders = listOf(HttpHeaders.LOCATION)
+            exposedHeaders = listOf(HttpHeaders.LOCATION, RequestCorrelationFilter.TRACE_ID_HEADER)
             // JWT와 refresh token은 Authorization/body로 전달하므로 cross-origin cookie를 허용하지 않습니다.
             allowCredentials = false
             maxAge = 3_600
@@ -49,13 +51,17 @@ class SecurityConfig {
         jwtAuthenticationFilter: JwtAuthenticationFilter,
         redisRequestRateLimitFilter: RedisRequestRateLimitFilter,
         restAuthenticationEntryPoint: RestAuthenticationEntryPoint,
+        restAccessDeniedHandler: RestAccessDeniedHandler,
         corsConfigurationSource: CorsConfigurationSource,
     ): SecurityFilterChain =
         http
             .cors { it.configurationSource(corsConfigurationSource) }
             .csrf { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
-            .exceptionHandling { it.authenticationEntryPoint(restAuthenticationEntryPoint) }
+            .exceptionHandling {
+                it.authenticationEntryPoint(restAuthenticationEntryPoint)
+                it.accessDeniedHandler(restAccessDeniedHandler)
+            }
             .authorizeHttpRequests {
                 // 최초 POST에서 JWT를 확인한 AI SSE 요청의 ASYNC 재-dispatch만 허용합니다.
                 it.requestMatchers(

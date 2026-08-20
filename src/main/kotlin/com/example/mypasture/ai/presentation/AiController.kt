@@ -10,6 +10,7 @@ import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.ai.domain.AiAssistantStage
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
+import com.example.mypasture.common.error.ApiErrorResponse
 import com.example.mypasture.config.AiProperties
 import jakarta.validation.constraints.Size
 import org.springframework.beans.factory.annotation.Qualifier
@@ -124,14 +125,14 @@ class AiController(
 }
 
 /** SSE는 이미 200 응답을 시작했으므로 도메인 예외를 안정적인 event code로 변환합니다. */
-private fun Throwable.toStreamErrorResponse(): AiErrorResponse =
+private fun Throwable.toStreamErrorResponse(): ApiErrorResponse =
     when (this) {
-        is AiInputTooLongException -> AiErrorResponse("AI_INPUT_TOO_LONG", message ?: "AI input is too long")
-        is AiQuotaExceededException -> AiErrorResponse("AI_QUOTA_EXCEEDED", message ?: "Daily AI quota exceeded")
-        is AiGroundingNotFoundException -> AiErrorResponse("AI_GROUNDING_NOT_FOUND", message ?: "No relevant Bible verses found")
-        is AiSafetyException -> AiErrorResponse("AI_SAFETY_ESCALATION", message ?: "즉시 도움을 요청해 주세요.")
-        is AiProviderException -> AiErrorResponse("AI_PROVIDER_UNAVAILABLE", message ?: "AI service unavailable")
-        else -> AiErrorResponse("AI_STREAM_FAILED", "AI streaming 요청에 실패했습니다.")
+        is AiInputTooLongException -> ApiErrorResponse.of(AiErrorCode.INPUT_TOO_LONG, message = message ?: AiErrorCode.INPUT_TOO_LONG.defaultMessage)
+        is AiQuotaExceededException -> ApiErrorResponse.of(AiErrorCode.QUOTA_EXCEEDED, message = message ?: AiErrorCode.QUOTA_EXCEEDED.defaultMessage)
+        is AiGroundingNotFoundException -> ApiErrorResponse.of(AiErrorCode.GROUNDING_NOT_FOUND, message = message ?: AiErrorCode.GROUNDING_NOT_FOUND.defaultMessage)
+        is AiSafetyException -> ApiErrorResponse.of(AiErrorCode.SAFETY_ESCALATION, message = message ?: AiErrorCode.SAFETY_ESCALATION.defaultMessage)
+        is AiProviderException -> ApiErrorResponse.of(AiErrorCode.PROVIDER_UNAVAILABLE, message = message ?: AiErrorCode.PROVIDER_UNAVAILABLE.defaultMessage)
+        else -> ApiErrorResponse.of(AiErrorCode.STREAM_FAILED)
     }
 
 private fun GroundedAnswer.toResponse() =

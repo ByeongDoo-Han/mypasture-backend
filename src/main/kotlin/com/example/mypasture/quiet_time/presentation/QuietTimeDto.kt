@@ -123,12 +123,6 @@ data class JoinQuietTimeSessionResponse(
     val participantCount: Long,
 )
 
-/** 큐티목장 API 에러 응답 DTO입니다. */
-data class QuietTimeErrorResponse(
-    val code: String,
-    val message: String,
-)
-
 fun QuietTimePassageEntity.toResponse(): QuietTimePassageResponse =
     QuietTimePassageResponse(
         id = id,

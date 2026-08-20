@@ -74,4 +74,25 @@ class AiAssistantFlowTests(
         assertTrue(answer.citations.all { answer.answer.contains("[${it.verseId}]") })
         assertEquals(1, usageRepository.countByUserIdAndCreatedAtGreaterThanEqual(user.id, java.time.Instant.EPOCH))
     }
+
+    @Test
+    fun `daily usage returns free remaining count and premium unlimited policy`() {
+        val user = userRepository.save(UserEntity(email = "ai-usage-${UUID.randomUUID()}@example.com", displayName = "AI Usage"))
+
+        val initial = useCase.dailyUsage(user.id, SubscriptionTier.FREE)
+        assertEquals(10L, initial.limit)
+        assertEquals(0L, initial.used)
+        assertEquals(10L, initial.remaining)
+        assertEquals(false, initial.unlimited)
+
+        useCase.ask(user.id, SubscriptionTier.FREE, "창세기를 설명해주세요")
+        val afterRequest = useCase.dailyUsage(user.id, SubscriptionTier.FREE)
+        assertEquals(1L, afterRequest.used)
+        assertEquals(9L, afterRequest.remaining)
+
+        val premium = useCase.dailyUsage(user.id, SubscriptionTier.PREMIUM)
+        assertEquals(null, premium.limit)
+        assertEquals(null, premium.remaining)
+        assertTrue(premium.unlimited)
+    }
 }

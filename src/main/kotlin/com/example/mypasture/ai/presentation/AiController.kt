@@ -1,6 +1,10 @@
 package com.example.mypasture.ai.presentation
 
 import com.example.mypasture.ai.application.AiProviderException
+import com.example.mypasture.ai.application.AiGroundingNotFoundException
+import com.example.mypasture.ai.application.AiInputTooLongException
+import com.example.mypasture.ai.application.AiQuotaExceededException
+import com.example.mypasture.ai.application.AiSafetyException
 import com.example.mypasture.ai.application.AskBibleAssistantUseCase
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.GroundedAnswer
@@ -42,6 +46,14 @@ data class AiStreamUsageResponse(
     val cacheHit: Boolean,
 )
 
+/** 모바일이 하드코딩 없이 표시하는 인증 사용자의 오늘 AI 사용량입니다. */
+data class AiDailyUsageResponse(
+    val limit: Long?,
+    val used: Long,
+    val remaining: Long?,
+    val unlimited: Boolean,
+)
+
 /** JWT 사용자의 신앙 질문을 RAG 기반 AI 목자에게 전달합니다. */
 @RestController
 @RequestMapping("/api/v1/ai")
@@ -50,6 +62,11 @@ class AiController(
     @Qualifier("aiStreamingExecutor") private val streamingExecutor: Executor,
     private val properties: AiProperties,
 ) : AiApi {
+    override fun todayUsage(principal: JwtPrincipal): AiDailyUsageResponse =
+        askBibleAssistant.dailyUsage(principal.userId, principal.subscriptionTier).let {
+            AiDailyUsageResponse(it.limit, it.used, it.remaining, it.unlimited)
+        }
+
     override fun chat(principal: JwtPrincipal, request: AskAiRequest): AskAiResponse =
         askBibleAssistant.ask(principal.userId, principal.subscriptionTier, request.question).toResponse()
 
@@ -79,7 +96,7 @@ class AiController(
                         runCatching {
                             emitter.send(
                                 SseEmitter.event().name("error").data(
-                                    AiErrorResponse("AI_STREAM_FAILED", error.message ?: "AI streaming 요청에 실패했습니다."),
+                                    error.toStreamErrorResponse(),
                                 ),
                             )
                         }
@@ -94,6 +111,17 @@ class AiController(
         return emitter
     }
 }
+
+/** SSE는 이미 200 응답을 시작했으므로 도메인 예외를 안정적인 event code로 변환합니다. */
+private fun Throwable.toStreamErrorResponse(): AiErrorResponse =
+    when (this) {
+        is AiInputTooLongException -> AiErrorResponse("AI_INPUT_TOO_LONG", message ?: "AI input is too long")
+        is AiQuotaExceededException -> AiErrorResponse("AI_QUOTA_EXCEEDED", message ?: "Daily AI quota exceeded")
+        is AiGroundingNotFoundException -> AiErrorResponse("AI_GROUNDING_NOT_FOUND", message ?: "No relevant Bible verses found")
+        is AiSafetyException -> AiErrorResponse("AI_SAFETY_ESCALATION", message ?: "즉시 도움을 요청해 주세요.")
+        is AiProviderException -> AiErrorResponse("AI_PROVIDER_UNAVAILABLE", message ?: "AI service unavailable")
+        else -> AiErrorResponse("AI_STREAM_FAILED", "AI streaming 요청에 실패했습니다.")
+    }
 
 private fun GroundedAnswer.toResponse() =
     AskAiResponse(

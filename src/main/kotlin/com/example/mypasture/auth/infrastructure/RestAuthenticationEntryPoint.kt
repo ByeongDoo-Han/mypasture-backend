@@ -1,5 +1,7 @@
 package com.example.mypasture.auth.infrastructure
 
+import com.example.mypasture.common.error.ApiErrorResponse
+import com.example.mypasture.common.error.CommonErrorCode
 import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -24,16 +26,12 @@ class RestAuthenticationEntryPoint(
         response.characterEncoding = Charsets.UTF_8.name()
         objectMapper.writeValue(
             response.writer,
-            AuthenticationErrorResponse(
-                code = "UNAUTHORIZED",
-                message = request.getAttribute(JwtAuthenticationFilter.JWT_ERROR_ATTRIBUTE)?.toString() ?: "인증이 필요합니다.",
+            ApiErrorResponse.of(
+                errorCode = CommonErrorCode.UNAUTHORIZED,
+                request = request,
+                message = request.getAttribute(JwtAuthenticationFilter.JWT_ERROR_ATTRIBUTE)?.toString()
+                    ?: CommonErrorCode.UNAUTHORIZED.defaultMessage,
             ),
         )
     }
 }
-
-/** 인증 실패 JSON body입니다. */
-data class AuthenticationErrorResponse(
-    val code: String,
-    val message: String,
-)

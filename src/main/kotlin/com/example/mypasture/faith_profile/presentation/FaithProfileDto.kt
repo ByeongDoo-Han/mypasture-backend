@@ -105,12 +105,6 @@ data class FaithRecommendationResponse(
     val sortOrder: Int,
 )
 
-/** 신앙 성향 테스트 API 에러 응답 DTO입니다. */
-data class FaithProfileErrorResponse(
-    val code: String,
-    val message: String,
-)
-
 fun FaithTestDefinition.toResponse(): FaithTestResponse =
     FaithTestResponse(
         testVersionId = testVersion.id,

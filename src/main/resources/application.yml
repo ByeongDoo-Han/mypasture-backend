@@ -48,6 +48,7 @@ app:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com}
     max-input-chars: ${AI_MAX_INPUT_CHARS:300}
     max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:700}
+    reasoning-effort: ${OPENAI_REASONING_EFFORT:minimal}
     free-daily-limit: ${AI_FREE_DAILY_LIMIT:10}
     timeout-ms: ${AI_TIMEOUT_MS:12000}
     stream-timeout-ms: ${AI_STREAM_TIMEOUT_MS:60000}

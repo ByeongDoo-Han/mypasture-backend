@@ -634,6 +634,8 @@ Rules:
 - Free user quota: 10 requests/day
 - AI must use RAG citations
 - AI must not invent Bible verses
+- Classify the question as counseling, Bible explanation, prayer, verse recommendation, devotional, or Bible Q&A before retrieval
+- Resolve an explicit book/chapter/verse from the Bible DB before semantic search
 - Store prompt tokens, completion tokens, estimated cost
 - Redis cache should be checked before OpenAI call
 
@@ -666,6 +668,7 @@ Response `200`:
   "estimatedCostUsd": 0.000123,
   "embeddingCostUsd": 0.00000036,
   "retrievalStrategy": "PGVECTOR",
+  "questionIntent": "PASTORAL_COUNSELING",
   "cacheHit": false
 }
 ```
@@ -694,6 +697,15 @@ Accept: text/event-stream
 정상 완료 이벤트 순서:
 
 ```text
+event: status
+data: {"stage":"UNDERSTANDING_QUESTION"}
+
+event: status
+data: {"stage":"SEARCHING_SCRIPTURE"}
+
+event: status
+data: {"stage":"GENERATING_ANSWER"}
+
 event: delta
 data: 근거: [1001] 주님은
 
@@ -701,7 +713,7 @@ event: citations
 data: [{"verseId":1001,"book":"시편","chapter":23,"verse":1}]
 
 event: usage
-data: {"promptTokens":123,"completionTokens":456,"embeddingTokens":18,"estimatedCostUsd":0.000123,"retrievalStrategy":"PGVECTOR","cacheHit":false}
+data: {"promptTokens":123,"completionTokens":456,"embeddingTokens":18,"estimatedCostUsd":0.000123,"retrievalStrategy":"PGVECTOR","questionIntent":"PASTORAL_COUNSELING","cacheHit":false}
 
 event: done
 data: {"status":"completed"}

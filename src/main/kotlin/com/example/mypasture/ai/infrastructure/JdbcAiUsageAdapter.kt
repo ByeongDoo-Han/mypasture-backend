@@ -40,6 +40,7 @@ class JdbcAiUsageAdapter(
                 embeddingCostUsd = answer.embeddingCostUsd,
                 embeddingModel = properties.embeddingModel,
                 retrievalStrategy = answer.retrievalStrategy.name,
+                questionIntent = answer.questionIntent.name,
                 estimatedCostUsd = answer.estimatedCostUsd,
                 cacheHit = answer.cacheHit,
             ),

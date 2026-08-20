@@ -49,13 +49,16 @@ class OpenAiCompletionAdapter(
 
     private fun requestBody(question: String, citations: List<BibleCitation>, streaming: Boolean): Map<String, Any> {
         val context = citations.joinToString("\n") { "[${it.verseId}] ${it.book} ${it.chapter}:${it.verse} ${it.text}" }
-        return mapOf(
-            "model" to properties.model,
-            "instructions" to """당신은 My Pasture의 AI 목자입니다. 제공된 RAG_CONTEXT만 성경 근거로 사용하고 존재하지 않는 구절을 만들지 마세요. 답변은 반드시 '근거: [verseId]'로 시작하고, 따뜻하고 짧은 한국어로 답하세요. 의료·정신건강·법률 전문가나 목회자를 대신한다고 말하지 마세요. 사용한 근거는 반드시 [verseId] 형식으로 표시하고, RAG_CONTEXT에 없는 ID나 장:절은 쓰지 마세요. 근거가 부족하면 모른다고 말하세요.""",
-            "input" to "RAG_CONTEXT:\n$context\n\nUSER_QUESTION:\n$question",
-            "max_output_tokens" to properties.maxOutputTokens,
-            "stream" to streaming,
-        )
+        return buildMap {
+            put("model", properties.model)
+            put("instructions", """당신은 My Pasture의 AI 목자입니다. 제공된 RAG_CONTEXT만 성경 근거로 사용하고 존재하지 않는 구절을 만들지 마세요. 답변은 반드시 '근거: [verseId]'로 시작하고, 따뜻하고 짧은 한국어로 답하세요. 의료·정신건강·법률 전문가나 목회자를 대신한다고 말하지 마세요. 사용한 근거는 반드시 [verseId] 형식으로 표시하고, RAG_CONTEXT에 없는 ID나 장:절은 쓰지 마세요. 근거가 부족하면 모른다고 말하세요.""")
+            put("input", "RAG_CONTEXT:\n$context\n\nUSER_QUESTION:\n$question")
+            put("max_output_tokens", properties.maxOutputTokens)
+            put("stream", streaming)
+            if (properties.model.startsWith("gpt-5", ignoreCase = true)) {
+                put("reasoning", mapOf("effort" to properties.reasoningEffort))
+            }
+        }
     }
 
     private fun toGroundedAnswer(response: JsonNode, citations: List<BibleCitation>, streamedText: String? = null): GroundedAnswer {
@@ -143,7 +146,9 @@ class OpenAiCompletionAdapter(
 
     private fun extractText(response: JsonNode): String {
         response.path("output").forEach { output -> output.path("content").forEach { if (it.path("type").asText() == "output_text") return it.path("text").asText() } }
-        throw AiProviderException("AI 답변을 해석할 수 없습니다.")
+        val status = response.path("status").asText("unknown")
+        val reason = response.path("incomplete_details").path("reason").asText("none")
+        throw AiProviderException("AI 답변을 해석할 수 없습니다. status=$status, reason=$reason")
     }
 
     private fun estimate(input: Int, output: Int): BigDecimal = BigDecimal(input).divide(BigDecimal(1_000_000)).multiply(properties.commentaryInputCostPerMillion).add(BigDecimal(output).divide(BigDecimal(1_000_000)).multiply(properties.commentaryOutputCostPerMillion))

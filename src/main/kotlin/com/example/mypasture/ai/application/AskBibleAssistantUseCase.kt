@@ -1,6 +1,7 @@
 package com.example.mypasture.ai.application
 
 import com.example.mypasture.ai.domain.GroundedAnswer
+import com.example.mypasture.ai.domain.AiAssistantStage
 import com.example.mypasture.config.AiProperties
 import com.example.mypasture.user.domain.SubscriptionTier
 import org.springframework.stereotype.Service
@@ -32,6 +33,7 @@ data class AiDailyUsage(
 @Service
 class AskBibleAssistantUseCase(
     private val properties: AiProperties,
+    private val questionUnderstandingService: BibleQuestionUnderstandingService,
     private val retrievalPort: BibleRetrievalPort,
     private val completionPort: AiCompletionPort,
     private val streamingCompletionPort: AiStreamingCompletionPort,
@@ -67,11 +69,13 @@ class AskBibleAssistantUseCase(
         userId: UUID,
         subscriptionTier: SubscriptionTier,
         question: String,
+        onStage: (AiAssistantStage) -> Unit = {},
         onDelta: (String) -> Unit,
     ): GroundedAnswer = execute(
         userId = userId,
         subscriptionTier = subscriptionTier,
         question = question,
+        onStage = onStage,
         onCacheHit = { onDelta(it.answer) },
     ) { normalized, citations ->
         streamingCompletionPort.answerWithCitations(normalized, citations, onDelta)
@@ -81,6 +85,7 @@ class AskBibleAssistantUseCase(
         userId: UUID,
         subscriptionTier: SubscriptionTier,
         question: String,
+        onStage: (AiAssistantStage) -> Unit = {},
         onCacheHit: (GroundedAnswer) -> Unit = {},
         complete: (String, List<com.example.mypasture.ai.domain.BibleCitation>) -> GroundedAnswer,
     ): GroundedAnswer {
@@ -92,6 +97,8 @@ class AskBibleAssistantUseCase(
         if (subscriptionTier == SubscriptionTier.FREE && usagePort.countToday(userId) >= properties.freeDailyLimit) {
             throw AiQuotaExceededException()
         }
+
+        onStage(AiAssistantStage.UNDERSTANDING_QUESTION)
 
         // 동일 질문 비용 절감을 위한 1차 캐시입니다. 향후 semantic cache를 추가해도 이 위치에서 먼저 확인하면 됩니다.
         cachePort.get(normalized)?.let { cached ->
@@ -108,17 +115,22 @@ class AskBibleAssistantUseCase(
             return cacheHit
         }
 
-        // RAG 강제 지점입니다. AI는 이 검색 결과가 없으면 답변하지 않아야 합니다.
-        val retrieval = retrievalPort.searchRelevantVerses(normalized)
+        val understoodQuestion = questionUnderstandingService.understand(normalized)
+
+        // RAG 강제 지점입니다. 답변 원문과 검색 질의를 분리하되 AI는 DB 검색 결과가 없으면 답변하지 않아야 합니다.
+        onStage(AiAssistantStage.SEARCHING_SCRIPTURE)
+        val retrieval = retrievalPort.searchRelevantVerses(understoodQuestion)
         if (retrieval.citations.isEmpty()) throw AiGroundingNotFoundException()
 
         // 일반 응답과 streaming 응답 모두 같은 RAG, 비용 기록, cache 정책을 통과합니다.
+        onStage(AiAssistantStage.GENERATING_ANSWER)
         val completion = complete(normalized, retrieval.citations)
         val answer = completion.copy(
             estimatedCostUsd = completion.estimatedCostUsd.add(retrieval.embeddingCostUsd),
             embeddingTokens = retrieval.embeddingTokens,
             embeddingCostUsd = retrieval.embeddingCostUsd,
             retrievalStrategy = retrieval.strategy,
+            questionIntent = understoodQuestion.intent,
         )
         usagePort.save(userId, normalized, answer)
         cachePort.put(normalized, answer)

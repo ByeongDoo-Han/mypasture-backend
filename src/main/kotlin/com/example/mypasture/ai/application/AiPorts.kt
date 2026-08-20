@@ -5,12 +5,13 @@ import com.example.mypasture.ai.domain.BibleEmbeddingSource
 import com.example.mypasture.ai.domain.BibleRetrievalResult
 import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.ai.domain.TextEmbeddingBatch
+import com.example.mypasture.ai.domain.UnderstoodBibleQuestion
 import java.util.UUID
 
 /** 성경 구절 검색 구현체를 application layer와 분리하는 RAG 검색 포트입니다. */
 interface BibleRetrievalPort {
     fun searchRelevantVerses(
-        question: String,
+        question: UnderstoodBibleQuestion,
         limit: Int = 10,
     ): BibleRetrievalResult
 }

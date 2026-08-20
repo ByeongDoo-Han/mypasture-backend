@@ -36,6 +36,8 @@ class AiUsageLogEntity(
     val embeddingModel: String? = null,
     @Column(name = "retrieval_strategy", nullable = false, length = 40)
     val retrievalStrategy: String = "LEXICAL_FALLBACK",
+    @Column(name = "question_intent", nullable = false, length = 40)
+    val questionIntent: String = "BIBLE_QA",
     @Column(name = "estimated_cost_usd", nullable = false, precision = 12, scale = 6)
     val estimatedCostUsd: BigDecimal,
     @Column(name = "cache_hit", nullable = false)

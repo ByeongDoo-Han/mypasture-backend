@@ -26,4 +26,16 @@ class CorsConfigurationTests(
             header { string("Access-Control-Allow-Methods", containsString("POST")) }
         }
     }
+
+    @Test
+    fun `unknown browser origin is rejected`() {
+        mockMvc.options("/api/v1/auth/login") {
+            header("Origin", "https://attacker.example")
+            header("Access-Control-Request-Method", "POST")
+            header("Access-Control-Request-Headers", "content-type")
+        }.andExpect {
+            status { isForbidden() }
+            header { doesNotExist("Access-Control-Allow-Origin") }
+        }
+    }
 }

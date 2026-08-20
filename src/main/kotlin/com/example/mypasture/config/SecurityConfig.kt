@@ -34,7 +34,8 @@ class SecurityConfig {
             allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             allowedHeaders = listOf(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE, "X-App-Environment")
             exposedHeaders = listOf(HttpHeaders.LOCATION)
-            allowCredentials = true
+            // JWT와 refresh token은 Authorization/body로 전달하므로 cross-origin cookie를 허용하지 않습니다.
+            allowCredentials = false
             maxAge = 3_600
         }
         return UrlBasedCorsConfigurationSource().apply {
@@ -46,6 +47,7 @@ class SecurityConfig {
     fun securityFilterChain(
         http: HttpSecurity,
         jwtAuthenticationFilter: JwtAuthenticationFilter,
+        redisRequestRateLimitFilter: RedisRequestRateLimitFilter,
         restAuthenticationEntryPoint: RestAuthenticationEntryPoint,
         corsConfigurationSource: CorsConfigurationSource,
     ): SecurityFilterChain =
@@ -75,14 +77,17 @@ class SecurityConfig {
                     "/api/v1/auth/signup",
                     "/api/v1/auth/login",
                     "/api/v1/auth/social-login",
+                    "/api/v1/auth/social-login/challenges",
+                    "/api/v1/auth/refresh",
                     "/api/v1/auth/password-reset/requests",
                     "/api/v1/auth/password-reset/confirm",
                 ).permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/bibles/**", "/api/v1/today-word").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/quiet-time/passages/**", "/api/v1/quiet-time/offline/**").permitAll()
-                it.requestMatchers("/api/v1/faith-profile/**").permitAll()
+                it.requestMatchers(HttpMethod.GET, "/api/v1/faith-profile/tests/current").permitAll()
                 it.anyRequest().authenticated()
             }
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
+            .addFilterAfter(redisRequestRateLimitFilter, JwtAuthenticationFilter::class.java)
             .build()
 }

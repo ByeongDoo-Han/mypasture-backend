@@ -5,7 +5,9 @@ import com.example.mypasture.auth.presentation.dto.DeleteAccountRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetConfirmRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequestedResponse
+import com.example.mypasture.auth.presentation.dto.RefreshAccessTokenRequest
 import com.example.mypasture.auth.presentation.dto.SocialLoginRequest
+import com.example.mypasture.auth.presentation.dto.SocialLoginChallengeResponse
 import com.example.mypasture.auth.presentation.dto.UserDto
 import com.example.mypasture.auth.presentation.dto.UserLoginRequest
 import com.example.mypasture.auth.presentation.dto.UserLoginResponse
@@ -34,6 +36,16 @@ interface AuthApi {
 
     @PostMapping("/social-login")
     fun socialLogin(@Valid @RequestBody request: SocialLoginRequest): UserLoginResponse
+
+    @PostMapping("/social-login/challenges")
+    fun createSocialLoginChallenge(): SocialLoginChallengeResponse
+
+    @PostMapping("/refresh")
+    fun refresh(@Valid @RequestBody request: RefreshAccessTokenRequest): UserLoginResponse
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun logout(@AuthenticationPrincipal principal: JwtPrincipal)
 
     @PostMapping("/password-reset/requests")
     @ResponseStatus(HttpStatus.ACCEPTED)

@@ -3,21 +3,29 @@ package com.example.mypasture.auth.application
 import com.example.mypasture.auth.domain.AuthAccountEntity
 import com.example.mypasture.auth.domain.AuthProvider
 import com.example.mypasture.auth.domain.PasswordResetTokenEntity
+import com.example.mypasture.auth.domain.RefreshTokenEntity
+import com.example.mypasture.auth.domain.SocialLoginChallengeEntity
 import com.example.mypasture.auth.infrastructure.AuthAccountRepository
 import com.example.mypasture.auth.infrastructure.JwtTokenProvider
 import com.example.mypasture.auth.infrastructure.PasswordResetTokenRepository
+import com.example.mypasture.auth.infrastructure.RefreshTokenRepository
+import com.example.mypasture.auth.infrastructure.SocialLoginChallengeRepository
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.auth.presentation.dto.DeleteAccountRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetConfirmRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequestedResponse
+import com.example.mypasture.auth.presentation.dto.RefreshAccessTokenRequest
 import com.example.mypasture.auth.presentation.dto.SocialLoginRequest
+import com.example.mypasture.auth.presentation.dto.SocialLoginChallengeResponse
 import com.example.mypasture.auth.presentation.dto.UserDto
 import com.example.mypasture.auth.presentation.dto.UserLoginRequest
 import com.example.mypasture.auth.presentation.dto.UserLoginResponse
 import com.example.mypasture.auth.presentation.dto.UserSignupRequest
 import com.example.mypasture.auth.presentation.dto.UserSignupResponse
 import com.example.mypasture.config.AuthSecurityProperties
+import com.example.mypasture.config.JwtProperties
+import com.example.mypasture.config.OAuthProperties
 import com.example.mypasture.user.domain.UserEntity
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -25,7 +33,9 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.nio.charset.StandardCharsets
 import java.time.Instant
+import java.time.Duration
 import java.util.Base64
 import java.util.Locale
 import java.util.UUID
@@ -36,10 +46,14 @@ class AuthService(
     private val userRepository: UserRepository,
     private val authAccountRepository: AuthAccountRepository,
     private val passwordResetTokenRepository: PasswordResetTokenRepository,
+    private val refreshTokenRepository: RefreshTokenRepository,
+    private val socialLoginChallengeRepository: SocialLoginChallengeRepository,
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenProvider: JwtTokenProvider,
     private val socialOAuthClients: List<SocialOAuthClient>,
     private val authSecurityProperties: AuthSecurityProperties,
+    private val jwtProperties: JwtProperties,
+    private val oauthProperties: OAuthProperties,
     private val eventPublisher: ApplicationEventPublisher,
 ) {
     private val secureRandom = SecureRandom()
@@ -73,7 +87,7 @@ class AuthService(
         return UserSignupResponse(UserDto.from(user))
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun login(request: UserLoginRequest): UserLoginResponse {
         val email = normalizeEmail(request.email)
         val account =
@@ -99,6 +113,9 @@ class AuthService(
             )
         val client = socialOAuthClients.firstOrNull { it.provider == request.provider } ?: throw UnsupportedSocialProviderException()
         val profile = client.fetchProfile(command)
+        if (request.provider == AuthProvider.GOOGLE || request.provider == AuthProvider.APPLE) {
+            consumeSocialLoginChallenge(request.challengeId, profile.nonce)
+        }
 
         val existingAccount = authAccountRepository.findByProviderAndProviderUserId(profile.provider, profile.providerUserId)
         if (existingAccount != null && existingAccount.user.deletedAt == null) return issueLoginResponse(existingAccount.user)
@@ -113,6 +130,61 @@ class AuthService(
         )
 
         return issueLoginResponse(user)
+    }
+
+    /** 서버에서 생성한 nonce를 저장하고 OIDC 로그인 한 번에만 사용할 challenge를 발급합니다. */
+    @Transactional
+    fun createSocialLoginChallenge(): SocialLoginChallengeResponse {
+        val now = Instant.now()
+        val nonce = generateSocialNonce()
+        val challenge = socialLoginChallengeRepository.save(
+            SocialLoginChallengeEntity(
+                nonceHash = hashOpaqueToken(nonce),
+                expiresAt = now.plusSeconds(oauthProperties.challengeTtlSeconds),
+                createdAt = now,
+            ),
+        )
+        return SocialLoginChallengeResponse(challenge.id, nonce, challenge.expiresAt)
+    }
+
+    /** refresh token을 한 번만 소비하고 같은 family의 새 토큰으로 회전합니다. */
+    @Transactional(noRollbackFor = [RefreshTokenReuseDetectedException::class])
+    fun refresh(request: RefreshAccessTokenRequest): UserLoginResponse {
+        val now = Instant.now()
+        val current = refreshTokenRepository.findByTokenHashForUpdate(hashOpaqueToken(request.refreshToken.trim()))
+            ?: throw InvalidRefreshTokenException()
+        if (current.usedAt != null || current.revokedAt != null) {
+            refreshTokenRepository.revokeFamily(current.familyId, now)
+            current.user.invalidateSessions(now)
+            throw RefreshTokenReuseDetectedException()
+        }
+        if (!current.expiresAt.isAfter(now) || current.user.deletedAt != null) {
+            current.revoke(now)
+            throw InvalidRefreshTokenException()
+        }
+
+        val rawReplacement = generateOpaqueToken()
+        val replacementHash = hashOpaqueToken(rawReplacement)
+        current.rotate(now, replacementHash)
+        refreshTokenRepository.save(
+            RefreshTokenEntity(
+                user = current.user,
+                familyId = current.familyId,
+                tokenHash = replacementHash,
+                expiresAt = now.plusSeconds(jwtProperties.refreshTokenTtlSeconds),
+                createdAt = now,
+            ),
+        )
+        return issueLoginResponse(current.user, rawReplacement)
+    }
+
+    /** 로그아웃 시 사용자의 access token 인증 버전과 모든 refresh token을 함께 폐기합니다. */
+    @Transactional
+    fun logout(userId: UUID) {
+        val user = userRepository.findActiveByIdForUpdate(userId) ?: throw InvalidCredentialsException()
+        val now = Instant.now()
+        refreshTokenRepository.revokeAllByUserId(user.id, now)
+        user.invalidateSessions(now)
     }
 
     /**
@@ -186,8 +258,11 @@ class AuthService(
 
     /** 현재 비밀번호 재확인 후 로그인 수단을 제거하고 사용자 직접 식별 정보를 익명화합니다. */
     @Transactional
-    fun deleteAccount(userId: UUID, request: DeleteAccountRequest) {
+    fun deleteAccount(userId: UUID, authenticatedAt: Instant, request: DeleteAccountRequest) {
         if (request.confirmation != ACCOUNT_DELETION_CONFIRMATION) throw AccountDeletionConfirmationException()
+        if (Duration.between(authenticatedAt, Instant.now()).seconds > SENSITIVE_ACTION_MAX_AGE_SECONDS) {
+            throw AccountDeletionReauthenticationException()
+        }
 
         val user = userRepository.findActiveByIdForUpdate(userId) ?: throw InvalidCredentialsException()
         val emailAccount = authAccountRepository.findByUserIdAndProvider(user.id, AuthProvider.EMAIL)
@@ -199,6 +274,7 @@ class AuthService(
 
         val now = Instant.now()
         passwordResetTokenRepository.revokeAllActiveByUserId(user.id, now)
+        refreshTokenRepository.revokeAllByUserId(user.id, now)
         authAccountRepository.deleteAllByUserId(user.id)
         user.withdraw(now)
         userRepository.saveAndFlush(user)
@@ -208,7 +284,9 @@ class AuthService(
         val normalizedEmail = profile.email?.let(::normalizeEmail)
         if (normalizedEmail != null) {
             if (!profile.emailVerified) throw SocialEmailNotVerifiedException()
-            userRepository.findByEmailAndDeletedAtIsNull(normalizedEmail)?.let { return it }
+            if (userRepository.findByEmailAndDeletedAtIsNull(normalizedEmail) != null) {
+                throw SocialAccountLinkRequiredException()
+            }
         }
 
         return userRepository.save(
@@ -219,10 +297,21 @@ class AuthService(
         )
     }
 
-    private fun issueLoginResponse(user: UserEntity): UserLoginResponse {
+    private fun issueLoginResponse(user: UserEntity, existingRefreshToken: String? = null): UserLoginResponse {
+        val rawRefreshToken = existingRefreshToken ?: generateOpaqueToken()
+        if (existingRefreshToken == null) {
+            refreshTokenRepository.save(
+                RefreshTokenEntity(
+                    user = user,
+                    tokenHash = hashOpaqueToken(rawRefreshToken),
+                    expiresAt = Instant.now().plusSeconds(jwtProperties.refreshTokenTtlSeconds),
+                ),
+            )
+        }
         val token = jwtTokenProvider.issueAccessToken(user)
         return UserLoginResponse(
             token = token.accessToken,
+            refreshToken = rawRefreshToken,
             tokenType = token.tokenType,
             expiresIn = token.expiresIn,
             expiresAt = token.expiresAt,
@@ -234,6 +323,33 @@ class AuthService(
         ByteArray(RESET_TOKEN_BYTES)
             .also(secureRandom::nextBytes)
             .let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
+
+    private fun generateOpaqueToken(): String =
+        ByteArray(REFRESH_TOKEN_BYTES)
+            .also(secureRandom::nextBytes)
+            .let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
+
+    private fun generateSocialNonce(): String =
+        ByteArray(SOCIAL_NONCE_BYTES)
+            .also(secureRandom::nextBytes)
+            .let { MessageDigest.getInstance("SHA-256").digest(it) }
+            .joinToString("") { "%02x".format(it) }
+
+    private fun consumeSocialLoginChallenge(challengeId: UUID?, tokenNonce: String?) {
+        val id = challengeId ?: throw MissingSocialLoginChallengeException()
+        val nonce = tokenNonce?.takeIf { it.isNotBlank() } ?: throw InvalidSocialLoginChallengeException()
+        val now = Instant.now()
+        val challenge = socialLoginChallengeRepository.findByIdForUpdate(id)
+            ?: throw InvalidSocialLoginChallengeException()
+        val actualHash = hashOpaqueToken(nonce).toByteArray(StandardCharsets.UTF_8)
+        val expectedHash = challenge.nonceHash.toByteArray(StandardCharsets.UTF_8)
+        if (!challenge.isUsableAt(now) || !MessageDigest.isEqual(actualHash, expectedHash)) {
+            throw InvalidSocialLoginChallengeException()
+        }
+        challenge.consume(now)
+    }
+
+    private fun hashOpaqueToken(rawToken: String): String = hashResetToken(rawToken)
 
     private fun hashResetToken(rawToken: String): String =
         MessageDigest.getInstance("SHA-256")
@@ -247,7 +363,10 @@ class AuthService(
 
     companion object {
         private const val RESET_TOKEN_BYTES = 32
+        private const val REFRESH_TOKEN_BYTES = 48
+        private const val SOCIAL_NONCE_BYTES = 32
         private const val ACCOUNT_DELETION_CONFIRMATION = "DELETE"
+        private const val SENSITIVE_ACTION_MAX_AGE_SECONDS = 300L
     }
 }
 
@@ -262,6 +381,21 @@ class UnsupportedSocialProviderException : RuntimeException("Unsupported social 
 
 /** 검증되지 않은 이메일로 기존 계정 연결을 시도할 때 발생하는 예외입니다. */
 class SocialEmailNotVerifiedException : RuntimeException("Social email is not verified")
+
+/** 이미 존재하는 이메일 계정에 소셜 계정을 명시적 확인 없이 자동 연결하려 할 때 발생합니다. */
+class SocialAccountLinkRequiredException : RuntimeException("Existing account must be authenticated before social linking")
+
+/** Google/Apple 로그인에 서버 발급 challenge가 누락됐습니다. */
+class MissingSocialLoginChallengeException : RuntimeException("Social login challenge is required")
+
+/** 만료·재사용·nonce 불일치로 OIDC challenge를 검증할 수 없습니다. */
+class InvalidSocialLoginChallengeException : RuntimeException("Social login challenge is invalid")
+
+/** 사용할 수 없거나 만료된 refresh token입니다. */
+open class InvalidRefreshTokenException : RuntimeException("Refresh token is invalid or expired")
+
+/** 이미 소비된 refresh token이 다시 제출되어 token family 전체를 폐기했음을 나타냅니다. */
+class RefreshTokenReuseDetectedException : InvalidRefreshTokenException()
 
 /** 만료되었거나 이미 사용된 비밀번호 재설정 토큰을 제출했을 때 발생하는 예외입니다. */
 class InvalidPasswordResetTokenException : RuntimeException("Password reset token is invalid or expired")

@@ -8,4 +8,5 @@ data class JwtProperties(
     val issuer: String,
     val secret: String,
     val accessTokenTtlSeconds: Long,
+    val refreshTokenTtlSeconds: Long = 2_592_000,
 )

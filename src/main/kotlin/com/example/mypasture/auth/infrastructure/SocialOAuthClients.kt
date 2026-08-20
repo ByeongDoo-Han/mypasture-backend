@@ -7,11 +7,13 @@ import com.example.mypasture.auth.domain.AuthProvider
 import com.example.mypasture.config.OAuthProperties
 import com.fasterxml.jackson.databind.JsonNode
 import org.springframework.http.HttpHeaders
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtException
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
+import java.time.Duration
 
 /** Google OIDC id token을 검증하고 사용자 프로필을 추출하는 infrastructure adapter입니다. */
 @Component
@@ -34,6 +36,7 @@ class GoogleOidcOAuthClient(
             email = jwt.claimAsString("email")?.lowercase(),
             emailVerified = jwt.claimAsBoolean("email_verified"),
             displayName = jwt.claimAsString("name") ?: command.displayNameHint,
+            nonce = jwt.claimAsString("nonce"),
         )
     }
 }
@@ -59,6 +62,7 @@ class AppleOidcOAuthClient(
             email = jwt.claimAsString("email")?.lowercase(),
             emailVerified = jwt.claimAsBoolean("email_verified"),
             displayName = command.displayNameHint ?: "Apple User",
+            nonce = jwt.claimAsString("nonce"),
         )
     }
 }
@@ -69,10 +73,26 @@ class KakaoOAuthClient(
     private val oauthProperties: OAuthProperties,
 ) : SocialOAuthClient {
     override val provider: AuthProvider = AuthProvider.KAKAO
-    private val restClient = RestClient.create()
+    private val restClient = RestClient.builder()
+        .requestFactory(
+            SimpleClientHttpRequestFactory().apply {
+                setConnectTimeout(Duration.ofMillis(oauthProperties.connectTimeoutMs))
+                setReadTimeout(Duration.ofMillis(oauthProperties.readTimeoutMs))
+            },
+        )
+        .build()
 
     override fun fetchProfile(command: SocialLoginCommand): SocialUserProfile {
         val accessToken = command.accessToken ?: throw MissingSocialTokenException("Kakao accessToken is required")
+        val acceptedAppIds = oauthProperties.kakao.appIds.toSet()
+        if (acceptedAppIds.isEmpty()) throw SocialOAuthProviderMisconfiguredException("Kakao app id is required")
+        val tokenInfo = get(accessToken, oauthProperties.kakao.tokenInfoUri, "Kakao access token info is invalid")
+        val appId = tokenInfo.path("app_id").asLong(-1)
+        if (appId !in acceptedAppIds || tokenInfo.path("expires_in").asLong(0) <= 0) {
+            throw InvalidSocialTokenException("Kakao access token is not issued for this app")
+        }
+        val tokenUserId = tokenInfo.path("id").asText().takeIf { it.isNotBlank() }
+            ?: throw InvalidSocialTokenException("Kakao token subject is missing")
         val response = try {
             restClient.get()
                 .uri(oauthProperties.kakao.userInfoUri)
@@ -85,14 +105,31 @@ class KakaoOAuthClient(
 
         val account = response.path("kakao_account")
         val profile = account.path("profile")
+        val profileUserId = response.path("id").asText().takeIf { it.isNotBlank() }
+            ?: throw InvalidSocialTokenException("Kakao subject is missing")
+        if (profileUserId != tokenUserId) throw InvalidSocialTokenException("Kakao token subject does not match profile")
         return SocialUserProfile(
             provider = provider,
-            providerUserId = response.path("id").asText().takeIf { it.isNotBlank() } ?: throw InvalidSocialTokenException("Kakao subject is missing"),
+            providerUserId = profileUserId,
             email = account.path("email").asText(null)?.lowercase(),
             emailVerified = account.path("is_email_verified").asBoolean(false),
             displayName = profile.path("nickname").asText(null) ?: command.displayNameHint,
         )
     }
+
+    private fun get(accessToken: String, uri: String, failureMessage: String): JsonNode =
+        try {
+            restClient.get()
+                .uri(uri)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer $accessToken")
+                .retrieve()
+                .body(JsonNode::class.java)
+                ?: throw InvalidSocialTokenException(failureMessage)
+        } catch (error: InvalidSocialTokenException) {
+            throw error
+        } catch (error: RuntimeException) {
+            throw InvalidSocialTokenException(failureMessage)
+        }
 }
 
 private fun decodeOidcToken(

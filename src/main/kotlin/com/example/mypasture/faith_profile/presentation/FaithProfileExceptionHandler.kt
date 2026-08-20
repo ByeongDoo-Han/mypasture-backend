@@ -3,6 +3,7 @@ package com.example.mypasture.faith_profile.presentation
 import com.example.mypasture.faith_profile.application.FaithAnswerAlreadyExistsException
 import com.example.mypasture.faith_profile.application.FaithAssessmentAlreadyCompletedException
 import com.example.mypasture.faith_profile.application.FaithProfileBadRequestException
+import com.example.mypasture.faith_profile.application.FaithProfileForbiddenException
 import com.example.mypasture.faith_profile.application.FaithProfileNotFoundException
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -12,6 +13,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 /** 신앙 성향 테스트 도메인 예외를 HTTP 응답으로 변환하는 controller advice입니다. */
 @RestControllerAdvice(assignableTypes = [FaithProfileController::class])
 class FaithProfileExceptionHandler {
+    @ExceptionHandler(FaithProfileForbiddenException::class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    fun handleForbidden(): FaithProfileErrorResponse =
+        FaithProfileErrorResponse("FAITH_PROFILE_FORBIDDEN", "현재 사용자의 신앙 성향 테스트가 아닙니다.")
+
     @ExceptionHandler(FaithProfileNotFoundException::class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     fun handleNotFound(exception: FaithProfileNotFoundException): FaithProfileErrorResponse =

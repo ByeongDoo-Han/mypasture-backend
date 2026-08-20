@@ -53,20 +53,22 @@ class FaithProfileService(
     }
 
     @Transactional
-    fun startAssessment(userId: UUID?): FaithAssessmentEntity {
+    fun startAssessment(userId: UUID): FaithAssessmentEntity {
         val testVersion = ensureDefaultTestVersion()
-        val user = userId?.let { userRepository.findById(it).orElseThrow { FaithProfileNotFoundException("User was not found: $it") } }
+        val user = userRepository.findByIdAndDeletedAtIsNull(userId)
+            ?: throw FaithProfileNotFoundException("User was not found: $userId")
         return assessmentRepository.save(FaithAssessmentEntity(user = user, testVersion = testVersion))
     }
 
     @Transactional
     fun answerQuestion(
+        userId: UUID,
         assessmentId: UUID,
         questionId: UUID,
         score: Int,
     ): FaithAnswerEntity {
         require(score in 1..5) { "Score must be between 1 and 5." }
-        val assessment = getAssessment(assessmentId)
+        val assessment = getOwnedAssessment(userId, assessmentId)
         if (assessment.status == AssessmentStatus.COMPLETED) throw FaithAssessmentAlreadyCompletedException()
         val question = questionRepository.findById(questionId).orElseThrow { FaithProfileNotFoundException("Question was not found: $questionId") }
         if (question.testVersion.id != assessment.testVersion.id) throw FaithProfileBadRequestException("Question does not belong to assessment test version.")
@@ -75,8 +77,8 @@ class FaithProfileService(
     }
 
     @Transactional
-    fun completeAssessment(assessmentId: UUID): FaithResultView {
-        val assessment = getAssessment(assessmentId)
+    fun completeAssessment(userId: UUID, assessmentId: UUID): FaithResultView {
+        val assessment = getOwnedAssessment(userId, assessmentId)
         resultRepository.findByAssessment(assessment)?.let { return toResultView(it) }
         if (assessment.status == AssessmentStatus.COMPLETED) throw FaithAssessmentAlreadyCompletedException()
 
@@ -119,8 +121,9 @@ class FaithProfileService(
     }
 
     @Transactional(readOnly = true)
-    fun getResult(resultId: UUID): FaithResultView {
+    fun getResult(userId: UUID, resultId: UUID): FaithResultView {
         val result = resultRepository.findById(resultId).orElseThrow { FaithProfileNotFoundException("Faith result was not found: $resultId") }
+        if (result.assessment.user?.id != userId) throw FaithProfileForbiddenException()
         return toResultView(result)
     }
 
@@ -164,8 +167,12 @@ class FaithProfileService(
         )
     }
 
-    private fun getAssessment(assessmentId: UUID): FaithAssessmentEntity =
-        assessmentRepository.findById(assessmentId).orElseThrow { FaithProfileNotFoundException("Assessment was not found: $assessmentId") }
+    private fun getOwnedAssessment(userId: UUID, assessmentId: UUID): FaithAssessmentEntity {
+        val assessment = assessmentRepository.findById(assessmentId)
+            .orElseThrow { FaithProfileNotFoundException("Assessment was not found: $assessmentId") }
+        if (assessment.user?.id != userId) throw FaithProfileForbiddenException()
+        return assessment
+    }
 
     private fun ensureDefaultTestVersion(): FaithTestVersionEntity {
         testVersionRepository.findFirstByCodeAndStatusOrderByVersionDesc(DEFAULT_TEST_CODE, TestVersionStatus.PUBLISHED)?.let { return it }
@@ -314,6 +321,9 @@ class FaithProfileNotFoundException(message: String) : RuntimeException(message)
 
 /** 완료된 진단을 다시 수정하거나 완료하려고 할 때 발생하는 예외입니다. */
 class FaithAssessmentAlreadyCompletedException : RuntimeException("Faith assessment is already completed")
+
+/** 다른 사용자의 진단 또는 결과에 접근하려 할 때 발생합니다. */
+class FaithProfileForbiddenException : RuntimeException("Faith profile resource is not owned by current user")
 
 /** 같은 문항에 중복 답변을 제출했을 때 발생하는 예외입니다. */
 class FaithAnswerAlreadyExistsException : RuntimeException("Faith answer already exists")

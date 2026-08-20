@@ -54,6 +54,8 @@ class OpenAiCompletionAdapter(
             put("instructions", """당신은 My Pasture의 AI 목자입니다. 제공된 RAG_CONTEXT만 성경 근거로 사용하고 존재하지 않는 구절을 만들지 마세요. 답변은 반드시 '근거: [verseId]'로 시작하고, 따뜻하고 짧은 한국어로 답하세요. 의료·정신건강·법률 전문가나 목회자를 대신한다고 말하지 마세요. 사용한 근거는 반드시 [verseId] 형식으로 표시하고, RAG_CONTEXT에 없는 ID나 장:절은 쓰지 마세요. 근거가 부족하면 모른다고 말하세요.""")
             put("input", "RAG_CONTEXT:\n$context\n\nUSER_QUESTION:\n$question")
             put("max_output_tokens", properties.maxOutputTokens)
+            // 목회 상담 성격의 질문이 Responses API application state로 보존되지 않게 합니다.
+            put("store", false)
             put("stream", streaming)
             if (properties.model.startsWith("gpt-5", ignoreCase = true)) {
                 put("reasoning", mapOf("effort" to properties.reasoningEffort))
@@ -133,10 +135,8 @@ class OpenAiCompletionAdapter(
                         "response.output_text.delta" -> event.path("delta").asText().takeIf { it.isNotEmpty() }?.let(onDelta)
                         "response.completed" -> completedResponse = event.path("response")
                         "response.failed", "response.incomplete", "error" -> {
-                            val message = event.path("response").path("error").path("message").asText()
-                                .ifBlank { event.path("error").path("message").asText() }
-                                .ifBlank { "AI streaming 응답이 완료되지 않았습니다." }
-                            throw AiProviderException(message)
+                            // 외부 제공자의 원문 오류에는 요청 식별자나 내부 정보가 포함될 수 있어 클라이언트로 전달하지 않습니다.
+                            throw AiProviderException("AI streaming 응답이 완료되지 않았습니다.")
                         }
                     }
                 }
@@ -146,9 +146,7 @@ class OpenAiCompletionAdapter(
 
     private fun extractText(response: JsonNode): String {
         response.path("output").forEach { output -> output.path("content").forEach { if (it.path("type").asText() == "output_text") return it.path("text").asText() } }
-        val status = response.path("status").asText("unknown")
-        val reason = response.path("incomplete_details").path("reason").asText("none")
-        throw AiProviderException("AI 답변을 해석할 수 없습니다. status=$status, reason=$reason")
+        throw AiProviderException("AI 답변을 해석할 수 없습니다.")
     }
 
     private fun estimate(input: Int, output: Int): BigDecimal = BigDecimal(input).divide(BigDecimal(1_000_000)).multiply(properties.commentaryInputCostPerMillion).add(BigDecimal(output).divide(BigDecimal(1_000_000)).multiply(properties.commentaryOutputCostPerMillion))

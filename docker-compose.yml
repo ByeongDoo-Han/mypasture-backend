@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-mypasture}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mypasture}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +20,7 @@ services:
     image: redis:7.4-alpine
     container_name: mypasture-redis
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis-data:/data
@@ -62,6 +62,8 @@ services:
       AI_MAX_INPUT_CHARS: ${AI_MAX_INPUT_CHARS:-300}
       AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-700}
       AI_FREE_DAILY_LIMIT: ${AI_FREE_DAILY_LIMIT:-10}
+      AI_PREMIUM_DAILY_SAFETY_LIMIT: ${AI_PREMIUM_DAILY_SAFETY_LIMIT:-500}
+      AI_PRIVACY_HASH_SECRET: ${AI_PRIVACY_HASH_SECRET:-local-ai-privacy-secret-change-me}
       AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-12000}
       AI_STREAM_TIMEOUT_MS: ${AI_STREAM_TIMEOUT_MS:-60000}
       AI_STREAM_CORE_POOL_SIZE: ${AI_STREAM_CORE_POOL_SIZE:-8}
@@ -79,7 +81,9 @@ services:
       AI_COMMENTARY_OUTPUT_COST_PER_MILLION: ${AI_COMMENTARY_OUTPUT_COST_PER_MILLION:-2.00}
       JWT_ISSUER: ${JWT_ISSUER:-mypasture-local}
       JWT_SECRET: ${JWT_SECRET:-local-jwt-secret-change-me-32-bytes-minimum}
-      JWT_ACCESS_TOKEN_TTL_SECONDS: ${JWT_ACCESS_TOKEN_TTL_SECONDS:-3600}
+      JWT_ACCESS_TOKEN_TTL_SECONDS: ${JWT_ACCESS_TOKEN_TTL_SECONDS:-900}
+      JWT_REFRESH_TOKEN_TTL_SECONDS: ${JWT_REFRESH_TOKEN_TTL_SECONDS:-2592000}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-false}
       PASSWORD_RESET_TOKEN_TTL_MINUTES: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:-30}
       PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS: ${PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS:-60}
       PASSWORD_RESET_URL: ${PASSWORD_RESET_URL:-mypasture://password-reset}
@@ -97,6 +101,8 @@ services:
       GOOGLE_OAUTH_ANDROID_CLIENT_IDS: ${GOOGLE_OAUTH_ANDROID_CLIENT_IDS:-}
       APPLE_OAUTH_CLIENT_IDS: ${APPLE_OAUTH_CLIENT_IDS:-}
       KAKAO_USER_INFO_URI: ${KAKAO_USER_INFO_URI:-https://kapi.kakao.com/v2/user/me}
+      KAKAO_TOKEN_INFO_URI: ${KAKAO_TOKEN_INFO_URI:-https://kapi.kakao.com/v1/user/access_token_info}
+      KAKAO_APP_IDS: ${KAKAO_APP_IDS:-}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     volumes:

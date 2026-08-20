@@ -29,6 +29,13 @@ interface BibleVerseEntityRepository : JpaRepository<BibleVerseEntity, Long> {
         chapter: Int,
     ): List<BibleVerseEntity>
 
+    fun findByVersionAndBook_IdAndChapterAndVerse(
+        version: String,
+        bookId: Long,
+        chapter: Int,
+        verse: Int,
+    ): BibleVerseEntity?
+
     @Query(
         value = """
             select v from BibleVerseEntity v join fetch v.book b
@@ -41,4 +48,19 @@ interface BibleVerseEntityRepository : JpaRepository<BibleVerseEntity, Long> {
         """,
     )
     fun search(version: String, keyword: String, pageable: Pageable): Page<BibleVerseEntity>
+
+    @Query(
+        value = """
+            select v from BibleVerseEntity v join fetch v.book b
+            where v.version = :version and b.id = :bookId
+              and lower(v.text) like lower(concat('%', :keyword, '%'))
+            order by v.chapter, v.verse
+        """,
+        countQuery = """
+            select count(v) from BibleVerseEntity v
+            where v.version = :version and v.book.id = :bookId
+              and lower(v.text) like lower(concat('%', :keyword, '%'))
+        """,
+    )
+    fun searchInBook(version: String, bookId: Long, keyword: String, pageable: Pageable): Page<BibleVerseEntity>
 }

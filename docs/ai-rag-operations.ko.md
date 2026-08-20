@@ -5,11 +5,21 @@
 AI 목자 요청은 모바일에 저장된 성경이 아니라 서버의 검증된 성경 DB와 pgvector index를 사용합니다.
 
 1. Redis에서 동일 질문 답변을 확인합니다.
-2. 질문을 `OPENAI_EMBEDDING_MODEL`로 embedding 합니다.
-3. 같은 모델과 차원의 `bible_embeddings`에서 cosine similarity Top-K를 조회합니다.
-4. `bible_verses`, `bible_books`와 조인한 실제 절 ID와 본문만 RAG context로 만듭니다.
-5. LLM 응답의 `[verseId]`와 장·절을 streaming 전송 직전에 검증합니다.
-6. embedding, prompt, completion 토큰과 각각의 예상 비용을 저장합니다.
+2. 질문을 상담, 본문 설명, 기도문, 말씀 추천, 묵상, 일반 Q&A 의도로 분류합니다.
+3. 사용자가 권·장·절을 적었다면 실제 DB 위치를 해석하고, 그 외 질문은 의도별 의미 검색 문장으로 정제합니다.
+4. 검색 문장을 `OPENAI_EMBEDDING_MODEL`로 embedding 합니다.
+5. 같은 모델과 차원의 `bible_embeddings`에서 cosine similarity Top-K를 조회합니다. 명시한 권·장은 검색 범위로 적용합니다.
+6. `bible_verses`, `bible_books`와 조인한 실제 절 ID와 본문만 RAG context로 만듭니다.
+7. LLM 응답의 `[verseId]`와 장·절을 streaming 전송 직전에 검증합니다.
+8. 질문 의도, 검색 전략, embedding, prompt, completion 토큰과 각각의 예상 비용을 저장합니다.
+
+질문 이해 단계는 규칙 기반 의도 분류와 embedding 의미 검색을 조합합니다. 별도의 GPT 호출로 검색어를 만들지
+않으므로 사용자 요청당 호출 수, 지연 시간과 비용을 늘리지 않으며, GPT가 존재하지 않는 장·절을 검색 조건으로
+만드는 위험도 피합니다.
+
+`gpt-5-mini` 사용 시 `OPENAI_REASONING_EFFORT=minimal`을 기본값으로 사용합니다. AI 목자는 긴 추론보다
+검색된 구절을 짧게 설명하는 작업이므로 출력 한도를 추론 토큰이 모두 소비해 본문이 비는 상황과 지연 시간을
+줄이기 위한 설정입니다.
 
 전체 절의 index가 준비되기 전에는 일부 데이터만으로 vector 검색하지 않습니다. 로컬은 명시적인 lexical
 fallback을 사용할 수 있지만 운영 기본값은 fallback 비활성화이며 `AI_GROUNDING_NOT_FOUND`를 반환합니다.
@@ -66,6 +76,9 @@ OpenAI Embeddings API는 문자열 배열 입력과 `dimensions` 옵션을 지�
 ```text
 event: delta
 data: 근거: [123] ...
+
+event: status
+data: {"stage":"UNDERSTANDING_QUESTION"}
 
 event: citations
 data: [{"verseId":123,...}]

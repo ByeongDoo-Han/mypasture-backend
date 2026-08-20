@@ -70,6 +70,35 @@ AI_STREAM_QUEUE_CAPACITY=200
 비활성화합니다. 로컬의 `AI_MOCK_ENABLED=true`는 결정적 가짜 embedding과 lexical fallback으로 흐름만
 검증하며 실제 OpenAI 검색 품질을 의미하지 않습니다.
 
+### OpenAI API Key 최소 비용 검증
+
+실제 AI 목자를 사용할 때만 `.env.local`에서 mock을 끕니다. API Key는 예제 파일이나 Git에 기록하지
+않습니다.
+
+```dotenv
+OPENAI_API_KEY=발급받은_프로젝트_API_KEY
+AI_MOCK_ENABLED=false
+OPENAI_SMOKE_TEST_MODEL=gpt-4.1-nano
+OPENAI_SMOKE_MAX_OUTPUT_TOKENS=16
+```
+
+변수명은 반드시 단수형 `OPENAI_API_KEY`를 사용합니다. `OPENAI_API_KEYS`는 애플리케이션이 읽지 않습니다.
+셸에 이전 키를 `export`한 적이 있다면 `unset OPENAI_API_KEY` 후 서버를 실행해 `.env.local`과 충돌하지
+않게 합니다.
+
+다음 전용 작업은 `.env.local`을 읽어 운영 모델 접근 권한을 토큰 소비 없는 모델 조회로 확인한 뒤,
+Responses API에 비추론형 `gpt-4.1-nano` 요청을 한 번만 보냅니다. 입력은 `Reply OK.`이며 출력 상한은
+API가 허용하는 최소값인 16토큰입니다. 짧은 응답에 reasoning token을 쓰지 않아 연결 확인 비용을
+최소화합니다.
+응답 본문과 API Key는 출력하지 않고 실제 input/output/total token 수만 표시합니다.
+
+```bash
+./gradlew openAiSmokeTest --rerun-tasks
+```
+
+`./gradlew test`와 CI에서는 `openai-live` tag를 제외하므로 이 요청과 비용이 발생하지 않습니다. 이 smoke
+test는 키, 결제 한도, 모델 접근, Responses API 연결을 확인하며 전체 RAG 품질 테스트를 대신하지 않습니다.
+
 ### 3. Docker Compose로 실행
 
 ```bash

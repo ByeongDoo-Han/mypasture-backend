@@ -6,7 +6,9 @@ import com.example.mypasture.ai.application.TextEmbeddingPort
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.BibleRetrievalResult
 import com.example.mypasture.ai.domain.RagRetrievalStrategy
+import com.example.mypasture.ai.domain.UnderstoodBibleQuestion
 import com.example.mypasture.bible.domain.BibleVerseEntity
+import com.example.mypasture.bible.infrastructure.BibleBookEntityRepository
 import com.example.mypasture.bible.infrastructure.BibleVerseEntityRepository
 import com.example.mypasture.config.AiProperties
 import org.slf4j.LoggerFactory
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Repository
 class JdbcBibleRetrievalAdapter(
     private val jdbcTemplate: JdbcTemplate,
     private val embeddingPort: TextEmbeddingPort,
+    private val bookRepository: BibleBookEntityRepository,
     private val verseRepository: BibleVerseEntityRepository,
     private val properties: AiProperties,
 ) : BibleRetrievalPort {
@@ -30,14 +33,16 @@ class JdbcBibleRetrievalAdapter(
     }
     @Volatile private var readiness = VectorIndexReadiness(false, 0)
 
-    override fun searchRelevantVerses(question: String, limit: Int): BibleRetrievalResult {
+    override fun searchRelevantVerses(question: UnderstoodBibleQuestion, limit: Int): BibleRetrievalResult {
         val requestedLimit = limit.coerceAtMost(properties.ragTopK)
         require(requestedLimit > 0) { "RAG result limit must be greater than zero." }
 
+        searchExactReference(question)?.let { return it }
+
         if (postgres && hasVectorIndex()) {
             try {
-                val embedding = embeddingPort.embed(listOf(question))
-                val citations = searchByVector(embedding.vectors.single(), requestedLimit)
+                val embedding = embeddingPort.embed(listOf(question.searchQuery))
+                val citations = searchByVector(embedding.vectors.single(), question, requestedLimit)
                 if (citations.isNotEmpty() || !properties.ragLexicalFallbackEnabled) {
                     return BibleRetrievalResult(
                         citations = citations,
@@ -86,8 +91,9 @@ class JdbcBibleRetrievalAdapter(
         return ready
     }
 
-    private fun searchByVector(vector: FloatArray, limit: Int): List<BibleCitation> {
+    private fun searchByVector(vector: FloatArray, question: UnderstoodBibleQuestion, limit: Int): List<BibleCitation> {
         require(vector.size == properties.embeddingDimensions) { "Query embedding dimensions do not match configuration." }
+        val reference = question.reference
         return jdbcTemplate.query(
             VECTOR_SEARCH_SQL,
             { row, _ ->
@@ -104,18 +110,57 @@ class JdbcBibleRetrievalAdapter(
             properties.embeddingModel,
             properties.embeddingDimensions,
             VERSION,
+            reference?.bookCode,
+            reference?.bookCode,
+            reference?.chapter,
+            reference?.chapter,
             properties.ragMinSimilarity,
             limit,
         )
     }
 
-    private fun searchLexically(question: String, limit: Int): List<BibleCitation> {
+    private fun searchExactReference(question: UnderstoodBibleQuestion): BibleRetrievalResult? {
+        val reference = question.reference ?: return null
+        val chapter = reference.chapter ?: return null
+        val verse = reference.verse ?: return null
+        val book = bookRepository.findByVersionAndCode(VERSION, reference.bookCode)
+            ?: return BibleRetrievalResult(emptyList(), strategy = RagRetrievalStrategy.DIRECT_REFERENCE)
+        val citation = verseRepository.findByVersionAndBook_IdAndChapterAndVerse(VERSION, book.id, chapter, verse)
+            ?.toCitation()
+        return BibleRetrievalResult(
+            citations = listOfNotNull(citation),
+            strategy = RagRetrievalStrategy.DIRECT_REFERENCE,
+        )
+    }
+
+    private fun searchLexically(question: UnderstoodBibleQuestion, limit: Int): List<BibleCitation> {
         val matches = linkedMapOf<Long, BibleCitation>()
-        extractSearchKeywords(question).forEach { keyword ->
+        val reference = question.reference
+        val book = reference?.let { bookRepository.findByVersionAndCode(VERSION, it.bookCode) }
+        val chapterVerses = if (book != null && reference.chapter != null) {
+            verseRepository.findAllByVersionAndBook_IdAndChapterOrderByVerse(VERSION, book.id, reference.chapter)
+        } else {
+            emptyList()
+        }
+
+        question.lexicalKeywords.forEach { keyword ->
             if (matches.size >= limit) return@forEach
-            verseRepository.search(VERSION, keyword, PageRequest.of(0, limit)).content.forEach { verse ->
+            val candidates = when {
+                chapterVerses.isNotEmpty() -> chapterVerses.filter { it.text.contains(keyword, ignoreCase = true) }
+                book != null -> verseRepository.searchInBook(VERSION, book.id, keyword, PageRequest.of(0, limit)).content
+                else -> verseRepository.search(VERSION, keyword, PageRequest.of(0, limit)).content
+            }
+            candidates.forEach { verse ->
                 matches.putIfAbsent(verse.id, verse.toCitation())
             }
+        }
+        if (matches.isEmpty() && chapterVerses.isNotEmpty()) {
+            chapterVerses.take(limit).forEach { matches[it.id] = it.toCitation() }
+        }
+        if (matches.isEmpty() && book != null && reference?.chapter == null) {
+            verseRepository.findAllByVersionAndBook_IdAndChapterOrderByVerse(VERSION, book.id, 1)
+                .take(limit)
+                .forEach { matches[it.id] = it.toCitation() }
         }
         return matches.values.take(limit)
     }
@@ -130,36 +175,10 @@ class JdbcBibleRetrievalAdapter(
             text = text,
         )
 
-    private fun extractSearchKeywords(question: String): List<String> {
-        val normalized = question.trim().lowercase()
-        val directTokens = keywordRegex.findAll(normalized)
-            .map { it.value }
-            .filter { it.length >= 2 && it !in stopWords }
-            .toMutableList()
-        topicExpansions.forEach { (topic, expansions) ->
-            if (normalized.contains(topic)) directTokens += expansions
-        }
-        return directTokens.distinct().take(MAX_KEYWORDS)
-    }
-
     companion object {
         private val logger = LoggerFactory.getLogger(JdbcBibleRetrievalAdapter::class.java)
         private const val VERSION = "KOR1910"
-        private const val MAX_KEYWORDS = 12
         private const val READINESS_CACHE_NANOS = 30_000_000_000L
-        private val keywordRegex = Regex("[가-힣A-Za-z0-9]+")
-        private val stopWords = setOf("오늘", "읽은", "말씀", "설명", "해주세요", "해줘", "위한", "대한", "나는", "제가", "입니다")
-        private val topicExpansions = mapOf(
-            "불안" to listOf("염려", "마음", "평강", "기도"),
-            "염려" to listOf("염려", "평강", "기도"),
-            "기도" to listOf("기도", "간구", "감사"),
-            "감사" to listOf("감사", "기도"),
-            "관계" to listOf("사랑", "용서", "서로"),
-            "용서" to listOf("용서", "사랑"),
-            "창세기" to listOf("태초", "창조"),
-            "위로" to listOf("목자", "쉴", "평강"),
-            "힘듭" to listOf("평강", "사랑", "위로"),
-        )
         private const val VECTOR_SEARCH_SQL = """
             with query_vector as (select cast(? as vector) as embedding)
             select
@@ -176,6 +195,8 @@ class JdbcBibleRetrievalAdapter(
             where embedding.embedding_model = ?
               and embedding.dimensions = ?
               and verse.version = ?
+              and (cast(? as varchar) is null or book.code = ?)
+              and (cast(? as integer) is null or verse.chapter = ?)
               and 1 - (embedding.embedding <=> query_vector.embedding) >= ?
             order by embedding.embedding <=> query_vector.embedding,
                      book.display_order,

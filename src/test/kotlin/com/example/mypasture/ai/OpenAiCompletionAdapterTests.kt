@@ -53,6 +53,23 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
+    fun `sets minimal reasoning for gpt 5 models`() {
+        val requestBodies = mutableListOf<String>()
+        val port = startServer { exchange ->
+            requestBodies += exchange.requestBody.bufferedReader().readText()
+            exchange.responseHeaders.add("Content-Type", "application/json")
+            exchange.sendResponseHeaders(200, 0)
+            exchange.responseBody.bufferedWriter().use { writer ->
+                writer.write("""{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"근거: [42] 답변"}]}],"usage":{}}""")
+            }
+        }
+
+        adapter(port, model = "gpt-5-mini").answerWithCitations("질문", listOf(citation()))
+
+        assertTrue(requestBodies.single().contains("\"reasoning\":{\"effort\":\"minimal\"}"))
+    }
+
+    @Test
     fun `does not retry after a delta was already delivered`() {
         val calls = AtomicInteger()
         val port = startServer { exchange ->
@@ -98,8 +115,8 @@ class OpenAiCompletionAdapterTests {
         return server!!.address.port
     }
 
-    private fun adapter(port: Int) =
-        OpenAiCompletionAdapter(properties(port), AiCitationValidator(), jacksonObjectMapper())
+    private fun adapter(port: Int, model: String = "test-model") =
+        OpenAiCompletionAdapter(properties(port).copy(model = model), AiCitationValidator(), jacksonObjectMapper())
 
     private fun citation() = BibleCitation(42, "KOR1910", "시편", 23, 1, "여호와는 나의 목자시니")
 

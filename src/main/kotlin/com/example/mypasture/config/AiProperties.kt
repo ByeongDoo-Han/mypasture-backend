@@ -33,4 +33,5 @@ data class AiProperties(
     val streamCorePoolSize: Int = 8,
     val streamMaxPoolSize: Int = 64,
     val streamQueueCapacity: Int = 200,
+    val reasoningEffort: String = "minimal",
 )

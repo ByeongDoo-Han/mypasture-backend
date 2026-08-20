@@ -8,6 +8,7 @@ import com.example.mypasture.ai.application.AiSafetyException
 import com.example.mypasture.ai.application.AskBibleAssistantUseCase
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.GroundedAnswer
+import com.example.mypasture.ai.domain.AiAssistantStage
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.config.AiProperties
 import jakarta.validation.constraints.Size
@@ -32,6 +33,7 @@ data class AskAiResponse(
     val estimatedCostUsd: BigDecimal,
     val embeddingCostUsd: BigDecimal,
     val retrievalStrategy: String,
+    val questionIntent: String,
     val cacheHit: Boolean,
 )
 
@@ -43,6 +45,7 @@ data class AiStreamUsageResponse(
     val estimatedCostUsd: BigDecimal,
     val embeddingCostUsd: BigDecimal,
     val retrievalStrategy: String,
+    val questionIntent: String,
     val cacheHit: Boolean,
 )
 
@@ -81,10 +84,18 @@ class AiController(
         try {
             streamingExecutor.execute {
                 runCatching {
-                    val result = askBibleAssistant.stream(principal.userId, principal.subscriptionTier, request.question) { delta ->
-                        if (!active.get()) throw AiProviderException("AI streaming 연결이 종료되었습니다.")
-                        emitter.send(SseEmitter.event().name("delta").data(delta))
-                    }
+                    val result = askBibleAssistant.stream(
+                        userId = principal.userId,
+                        subscriptionTier = principal.subscriptionTier,
+                        question = request.question,
+                        onStage = { stage ->
+                            if (active.get()) emitter.send(SseEmitter.event().name("status").data(mapOf("stage" to stage.name)))
+                        },
+                        onDelta = { delta ->
+                            if (!active.get()) throw AiProviderException("AI streaming 연결이 종료되었습니다.")
+                            emitter.send(SseEmitter.event().name("delta").data(delta))
+                        },
+                    )
                     if (active.get()) {
                         emitter.send(SseEmitter.event().name("citations").data(result.citations))
                         emitter.send(SseEmitter.event().name("usage").data(result.toStreamUsage()))
@@ -133,6 +144,7 @@ private fun GroundedAnswer.toResponse() =
         estimatedCostUsd,
         embeddingCostUsd,
         retrievalStrategy.name,
+        questionIntent.name,
         cacheHit,
     )
 
@@ -144,5 +156,6 @@ private fun GroundedAnswer.toStreamUsage() =
         estimatedCostUsd,
         embeddingCostUsd,
         retrievalStrategy.name,
+        questionIntent.name,
         cacheHit,
     )

@@ -102,6 +102,27 @@ client.test("AI answer contains verified Bible citations", function () {
   client.assert(response.status === 200, "Expected HTTP 200");
   client.assert(response.body.citations.length > 0, "Expected grounded citations");
   client.assert(!!response.body.retrievalStrategy, "Expected retrieval strategy");
+  client.assert(response.body.questionIntent === "BIBLE_EXPLANATION", "Expected explanation intent");
+});
+%}
+
+### 06-1-1. Ask an explicitly referenced Bible verse
+POST {{baseUrl}}/api/v1/ai/chat
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "창세기 1장 1절을 설명해주세요"
+}
+
+> {%
+client.test("Explicit reference returns the exact database verse", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.retrievalStrategy === "DIRECT_REFERENCE", "Expected direct reference strategy");
+  client.assert(response.body.citations.length === 1, "Expected one exact citation");
+  client.assert(response.body.citations[0].book === "창세기", "Expected Genesis");
+  client.assert(response.body.citations[0].chapter === 1, "Expected chapter 1");
+  client.assert(response.body.citations[0].verse === 1, "Expected verse 1");
 });
 %}
 
@@ -118,6 +139,8 @@ Accept: text/event-stream
 > {%
 client.test("AI stream completes with citations and usage", function () {
   client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.indexOf("event:status") >= 0, "Expected question processing status event");
+  client.assert(response.body.indexOf("UNDERSTANDING_QUESTION") >= 0, "Expected question understanding stage");
   client.assert(response.body.indexOf("event:delta") >= 0, "Expected delta event");
   client.assert(response.body.indexOf("event:citations") >= 0, "Expected citations event");
   client.assert(response.body.indexOf("event:usage") >= 0, "Expected usage event");

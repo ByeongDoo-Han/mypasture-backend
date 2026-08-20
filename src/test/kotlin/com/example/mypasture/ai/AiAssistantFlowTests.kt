@@ -4,6 +4,8 @@ import com.example.mypasture.ai.application.AskBibleAssistantUseCase
 import com.example.mypasture.ai.application.AiGroundingNotFoundException
 import com.example.mypasture.ai.application.TextEmbeddingPort
 import com.example.mypasture.ai.domain.RagRetrievalStrategy
+import com.example.mypasture.ai.domain.AiAssistantStage
+import com.example.mypasture.ai.domain.BibleQuestionIntent
 import com.example.mypasture.ai.infrastructure.AiUsageLogRepository
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.user.domain.SubscriptionTier
@@ -53,6 +55,20 @@ class AiAssistantFlowTests(
     }
 
     @Test
+    fun `explicit bible reference returns the exact database verse`() {
+        val user = userRepository.save(UserEntity(email = "ai-reference-${UUID.randomUUID()}@example.com", displayName = "AI Reference"))
+
+        val answer = useCase.ask(user.id, SubscriptionTier.FREE, "창세기 1장 1절을 설명해줘")
+
+        assertEquals(RagRetrievalStrategy.DIRECT_REFERENCE, answer.retrievalStrategy)
+        assertEquals(BibleQuestionIntent.BIBLE_EXPLANATION, answer.questionIntent)
+        assertEquals(1, answer.citations.size)
+        assertEquals("창세기", answer.citations.single().book)
+        assertEquals(1, answer.citations.single().chapter)
+        assertEquals(1, answer.citations.single().verse)
+    }
+
+    @Test
     fun `local embedding is deterministic and matches configured dimensions`() {
         val first = embeddingPort.embed(listOf("불안할 때의 말씀"))
         val second = embeddingPort.embed(listOf("불안할 때의 말씀"))
@@ -73,6 +89,29 @@ class AiAssistantFlowTests(
         assertTrue(answer.citations.isNotEmpty())
         assertTrue(answer.citations.all { answer.answer.contains("[${it.verseId}]") })
         assertEquals(1, usageRepository.countByUserIdAndCreatedAtGreaterThanEqual(user.id, java.time.Instant.EPOCH))
+    }
+
+    @Test
+    fun `streaming reports question understanding search and generation in order`() {
+        val user = userRepository.save(UserEntity(email = "ai-stage-${UUID.randomUUID()}@example.com", displayName = "AI Stage"))
+        val stages = mutableListOf<AiAssistantStage>()
+
+        useCase.stream(
+            userId = user.id,
+            subscriptionTier = SubscriptionTier.FREE,
+            question = "창세기 1장 2절의 내용을 단계별로 설명해주세요 ${UUID.randomUUID()}",
+            onStage = stages::add,
+            onDelta = {},
+        )
+
+        assertEquals(
+            listOf(
+                AiAssistantStage.UNDERSTANDING_QUESTION,
+                AiAssistantStage.SEARCHING_SCRIPTURE,
+                AiAssistantStage.GENERATING_ANSWER,
+            ),
+            stages,
+        )
     }
 
     @Test

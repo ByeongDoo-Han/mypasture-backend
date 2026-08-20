@@ -94,47 +94,55 @@ class AskBibleAssistantUseCase(
         if (normalized.length > properties.maxInputChars) throw AiInputTooLongException()
         if (CRISIS_KEYWORDS.any { normalized.contains(it, ignoreCase = true) }) throw AiSafetyException()
 
-        if (subscriptionTier == SubscriptionTier.FREE && usagePort.countToday(userId) >= properties.freeDailyLimit) {
-            throw AiQuotaExceededException()
+        val dailyLimit = if (subscriptionTier == SubscriptionTier.FREE) {
+            properties.freeDailyLimit.toLong()
+        } else {
+            properties.premiumDailySafetyLimit.toLong()
         }
+        val reservationId = usagePort.reserve(userId, normalized, dailyLimit) ?: throw AiQuotaExceededException()
 
-        onStage(AiAssistantStage.UNDERSTANDING_QUESTION)
+        try {
+            onStage(AiAssistantStage.UNDERSTANDING_QUESTION)
 
-        // 동일 질문 비용 절감을 위한 1차 캐시입니다. 향후 semantic cache를 추가해도 이 위치에서 먼저 확인하면 됩니다.
-        cachePort.get(normalized)?.let { cached ->
-            val cacheHit = cached.copy(
-                promptTokens = 0,
-                completionTokens = 0,
-                estimatedCostUsd = java.math.BigDecimal.ZERO,
-                cacheHit = true,
-                embeddingTokens = 0,
-                embeddingCostUsd = java.math.BigDecimal.ZERO,
+            // 상담 내용이 다른 사용자에게 재사용되지 않도록 사용자별 HMAC cache를 사용합니다.
+            cachePort.get(userId, normalized)?.let { cached ->
+                val cacheHit = cached.copy(
+                    promptTokens = 0,
+                    completionTokens = 0,
+                    estimatedCostUsd = java.math.BigDecimal.ZERO,
+                    cacheHit = true,
+                    embeddingTokens = 0,
+                    embeddingCostUsd = java.math.BigDecimal.ZERO,
+                )
+                usagePort.complete(reservationId, cacheHit)
+                onCacheHit(cacheHit)
+                return cacheHit
+            }
+
+            val understoodQuestion = questionUnderstandingService.understand(normalized)
+
+            // RAG 강제 지점입니다. AI는 DB 검색 결과가 없으면 답변하지 않아야 합니다.
+            onStage(AiAssistantStage.SEARCHING_SCRIPTURE)
+            val retrieval = retrievalPort.searchRelevantVerses(understoodQuestion)
+            if (retrieval.citations.isEmpty()) throw AiGroundingNotFoundException()
+
+            // 일반 응답과 streaming 응답 모두 같은 RAG, 비용 기록, cache 정책을 통과합니다.
+            onStage(AiAssistantStage.GENERATING_ANSWER)
+            val completion = complete(normalized, retrieval.citations)
+            val answer = completion.copy(
+                estimatedCostUsd = completion.estimatedCostUsd.add(retrieval.embeddingCostUsd),
+                embeddingTokens = retrieval.embeddingTokens,
+                embeddingCostUsd = retrieval.embeddingCostUsd,
+                retrievalStrategy = retrieval.strategy,
+                questionIntent = understoodQuestion.intent,
             )
-            usagePort.save(userId, normalized, cacheHit)
-            onCacheHit(cacheHit)
-            return cacheHit
+            usagePort.complete(reservationId, answer)
+            cachePort.put(userId, normalized, answer)
+            return answer
+        } catch (error: RuntimeException) {
+            usagePort.fail(reservationId, error::class.simpleName ?: "AI_REQUEST_FAILED")
+            throw error
         }
-
-        val understoodQuestion = questionUnderstandingService.understand(normalized)
-
-        // RAG 강제 지점입니다. 답변 원문과 검색 질의를 분리하되 AI는 DB 검색 결과가 없으면 답변하지 않아야 합니다.
-        onStage(AiAssistantStage.SEARCHING_SCRIPTURE)
-        val retrieval = retrievalPort.searchRelevantVerses(understoodQuestion)
-        if (retrieval.citations.isEmpty()) throw AiGroundingNotFoundException()
-
-        // 일반 응답과 streaming 응답 모두 같은 RAG, 비용 기록, cache 정책을 통과합니다.
-        onStage(AiAssistantStage.GENERATING_ANSWER)
-        val completion = complete(normalized, retrieval.citations)
-        val answer = completion.copy(
-            estimatedCostUsd = completion.estimatedCostUsd.add(retrieval.embeddingCostUsd),
-            embeddingTokens = retrieval.embeddingTokens,
-            embeddingCostUsd = retrieval.embeddingCostUsd,
-            retrievalStrategy = retrieval.strategy,
-            questionIntent = understoodQuestion.intent,
-        )
-        usagePort.save(userId, normalized, answer)
-        cachePort.put(normalized, answer)
-        return answer
     }
 
     companion object {

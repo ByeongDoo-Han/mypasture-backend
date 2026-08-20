@@ -78,6 +78,7 @@ class JwtTokenProvider(
             role = UserRole.valueOf(claims.path("role").asText()),
             subscriptionTier = SubscriptionTier.valueOf(claims.path("subscriptionTier").asText()),
             authVersion = claims.path("authVersion").asInt(0),
+            issuedAt = Instant.ofEpochSecond(claims.path("iat").asLong(0)),
         )
     }
 
@@ -111,6 +112,7 @@ data class JwtPrincipal(
     val role: UserRole,
     val subscriptionTier: SubscriptionTier,
     val authVersion: Int,
+    val issuedAt: Instant = Instant.EPOCH,
 )
 
 /** JWT 형식, 서명, issuer, claim이 유효하지 않을 때 발생하는 예외입니다. */

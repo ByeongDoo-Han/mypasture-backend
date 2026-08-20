@@ -14,6 +14,9 @@ data class OAuthProperties(
         jwkSetUri = "https://appleid.apple.com/auth/keys",
     ),
     val kakao: KakaoProviderProperties = KakaoProviderProperties(),
+    val challengeTtlSeconds: Long = 300,
+    val connectTimeoutMs: Long = 3_000,
+    val readTimeoutMs: Long = 5_000,
 )
 
 /** Google/Apple처럼 OIDC identity token을 검증하는 제공자의 설정입니다. */
@@ -36,4 +39,6 @@ data class OidcProviderProperties(
 /** Kakao access token으로 사용자 정보를 조회할 때 사용하는 설정입니다. */
 data class KakaoProviderProperties(
     val userInfoUri: String = "https://kapi.kakao.com/v2/user/me",
+    val tokenInfoUri: String = "https://kapi.kakao.com/v1/user/access_token_info",
+    val appIds: List<Long> = emptyList(),
 )

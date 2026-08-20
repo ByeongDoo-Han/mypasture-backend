@@ -20,6 +20,10 @@ spring:
       port: ${REDIS_PORT:6379}
 
 app:
+  cors:
+    allowed-origins:
+      - http://localhost:8084
+      - http://localhost:3000
   bible:
     kor1910-html-path: ${KOR1910_HTML_PATH:data/kor_html}
     import-enabled: ${BIBLE_IMPORT_ENABLED:false}
@@ -27,7 +31,12 @@ app:
     api-key: ${OPENAI_API_KEY:test}
     mock-enabled: ${AI_MOCK_ENABLED:true}
   security:
+    rate-limit:
+      enabled: ${RATE_LIMIT_ENABLED:false}
+      fail-closed: false
+      trust-forwarded-headers: false
     jwt:
       issuer: ${JWT_ISSUER:mypasture-local}
       secret: ${JWT_SECRET:local-jwt-secret-change-me-32-bytes-minimum}
-      access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:3600}
+      access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:900}
+      refresh-token-ttl-seconds: ${JWT_REFRESH_TOKEN_TTL_SECONDS:2592000}

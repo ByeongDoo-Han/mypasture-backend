@@ -8,6 +8,7 @@ import com.example.mypasture.config.FirebaseProperties
 import com.example.mypasture.config.JwtProperties
 import com.example.mypasture.config.OAuthProperties
 import com.example.mypasture.config.QuietTimeQrProperties
+import com.example.mypasture.config.RateLimitProperties
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.runApplication
@@ -25,6 +26,7 @@ import org.springframework.scheduling.annotation.EnableScheduling
     JwtProperties::class,
     OAuthProperties::class,
     QuietTimeQrProperties::class,
+    RateLimitProperties::class,
 )
 class MypastureApplication
 

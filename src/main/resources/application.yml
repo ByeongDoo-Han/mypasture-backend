@@ -20,6 +20,16 @@ management:
         enabled: true
 
 app:
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}
+  security:
+    rate-limit:
+      enabled: ${RATE_LIMIT_ENABLED:false}
+      fail-closed: ${RATE_LIMIT_FAIL_CLOSED:false}
+      trust-forwarded-headers: ${RATE_LIMIT_TRUST_FORWARDED_HEADERS:false}
+      window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
+      auth-requests-per-window: ${AUTH_RATE_LIMIT_PER_WINDOW:20}
+      ai-requests-per-window: ${AI_RATE_LIMIT_PER_WINDOW:15}
   auth:
     password-reset:
       token-ttl-minutes: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
@@ -50,6 +60,8 @@ app:
     max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:700}
     reasoning-effort: ${OPENAI_REASONING_EFFORT:minimal}
     free-daily-limit: ${AI_FREE_DAILY_LIMIT:10}
+    premium-daily-safety-limit: ${AI_PREMIUM_DAILY_SAFETY_LIMIT:500}
+    privacy-hash-secret: ${AI_PRIVACY_HASH_SECRET:local-ai-privacy-secret-change-me}
     timeout-ms: ${AI_TIMEOUT_MS:12000}
     stream-timeout-ms: ${AI_STREAM_TIMEOUT_MS:60000}
     stream-core-pool-size: ${AI_STREAM_CORE_POOL_SIZE:8}
@@ -67,6 +79,9 @@ app:
     commentary-output-cost-per-million: ${AI_COMMENTARY_OUTPUT_COST_PER_MILLION:2.00}
 
   oauth:
+    challenge-ttl-seconds: ${SOCIAL_LOGIN_CHALLENGE_TTL_SECONDS:300}
+    connect-timeout-ms: ${SOCIAL_OAUTH_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${SOCIAL_OAUTH_READ_TIMEOUT_MS:5000}
     google:
       client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:${GOOGLE_OAUTH_CLIENT_ID:}}
       web-client-ids: ${GOOGLE_OAUTH_WEB_CLIENT_IDS:}
@@ -80,3 +95,5 @@ app:
       jwk-set-uri: ${APPLE_OAUTH_JWK_SET_URI:https://appleid.apple.com/auth/keys}
     kakao:
       user-info-uri: ${KAKAO_USER_INFO_URI:https://kapi.kakao.com/v2/user/me}
+      token-info-uri: ${KAKAO_TOKEN_INFO_URI:https://kapi.kakao.com/v1/user/access_token_info}
+      app-ids: ${KAKAO_APP_IDS:}

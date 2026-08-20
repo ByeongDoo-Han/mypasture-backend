@@ -24,4 +24,5 @@ data class SocialUserProfile(
     val email: String?,
     val emailVerified: Boolean,
     val displayName: String?,
+    val nonce: String? = null,
 )

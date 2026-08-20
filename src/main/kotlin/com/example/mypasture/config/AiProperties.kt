@@ -18,6 +18,7 @@ data class AiProperties(
     val maxInputChars: Int,
     val maxOutputTokens: Int,
     val freeDailyLimit: Int,
+    val premiumDailySafetyLimit: Int = 500,
     val timeoutMs: Long,
     val cacheTtlSeconds: Long,
     val ragTopK: Int,
@@ -34,4 +35,5 @@ data class AiProperties(
     val streamMaxPoolSize: Int = 64,
     val streamQueueCapacity: Int = 200,
     val reasoningEffort: String = "minimal",
+    val privacyHashSecret: String = "local-ai-privacy-secret-change-me",
 )

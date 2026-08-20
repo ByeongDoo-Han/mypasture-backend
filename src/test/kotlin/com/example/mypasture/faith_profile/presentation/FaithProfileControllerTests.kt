@@ -3,6 +3,7 @@ package com.example.mypasture.faith_profile.presentation
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.BeforeEach
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
@@ -19,6 +20,23 @@ class FaithProfileControllerTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val objectMapper: ObjectMapper,
 ) {
+    private lateinit var token: String
+
+    @BeforeEach
+    fun authenticate() {
+        val email = "faith-${UUID.randomUUID()}@example.com"
+        val password = "password123!"
+        mockMvc.post("/api/v1/auth/signup") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"$password","displayName":"Faith Test"}"""
+        }.andExpect { status { isCreated() } }
+        val login = mockMvc.post("/api/v1/auth/login") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"$password"}"""
+        }.andReturn()
+        token = objectMapper.readTree(login.response.contentAsString)["token"].asText()
+    }
+
     @Test
     fun `current test returns default faith rhythm definition`() {
         mockMvc.get("/api/v1/faith-profile/tests/current")
@@ -57,22 +75,32 @@ class FaithProfileControllerTests(
         val result = completeAssessment(assessmentId)
         val resultId = UUID.fromString(result["id"].asText())
 
-        mockMvc.get("/api/v1/faith-profile/results/$resultId")
-            .andExpect {
+        mockMvc.get("/api/v1/faith-profile/results/$resultId") {
+            header("Authorization", "Bearer $token")
+        }.andExpect {
                 status { isOk() }
                 jsonPath("$.typeCode") { value("WMCG") }
                 jsonPath("$.typeName") { value("조용한 말씀 순례자") }
                 jsonPath("$.dimensionScores.length()") { value(4) }
                 jsonPath("$.recommendations.length()") { value(3) }
             }
+
+        val otherUserToken = issueToken()
+        mockMvc.get("/api/v1/faith-profile/results/$resultId") {
+            header("Authorization", "Bearer $otherUserToken")
+        }.andExpect {
+            status { isForbidden() }
+            jsonPath("$.code") { value("FAITH_PROFILE_FORBIDDEN") }
+        }
     }
 
     @Test
     fun `complete rejects incomplete assessment`() {
         val assessmentId = startAssessment()
 
-        mockMvc.post("/api/v1/faith-profile/assessments/$assessmentId/complete")
-            .andExpect {
+        mockMvc.post("/api/v1/faith-profile/assessments/$assessmentId/complete") {
+            header("Authorization", "Bearer $token")
+        }.andExpect {
                 status { isBadRequest() }
                 jsonPath("$.code") { value("INVALID_FAITH_PROFILE_REQUEST") }
             }
@@ -86,6 +114,7 @@ class FaithProfileControllerTests(
         submitAnswer(assessmentId, questionId, 3)
 
         mockMvc.post("/api/v1/faith-profile/assessments/$assessmentId/answers") {
+            header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
             content = answerPayload(questionId, 4)
         }.andExpect {
@@ -103,6 +132,7 @@ class FaithProfileControllerTests(
 
     private fun startAssessment(): UUID {
         val mvcResult = mockMvc.post("/api/v1/faith-profile/assessments") {
+            header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
             content = "{}"
         }.andExpect {
@@ -118,6 +148,7 @@ class FaithProfileControllerTests(
         score: Int,
     ) {
         mockMvc.post("/api/v1/faith-profile/assessments/$assessmentId/answers") {
+            header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
             content = answerPayload(questionId, score)
         }.andExpect {
@@ -127,8 +158,9 @@ class FaithProfileControllerTests(
     }
 
     private fun completeAssessment(assessmentId: UUID): JsonNode {
-        val mvcResult = mockMvc.post("/api/v1/faith-profile/assessments/$assessmentId/complete")
-            .andExpect {
+        val mvcResult = mockMvc.post("/api/v1/faith-profile/assessments/$assessmentId/complete") {
+            header("Authorization", "Bearer $token")
+        }.andExpect {
                 status { isOk() }
                 jsonPath("$.typeCode") { value("WMCG") }
                 jsonPath("$.summary") { exists() }
@@ -146,4 +178,18 @@ class FaithProfileControllerTests(
           "score": $score
         }
         """.trimIndent()
+
+    private fun issueToken(): String {
+        val email = "faith-other-${UUID.randomUUID()}@example.com"
+        val password = "password123!"
+        mockMvc.post("/api/v1/auth/signup") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"$password","displayName":"Other Faith User"}"""
+        }.andExpect { status { isCreated() } }
+        val login = mockMvc.post("/api/v1/auth/login") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"$password"}"""
+        }.andReturn()
+        return objectMapper.readTree(login.response.contentAsString)["token"].asText()
+    }
 }

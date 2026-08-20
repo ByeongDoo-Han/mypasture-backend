@@ -2,6 +2,7 @@ package com.example.mypasture.ai
 
 import com.example.mypasture.ai.application.AskBibleAssistantUseCase
 import com.example.mypasture.ai.application.AiGroundingNotFoundException
+import com.example.mypasture.ai.application.AiUsagePort
 import com.example.mypasture.ai.application.TextEmbeddingPort
 import com.example.mypasture.ai.domain.RagRetrievalStrategy
 import com.example.mypasture.ai.domain.AiAssistantStage
@@ -19,15 +20,24 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.TestPropertySource
 import java.math.BigDecimal
 import java.util.UUID
+import java.util.concurrent.Executors
 
 /** 개발 환경 AI가 실제 성경 원문을 근거로 답하고 사용량을 기록하는지 검증합니다. */
 @SpringBootTest
-@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html", "app.bible.import-enabled=true", "app.ai.mock-enabled=true"])
+@TestPropertySource(
+    properties = [
+        "app.bible.kor1910-html-path=src/test/resources/bible/kor_html",
+        "app.bible.import-enabled=true",
+        "app.ai.mock-enabled=true",
+        "app.ai.rag-lexical-fallback-enabled=true",
+    ],
+)
 class AiAssistantFlowTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val useCase: AskBibleAssistantUseCase,
     @Autowired private val usageRepository: AiUsageLogRepository,
     @Autowired private val embeddingPort: TextEmbeddingPort,
+    @Autowired private val usagePort: AiUsagePort,
 ) {
     @Test
     fun `local assistant returns grounded answer and records usage`() {
@@ -52,6 +62,7 @@ class AiAssistantFlowTests(
         assertThrows(AiGroundingNotFoundException::class.java) {
             useCase.ask(user.id, SubscriptionTier.FREE, "zxqvnoresulttoken")
         }
+        assertEquals("FAILED", usageRepository.findAllByUserId(user.id).single().status.name)
     }
 
     @Test
@@ -133,5 +144,21 @@ class AiAssistantFlowTests(
         assertEquals(null, premium.limit)
         assertEquals(null, premium.remaining)
         assertTrue(premium.unlimited)
+    }
+
+    @Test
+    fun `concurrent quota reservations cannot exceed the free daily limit`() {
+        val user = userRepository.save(UserEntity(email = "ai-concurrent-${UUID.randomUUID()}@example.com", displayName = "AI Concurrent"))
+        val executor = Executors.newFixedThreadPool(12)
+        try {
+            val reservations = (1..12).map { index ->
+                executor.submit<UUID?> { usagePort.reserve(user.id, "동시 질문 $index", 10) }
+            }.map { it.get() }
+
+            assertEquals(10, reservations.count { it != null })
+            assertEquals(10, usagePort.countToday(user.id))
+        } finally {
+            executor.shutdownNow()
+        }
     }
 }

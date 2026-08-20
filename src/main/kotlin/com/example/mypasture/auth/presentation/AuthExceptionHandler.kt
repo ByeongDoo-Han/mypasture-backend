@@ -5,8 +5,12 @@ import com.example.mypasture.auth.application.AccountDeletionReauthenticationExc
 import com.example.mypasture.auth.application.EmailAlreadyRegisteredException
 import com.example.mypasture.auth.application.InvalidCredentialsException
 import com.example.mypasture.auth.application.InvalidPasswordResetTokenException
+import com.example.mypasture.auth.application.InvalidRefreshTokenException
+import com.example.mypasture.auth.application.InvalidSocialLoginChallengeException
+import com.example.mypasture.auth.application.MissingSocialLoginChallengeException
 import com.example.mypasture.auth.application.PasswordReuseNotAllowedException
 import com.example.mypasture.auth.application.SocialEmailNotVerifiedException
+import com.example.mypasture.auth.application.SocialAccountLinkRequiredException
 import com.example.mypasture.auth.application.UnsupportedSocialProviderException
 import com.example.mypasture.auth.infrastructure.InvalidSocialTokenException
 import com.example.mypasture.auth.infrastructure.MissingSocialTokenException
@@ -42,6 +46,22 @@ class AuthExceptionHandler {
     @ExceptionHandler(SocialEmailNotVerifiedException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleSocialEmailNotVerified() = AuthErrorResponse("SOCIAL_EMAIL_NOT_VERIFIED", "소셜 계정 이메일 인증이 필요합니다.")
+
+    @ExceptionHandler(SocialAccountLinkRequiredException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handleSocialAccountLinkRequired() = AuthErrorResponse("SOCIAL_ACCOUNT_LINK_REQUIRED", "기존 계정으로 로그인한 뒤 소셜 계정을 연결해 주세요.")
+
+    @ExceptionHandler(InvalidRefreshTokenException::class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    fun handleInvalidRefreshToken() = AuthErrorResponse("INVALID_REFRESH_TOKEN", "로그인 세션이 만료되었거나 다시 사용할 수 없습니다.")
+
+    @ExceptionHandler(MissingSocialLoginChallengeException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun handleMissingSocialLoginChallenge() = AuthErrorResponse("MISSING_SOCIAL_CHALLENGE", "소셜 로그인 보안 challenge가 필요합니다.")
+
+    @ExceptionHandler(InvalidSocialLoginChallengeException::class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    fun handleInvalidSocialLoginChallenge() = AuthErrorResponse("INVALID_SOCIAL_CHALLENGE", "소셜 로그인 요청이 만료되었거나 이미 사용되었습니다.")
 
     @ExceptionHandler(SocialOAuthProviderMisconfiguredException::class)
     @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)

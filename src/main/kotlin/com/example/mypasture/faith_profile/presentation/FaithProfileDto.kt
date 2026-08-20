@@ -13,10 +13,8 @@ import jakarta.validation.constraints.Min
 import java.time.Instant
 import java.util.UUID
 
-/** 신앙 성향 테스트 시작 요청 DTO입니다. 로그인 전 게스트 진단을 위해 userId는 선택값입니다. */
-data class StartFaithAssessmentRequest(
-    val userId: UUID? = null,
-)
+/** 인증된 사용자의 신앙 성향 테스트 시작 요청 DTO입니다. 사용자 ID는 JWT에서 결정합니다. */
+class StartFaithAssessmentRequest
 
 /** 신앙 성향 테스트 문항 답변 요청 DTO입니다. */
 data class SubmitFaithAnswerRequest(

@@ -5,6 +5,7 @@ import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.auth.presentation.dto.DeleteAccountRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetConfirmRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequest
+import com.example.mypasture.auth.presentation.dto.RefreshAccessTokenRequest
 import com.example.mypasture.auth.presentation.dto.SocialLoginRequest
 import com.example.mypasture.auth.presentation.dto.UserLoginRequest
 import com.example.mypasture.auth.presentation.dto.UserSignupRequest
@@ -25,6 +26,12 @@ class AuthController(
 
     override fun socialLogin(request: SocialLoginRequest) = authService.socialLogin(request)
 
+    override fun createSocialLoginChallenge() = authService.createSocialLoginChallenge()
+
+    override fun refresh(request: RefreshAccessTokenRequest) = authService.refresh(request)
+
+    override fun logout(principal: JwtPrincipal) = authService.logout(principal.userId)
+
     override fun requestPasswordReset(request: PasswordResetRequest) =
         authService.requestPasswordReset(request)
 
@@ -36,5 +43,5 @@ class AuthController(
     override fun deleteMe(
         principal: JwtPrincipal,
         request: DeleteAccountRequest,
-    ) = authService.deleteAccount(principal.userId, request)
+    ) = authService.deleteAccount(principal.userId, principal.issuedAt, request)
 }

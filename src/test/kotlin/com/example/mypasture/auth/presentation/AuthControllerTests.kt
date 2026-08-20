@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.bean.override.mockito.MockitoBean
+import org.springframework.test.context.TestPropertySource
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
@@ -27,6 +28,7 @@ import java.time.Instant
 /** AuthController의 회원가입 HTTP 흐름을 검증하는 통합 테스트입니다. */
 @SpringBootTest
 @AutoConfigureMockMvc
+@TestPropertySource(properties = ["app.security.jwt.access-token-ttl-seconds=900"])
 class AuthControllerTests(
     @Autowired private val mockMvc: MockMvc,
 ) {
@@ -128,7 +130,7 @@ class AuthControllerTests(
             status { isOk() }
             jsonPath("$.token") { exists() }
             jsonPath("$.tokenType") { value("Bearer") }
-            jsonPath("$.expiresIn") { value(3600) }
+            jsonPath("$.expiresIn") { value(900) }
             jsonPath("$.user.email") { value(email) }
         }.andReturn()
 

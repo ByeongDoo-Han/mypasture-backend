@@ -72,3 +72,24 @@ dependencyManagement {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+tasks.named<Test>("test") {
+    useJUnitPlatform {
+        excludeTags("openai-live")
+    }
+}
+
+/** 실제 과금 API는 명시적으로 실행할 때만 호출해 일반 테스트와 CI의 비용 발생을 막습니다. */
+tasks.register<Test>("openAiSmokeTest") {
+    group = "verification"
+    description = "Runs the opt-in, minimal-token OpenAI API smoke test."
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform {
+        includeTags("openai-live")
+    }
+    testLogging {
+        events("passed", "failed")
+        showStandardStreams = true
+    }
+}

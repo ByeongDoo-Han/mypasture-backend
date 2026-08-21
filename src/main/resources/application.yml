@@ -31,6 +31,15 @@ app:
       auth-requests-per-window: ${AUTH_RATE_LIMIT_PER_WINDOW:20}
       ai-requests-per-window: ${AI_RATE_LIMIT_PER_WINDOW:15}
   auth:
+    email-verification:
+      required: ${EMAIL_VERIFICATION_REQUIRED:true}
+      code-ttl-minutes: ${EMAIL_VERIFICATION_CODE_TTL_MINUTES:10}
+      signup-token-ttl-minutes: ${EMAIL_VERIFICATION_SIGNUP_TOKEN_TTL_MINUTES:30}
+      request-cooldown-seconds: ${EMAIL_VERIFICATION_REQUEST_COOLDOWN_SECONDS:60}
+      max-attempts: ${EMAIL_VERIFICATION_MAX_ATTEMPTS:5}
+      delivery: ${EMAIL_VERIFICATION_DELIVERY:log}
+      from: ${EMAIL_VERIFICATION_FROM:no-reply@mypasture.app}
+      hmac-secret: ${EMAIL_VERIFICATION_HMAC_SECRET:local-email-verification-secret-change-me}
     password-reset:
       token-ttl-minutes: ${PASSWORD_RESET_TOKEN_TTL_MINUTES:30}
       request-cooldown-seconds: ${PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS:60}

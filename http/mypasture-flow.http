@@ -7,14 +7,46 @@ client.test("Backend is healthy", function () {
 });
 %}
 
-### 01. Sign up
+### 01. Request email verification code
+POST {{baseUrl}}/api/v1/auth/email-verifications
+Content-Type: application/json
+
+{
+  "email": "{{email}}"
+}
+
+> {%
+client.test("Email verification request is accepted", function () {
+  client.assert(response.status === 202, "Expected HTTP 202");
+});
+%}
+
+### 01-1. Confirm the code copied from the local server log or email
+POST {{baseUrl}}/api/v1/auth/email-verifications/confirm
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "code": "{{emailVerificationCode}}"
+}
+
+> {%
+client.test("Email verification returns a signup token", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(!!response.body.verificationToken, "Expected verification token");
+});
+client.global.set("emailVerificationToken", response.body.verificationToken);
+%}
+
+### 01-2. Sign up with the one-time verification token
 POST {{baseUrl}}/api/v1/auth/signup
 Content-Type: application/json
 
 {
   "email": "{{email}}",
   "password": "{{password}}",
-  "displayName": "Flow Tester"
+  "displayName": "Flow Tester",
+  "verificationToken": "{{emailVerificationToken}}"
 }
 
 > {%

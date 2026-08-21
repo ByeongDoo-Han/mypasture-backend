@@ -80,6 +80,8 @@ class SecurityConfig {
                 it.requestMatchers(HttpMethod.GET, "/api/v1/auth/health").permitAll()
                 it.requestMatchers(
                     HttpMethod.POST,
+                    "/api/v1/auth/email-verifications",
+                    "/api/v1/auth/email-verifications/confirm",
                     "/api/v1/auth/signup",
                     "/api/v1/auth/login",
                     "/api/v1/auth/social-login",

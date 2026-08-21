@@ -25,6 +25,26 @@ KAKAO_USER_INFO_URI=https://kapi.kakao.com/v2/user/me
 - Kakao는 기본 사용자 정보 API 주소를 사용하며, 별도 프록시를 쓰는 경우에만 변경합니다.
 - Client ID는 공개 식별자이지만 실제 ID 토큰, 액세스 토큰, Client Secret은 문서나 Git에 커밋하지 않습니다.
 
+### 이메일 회원가입 인증
+
+로컬에서는 `EMAIL_VERIFICATION_DELIVERY=log`로 두고 서버 로그의 `DEV ONLY` 인증번호를 사용합니다.
+운영에서는 `smtp`로 변경하고 HMAC 비밀값을 Secret Manager에서 주입해야 합니다.
+
+```dotenv
+EMAIL_VERIFICATION_REQUIRED=true
+EMAIL_VERIFICATION_CODE_TTL_MINUTES=10
+EMAIL_VERIFICATION_SIGNUP_TOKEN_TTL_MINUTES=30
+EMAIL_VERIFICATION_REQUEST_COOLDOWN_SECONDS=60
+EMAIL_VERIFICATION_MAX_ATTEMPTS=5
+EMAIL_VERIFICATION_DELIVERY=log
+EMAIL_VERIFICATION_FROM=no-reply@mypasture.app
+EMAIL_VERIFICATION_HMAC_SECRET=32자_이상의_무작위_운영_비밀값
+```
+
+운영 SMTP는 기존 `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`,
+`SPRING_MAIL_PASSWORD` 설정을 함께 사용합니다. 인증번호와 SMTP 비밀번호를 Git, `.http` 공유 환경 파일,
+운영 로그에 기록하지 않습니다.
+
 ### 2. Gradle로 직접 실행
 
 ```bash

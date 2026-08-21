@@ -4,6 +4,14 @@ import com.example.mypasture.daily_word.application.DailyWordService
 import com.example.mypasture.daily_word.domain.DailyWordEntity
 import com.example.mypasture.notification.domain.*
 import com.example.mypasture.notification.infrastructure.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
@@ -13,7 +21,7 @@ import java.time.*
 import java.util.UUID
 
 /** FCM 구현체를 application 계층에서 분리하는 푸시 발송 포트입니다. */
-interface PushSender { fun send(token: String, title: String, body: String, data: Map<String, String>) }
+interface PushSender { suspend fun send(token: String, title: String, body: String, data: Map<String, String>) }
 
 /** 기기 등록, 알림 설정과 시간대별 오늘의 말씀 발송을 처리합니다. */
 @Service
@@ -26,6 +34,8 @@ class NotificationService(
     private val deliveryCoordinator: NotificationDeliveryCoordinator,
     private val clock: Clock = Clock.systemUTC(),
 ) {
+    private val sendSemaphore = Semaphore(MAX_CONCURRENT_PUSH_SENDS)
+
     @Transactional
     fun register(userId: UUID, deviceId: String, token: String, platform: DevicePlatform): NotificationDeviceEntity {
         val now = Instant.now(clock)
@@ -72,7 +82,7 @@ class NotificationService(
 
     /** 매분 각 사용자 현지 시각을 확인하고 DB 예약을 선점한 인스턴스만 푸시를 발송합니다. */
     @Scheduled(cron = "0 * * * * *")
-    fun dispatchDueDailyWords() {
+    suspend fun dispatchDueDailyWords() = withContext(Dispatchers.IO) {
         val now = Instant.now(clock)
         settingRepository.findAllByEnabledTrue().forEach { setting ->
             val local = ZonedDateTime.ofInstant(now, ZoneId.of(setting.timezone))
@@ -86,13 +96,34 @@ class NotificationService(
                 if (deliveryRepository.existsByUserIdAndDailyWordId(setting.userId, word.id)) return@forEach
                 throw cause
             }
-            var error: String? = null
-            devices.forEach { device ->
-                runCatching { pushSender.send(device.fcmToken, "오늘의 말씀", "${word.bookName} ${word.chapter}:${word.verse}", mapOf("type" to "DAILY_WORD", "date" to word.wordDate.toString())) }
-                    .onFailure { error = it.message?.take(500) }
+            val errors = coroutineScope {
+                devices.map { device ->
+                    async {
+                        sendSemaphore.withPermit {
+                            try {
+                                pushSender.send(
+                                    device.fcmToken,
+                                    "오늘의 말씀",
+                                    "${word.bookName} ${word.chapter}:${word.verse}",
+                                    mapOf("type" to "DAILY_WORD", "date" to word.wordDate.toString()),
+                                )
+                                null
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (error: RuntimeException) {
+                                error.message?.take(500)
+                            }
+                        }
+                    }
+                }.awaitAll().filterNotNull()
             }
+            val error = errors.firstOrNull()
             deliveryCoordinator.complete(deliveryId, error, now)
         }
+    }
+
+    companion object {
+        private const val MAX_CONCURRENT_PUSH_SENDS = 16
     }
 }
 

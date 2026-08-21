@@ -11,12 +11,14 @@ import java.time.temporal.ChronoUnit
 class AuthTokenCleanupJob(
     private val refreshTokenRepository: RefreshTokenRepository,
     private val socialLoginChallengeRepository: SocialLoginChallengeRepository,
+    private val emailSignupVerificationRepository: EmailSignupVerificationRepository,
 ) {
     @Scheduled(fixedDelayString = "\${app.auth.token-cleanup-delay-ms:3600000}")
     @Transactional
     fun cleanup() {
         val now = Instant.now()
         socialLoginChallengeRepository.deleteExpiredBefore(now)
+        emailSignupVerificationRepository.deleteExpiredBefore(now.minus(1, ChronoUnit.DAYS))
         // 재사용 탐지를 위해 refresh token은 만료 뒤에도 7일간 보존합니다.
         refreshTokenRepository.deleteExpiredBefore(now.minus(7, ChronoUnit.DAYS))
     }

@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicReference
 
 /** AuthController의 회원가입 HTTP 흐름을 검증하는 통합 테스트입니다. */
 @SpringBootTest
@@ -363,10 +364,10 @@ class AuthControllerTests(
         val oldPassword = "old-password123!"
         val newPassword = "new-password456!"
         val oldToken = signupAndLogin(email, oldPassword)
-        var deliveredToken: String? = null
+        val deliveredToken = AtomicReference<String>()
 
         doAnswer { invocation ->
-            deliveredToken = invocation.getArgument(2)
+            deliveredToken.set(invocation.getArgument(2))
             null
         }.`when`(passwordResetNotificationSender).send(
             anyString(),
@@ -383,7 +384,7 @@ class AuthControllerTests(
             jsonPath("$.message") { exists() }
         }
 
-        val resetToken = requireNotNull(deliveredToken)
+        val resetToken = awaitValue(deliveredToken)
         mockMvc.post("/api/v1/auth/password-reset/confirm") {
             contentType = MediaType.APPLICATION_JSON
             content =
@@ -546,6 +547,15 @@ class AuthControllerTests(
         return com.fasterxml.jackson.databind.ObjectMapper()
             .readTree(result.response.contentAsString)["token"]
             .asText()
+    }
+
+    private fun <T> awaitValue(reference: AtomicReference<T>, timeoutMillis: Long = 2_000): T {
+        val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+        while (System.nanoTime() < deadline) {
+            reference.get()?.let { return it }
+            Thread.sleep(10)
+        }
+        return requireNotNull(reference.get()) { "비동기 알림이 제한 시간 안에 전달되지 않았습니다." }
     }
 
 }

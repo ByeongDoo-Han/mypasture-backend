@@ -3,6 +3,8 @@ package com.example.mypasture.quiet_time.presentation
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.quiet_time.application.QuietTimeService
 import com.example.mypasture.quiet_time.application.QuietTimeReflectionService
+import com.example.mypasture.quiet_time.application.QuietTimeQuestionAnswerService
+import com.example.mypasture.quiet_time.domain.QuietTimeQuestionCategory
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
@@ -13,6 +15,8 @@ import java.util.UUID
 class QuietTimeController(
     private val quietTimeService: QuietTimeService,
     private val reflectionService: QuietTimeReflectionService,
+    private val answerService: QuietTimeQuestionAnswerService,
+    private val answerStreamRegistry: QuietTimeAnswerStreamRegistry,
 ) : QuietTimeApi {
     override fun recommendedPassages(
         theme: String?,
@@ -60,6 +64,20 @@ class QuietTimeController(
 
     override fun sharedReflections(principal: JwtPrincipal, sessionId: UUID) = reflectionService.shared(sessionId, principal.userId).map { it.toResponse() }
 
+    override fun saveQuestionAnswer(
+        principal: JwtPrincipal,
+        sessionId: UUID,
+        category: QuietTimeQuestionCategory,
+        questionIndex: Int,
+        request: SaveQuietTimeQuestionAnswerRequest,
+    ) = answerService.save(sessionId, principal.userId, category, questionIndex, request.content).toResponse()
+
+    override fun questionAnswers(principal: JwtPrincipal, sessionId: UUID) =
+        answerService.list(sessionId, principal.userId).map { it.toResponse() }
+
+    override fun streamQuestionAnswers(principal: JwtPrincipal, sessionId: UUID) =
+        answerService.requireReadAccess(sessionId, principal.userId).let { answerStreamRegistry.subscribe(sessionId) }
+
     override fun reissueQr(
         principal: JwtPrincipal,
         sessionId: UUID,
@@ -75,5 +93,8 @@ class QuietTimeController(
     override fun closeSession(
         principal: JwtPrincipal,
         sessionId: UUID,
-    ) = quietTimeService.closeSession(principal.userId, sessionId)
+    ) {
+        quietTimeService.closeSession(principal.userId, sessionId)
+        answerStreamRegistry.completeSession(sessionId)
+    }
 }

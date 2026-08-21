@@ -6,6 +6,8 @@ import com.example.mypasture.quiet_time.domain.QuietTimeParticipantEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeQrInvitationEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeSessionEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeReflectionEntity
+import com.example.mypasture.quiet_time.domain.QuietTimeQuestionAnswerEntity
+import com.example.mypasture.quiet_time.domain.QuietTimeQuestionCategory
 import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
@@ -92,4 +94,19 @@ interface QuietTimeParticipantRepository : JpaRepository<QuietTimeParticipantEnt
 interface QuietTimeReflectionRepository : JpaRepository<QuietTimeReflectionEntity, UUID> {
     fun findBySessionIdAndUserId(sessionId: UUID, userId: UUID): QuietTimeReflectionEntity?
     fun findAllBySessionIdAndSharedWithPastureTrueOrderByUpdatedAtDesc(sessionId: UUID): List<QuietTimeReflectionEntity>
+}
+
+/** QT 세션의 질문별 최신 답변을 작성자와 질문 위치 기준으로 저장·조회합니다. */
+@Repository
+interface QuietTimeQuestionAnswerRepository : JpaRepository<QuietTimeQuestionAnswerEntity, UUID> {
+    fun findBySessionIdAndUserIdAndQuestionCategoryAndQuestionIndex(
+        sessionId: UUID,
+        userId: UUID,
+        questionCategory: QuietTimeQuestionCategory,
+        questionIndex: Int,
+    ): QuietTimeQuestionAnswerEntity?
+
+    fun findAllBySessionIdOrderByQuestionCategoryAscQuestionIndexAscUpdatedAtAsc(
+        sessionId: UUID,
+    ): List<QuietTimeQuestionAnswerEntity>
 }

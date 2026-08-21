@@ -63,11 +63,15 @@ class SecurityConfig {
                 it.accessDeniedHandler(restAccessDeniedHandler)
             }
             .authorizeHttpRequests {
-                // 최초 POST에서 JWT를 확인한 AI SSE 요청의 ASYNC 재-dispatch만 허용합니다.
+                // 최초 요청에서 JWT를 확인한 SSE 연결의 ASYNC 재-dispatch만 허용합니다.
                 it.requestMatchers(
                     AndRequestMatcher(
                         DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
                         AntPathRequestMatcher("/api/v1/ai/chat/stream", "POST"),
+                    ),
+                    AndRequestMatcher(
+                        DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
+                        AntPathRequestMatcher("/api/v1/quiet-time/sessions/*/answers/stream", "GET"),
                     ),
                 ).permitAll()
                 it.requestMatchers(

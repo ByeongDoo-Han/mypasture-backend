@@ -6,7 +6,10 @@ import com.example.mypasture.quiet_time.domain.QuietTimePastureEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeSessionEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeReflectionEntity
 import com.example.mypasture.quiet_time.application.QuietTimeJoinResult
+import com.example.mypasture.quiet_time.application.QuietTimeQuestionAnswerView
 import com.example.mypasture.quiet_time.application.QuietTimeSessionQrView
+import com.example.mypasture.quiet_time.domain.QuietTimeQuestionCategory
+import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import java.time.Instant
 import java.time.LocalDate
@@ -208,3 +211,38 @@ data class QuietTimeReflectionResponse(
 )
 
 fun QuietTimeReflectionEntity.toResponse() = QuietTimeReflectionResponse(id, session.id, userId, content, sharedWithPasture, updatedAt)
+
+/** QT 질문 하나에 게시할 답변 요청입니다. */
+data class SaveQuietTimeQuestionAnswerRequest(
+    @field:NotBlank
+    @field:Size(max = 2000)
+    val content: String,
+)
+
+/** 참여자들에게 실시간으로 공유되는 QT 질문별 답변입니다. */
+data class QuietTimeQuestionAnswerResponse(
+    val id: UUID,
+    val sessionId: UUID,
+    val userId: UUID,
+    val authorDisplayName: String,
+    val questionCategory: QuietTimeQuestionCategory,
+    val questionIndex: Int,
+    val questionText: String,
+    val content: String,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+)
+
+fun QuietTimeQuestionAnswerView.toResponse() =
+    QuietTimeQuestionAnswerResponse(
+        id = id,
+        sessionId = sessionId,
+        userId = userId,
+        authorDisplayName = authorDisplayName,
+        questionCategory = questionCategory,
+        questionIndex = questionIndex,
+        questionText = questionText,
+        content = content,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+    )

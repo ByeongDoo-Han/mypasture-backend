@@ -15,3 +15,7 @@ cp http/http-client.private.env.json.example http/http-client.private.env.json
 모바일 로그인 과정에서 받은 짧은 수명의 Google/Apple ID Token과 Kakao Access Token을 private 파일에 입력한 뒤 `social-login-live.http`를 실행합니다. 이 파일은 Git에서 제외되며 Client Secret은 입력하지 않습니다.
 
 Google/Apple 토큰의 `aud`는 서버 `.env.local`에 등록한 Client ID 중 하나와 일치해야 합니다. 실제 로그인 요청 다음의 `/me` 요청까지 실행하면 My Pasture JWT 발급과 인증을 함께 확인할 수 있습니다.
+
+## QT 실시간 답변
+
+`quiet-time-live-answers.http`를 단독 실행할 때는 로그인 응답의 My Pasture `accessToken`과 생성된 `quietTimeSessionId`를 `http-client.private.env.json`에 입력합니다. 스트림 요청을 먼저 열어 둔 뒤 답변 PUT 요청을 실행하면 `answer-updated` 이벤트를 확인할 수 있습니다.

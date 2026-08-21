@@ -1,10 +1,12 @@
 package com.example.mypasture.quiet_time.presentation
 
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
+import com.example.mypasture.quiet_time.domain.QuietTimeQuestionCategory
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.util.UUID
 
 /** Swagger/OpenAPI 문서화를 controller 구현과 분리하기 위한 큐티목장 API contract입니다. */
@@ -32,6 +34,27 @@ interface QuietTimeApi {
 
     @GetMapping("/sessions/{sessionId}/reflections/shared")
     fun sharedReflections(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable sessionId: UUID): List<QuietTimeReflectionResponse>
+
+    @PutMapping("/sessions/{sessionId}/answers/{category}/{questionIndex}")
+    fun saveQuestionAnswer(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable sessionId: UUID,
+        @PathVariable category: QuietTimeQuestionCategory,
+        @PathVariable questionIndex: Int,
+        @Valid @RequestBody request: SaveQuietTimeQuestionAnswerRequest,
+    ): QuietTimeQuestionAnswerResponse
+
+    @GetMapping("/sessions/{sessionId}/answers")
+    fun questionAnswers(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable sessionId: UUID,
+    ): List<QuietTimeQuestionAnswerResponse>
+
+    @GetMapping("/sessions/{sessionId}/answers/stream", produces = ["text/event-stream;charset=UTF-8"])
+    fun streamQuestionAnswers(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable sessionId: UUID,
+    ): SseEmitter
 
     @PostMapping("/sessions/{sessionId}/qr/reissue")
     fun reissueQr(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable sessionId: UUID, @Valid @RequestBody request: ReissueQuietTimeQrRequest): QuietTimeSessionResponse

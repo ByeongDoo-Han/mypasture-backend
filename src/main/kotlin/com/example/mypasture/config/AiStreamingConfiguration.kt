@@ -1,22 +1,49 @@
 package com.example.mypasture.config
 
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor
-import java.util.concurrent.Executor
+import jakarta.annotation.PreDestroy
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExecutorCoroutineDispatcher
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import org.springframework.stereotype.Component
+import java.util.concurrent.Executors
+import java.util.concurrent.Semaphore
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.atomic.AtomicInteger
 
-/** 동시 AI streaming 요청을 제한해 서버의 요청 스레드와 메모리를 보호합니다. */
-@Configuration
-class AiStreamingConfiguration {
-    @Bean(name = ["aiStreamingExecutor"])
-    fun aiStreamingExecutor(properties: AiProperties): Executor =
-        ThreadPoolTaskExecutor().apply {
-            corePoolSize = properties.streamCorePoolSize
-            maxPoolSize = properties.streamMaxPoolSize
-            queueCapacity = properties.streamQueueCapacity
-            setThreadNamePrefix("ai-stream-")
-            setWaitForTasksToCompleteOnShutdown(true)
-            setAwaitTerminationSeconds(10)
-            initialize()
+/** SSE 연결 수를 제한하면서 외부 AI 대기 중 실행 thread를 재사용하는 coroutine runner입니다. */
+@Component
+class AiStreamingCoroutineRunner(properties: AiProperties) {
+    private val permits = Semaphore(properties.streamMaxPoolSize + properties.streamQueueCapacity)
+    private val dispatcher: ExecutorCoroutineDispatcher = Executors
+        .newFixedThreadPool(properties.streamMaxPoolSize, NamedThreadFactory())
+        .asCoroutineDispatcher()
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+
+    fun tryLaunch(block: suspend () -> Unit): Boolean {
+        if (!permits.tryAcquire()) return false
+        scope.launch {
+            try {
+                block()
+            } finally {
+                permits.release()
+            }
         }
+        return true
+    }
+
+    @PreDestroy
+    fun shutdown() {
+        scope.cancel()
+        dispatcher.close()
+    }
+
+    private class NamedThreadFactory : ThreadFactory {
+        private val sequence = AtomicInteger()
+        override fun newThread(task: Runnable): Thread = Thread(task, "ai-stream-${sequence.incrementAndGet()}").apply {
+            isDaemon = true
+        }
+    }
 }

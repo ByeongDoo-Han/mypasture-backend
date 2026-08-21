@@ -5,15 +5,20 @@ import com.example.mypasture.ai.application.TextEmbeddingPort
 import com.example.mypasture.ai.domain.TextEmbeddingBatch
 import com.example.mypasture.config.AiProperties
 import com.fasterxml.jackson.databind.JsonNode
+import io.netty.channel.ChannelOption
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import java.math.BigDecimal
 import java.time.Duration
 import kotlin.math.sqrt
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.http.client.SimpleClientHttpRequestFactory
+import org.springframework.http.client.reactive.ReactorClientHttpConnector
 import org.springframework.stereotype.Component
-import org.springframework.web.client.RestClient
-import org.springframework.web.client.RestClientException
-import org.springframework.web.client.RestClientResponseException
+import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.WebClientRequestException
+import org.springframework.web.reactive.function.client.WebClientResponseException
+import org.springframework.web.reactive.function.client.awaitBody
+import reactor.netty.http.client.HttpClient
 
 /** 운영 환경에서 OpenAI Embeddings API를 호출하고 응답 순서와 vector 차원을 검증합니다. */
 @Component
@@ -21,17 +26,18 @@ import org.springframework.web.client.RestClientResponseException
 class OpenAiTextEmbeddingAdapter(
     private val properties: AiProperties,
 ) : TextEmbeddingPort {
-    private val client = RestClient.builder()
+    private val client = WebClient.builder()
         .baseUrl(properties.baseUrl)
-        .requestFactory(
-            SimpleClientHttpRequestFactory().apply {
-                setConnectTimeout(Duration.ofMillis(properties.timeoutMs))
-                setReadTimeout(Duration.ofMillis(properties.timeoutMs))
-            },
+        .clientConnector(
+            ReactorClientHttpConnector(
+                HttpClient.create()
+                    .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, properties.timeoutMs.toInt())
+                    .responseTimeout(Duration.ofMillis(properties.timeoutMs)),
+            ),
         )
         .build()
 
-    override fun embed(inputs: List<String>): TextEmbeddingBatch {
+    override suspend fun embed(inputs: List<String>): TextEmbeddingBatch {
         require(inputs.isNotEmpty()) { "Embedding inputs must not be empty." }
         require(inputs.none { it.isBlank() }) { "Embedding input must not be blank." }
 
@@ -54,26 +60,27 @@ class OpenAiTextEmbeddingAdapter(
         )
     }
 
-    private fun execute(body: Map<String, Any>): JsonNode {
+    private suspend fun execute(body: Map<String, Any>): JsonNode {
         var failure: Exception? = null
         repeat(MAX_ATTEMPTS) { attempt ->
             try {
                 return client.post()
                     .uri("/v1/embeddings")
                     .header("Authorization", "Bearer ${properties.apiKey}")
-                    .body(body)
+                    .bodyValue(body)
                     .retrieve()
-                    .body(JsonNode::class.java)
-                    ?: throw AiProviderException("Embedding 응답 본문이 없습니다.")
-            } catch (error: RestClientResponseException) {
+                    .awaitBody()
+            } catch (error: WebClientResponseException) {
                 if (error.statusCode.value() != 429 && !error.statusCode.is5xxServerError) {
                     throw AiProviderException("Embedding 요청이 거부되었습니다.", error)
                 }
                 failure = error
-                if (attempt < MAX_ATTEMPTS - 1) Thread.sleep(RETRY_DELAY_MS * (attempt + 1))
-            } catch (error: RestClientException) {
+                if (attempt < MAX_ATTEMPTS - 1) delay(RETRY_DELAY_MS * (attempt + 1))
+            } catch (error: WebClientRequestException) {
                 failure = error
-                if (attempt < MAX_ATTEMPTS - 1) Thread.sleep(RETRY_DELAY_MS * (attempt + 1))
+                if (attempt < MAX_ATTEMPTS - 1) delay(RETRY_DELAY_MS * (attempt + 1))
+            } catch (error: CancellationException) {
+                throw error
             }
         }
         throw AiProviderException("Embedding 서비스에 일시적으로 연결할 수 없습니다.", failure)
@@ -106,7 +113,7 @@ class OpenAiTextEmbeddingAdapter(
 class LocalTextEmbeddingAdapter(
     private val properties: AiProperties,
 ) : TextEmbeddingPort {
-    override fun embed(inputs: List<String>): TextEmbeddingBatch {
+    override suspend fun embed(inputs: List<String>): TextEmbeddingBatch {
         require(inputs.isNotEmpty()) { "Embedding inputs must not be empty." }
         val vectors = inputs.map(::embedOne)
         return TextEmbeddingBatch(

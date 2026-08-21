@@ -17,7 +17,7 @@ interface AiApi {
     ): AiDailyUsageResponse
 
     @PostMapping("/chat")
-    fun chat(
+    suspend fun chat(
         @AuthenticationPrincipal principal: JwtPrincipal,
         @Valid @RequestBody request: AskAiRequest,
     ): AskAiResponse

@@ -47,6 +47,39 @@ data class UserSignupRequest(
     @field:NotBlank
     @field:Size(min = 1, max = 80)
     val displayName: String,
+    @field:Size(max = 1000)
+    val verificationToken: String? = null,
+)
+
+/** 회원가입 전에 이메일로 인증번호 발송을 요청하는 DTO입니다. */
+data class EmailVerificationRequest(
+    @field:NotBlank
+    @field:Email
+    @field:Size(max = 320)
+    val email: String,
+)
+
+/** 계정 존재 여부와 무관하게 동일하게 반환하는 이메일 인증번호 요청 응답입니다. */
+data class EmailVerificationRequestedResponse(
+    val message: String = "인증 가능한 이메일이라면 인증번호를 발송했습니다.",
+    val expiresInSeconds: Long,
+    val resendAfterSeconds: Long,
+)
+
+/** 이메일과 6자리 인증번호를 확인하는 요청 DTO입니다. */
+data class EmailVerificationConfirmRequest(
+    @field:NotBlank
+    @field:Email
+    @field:Size(max = 320)
+    val email: String,
+    @field:Pattern(regexp = "^[0-9]{6}$")
+    val code: String,
+)
+
+/** 확인된 이메일로 회원가입할 때 한 번만 사용할 수 있는 증명을 반환합니다. */
+data class EmailVerificationConfirmedResponse(
+    val verificationToken: String,
+    val expiresAt: Instant,
 )
 
 /** 이메일 로그인 요청 DTO입니다. */

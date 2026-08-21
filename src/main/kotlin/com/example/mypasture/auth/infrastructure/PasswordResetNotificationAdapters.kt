@@ -3,6 +3,7 @@ package com.example.mypasture.auth.infrastructure
 import com.example.mypasture.auth.application.PasswordResetNotificationSender
 import com.example.mypasture.auth.application.PasswordResetRequestedEvent
 import com.example.mypasture.config.AuthSecurityProperties
+import kotlinx.coroutines.CancellationException
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.mail.SimpleMailMessage
@@ -57,15 +58,20 @@ class LoggingPasswordResetNotificationSender(
 @Component
 class PasswordResetEventListener(
     private val sender: PasswordResetNotificationSender,
+    private val coroutineRunner: AuthNotificationCoroutineRunner,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun onPasswordResetRequested(event: PasswordResetRequestedEvent) {
-        runCatching {
-            sender.send(event.email, event.displayName, event.rawToken, event.expiresAt)
-        }.onFailure { error ->
-            logger.error("Password reset notification delivery failed for email hash={}", sha256Hex(event.email), error)
+        coroutineRunner.launch {
+            try {
+                sender.send(event.email, event.displayName, event.rawToken, event.expiresAt)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: RuntimeException) {
+                logger.error("Password reset notification delivery failed for email hash={}", sha256Hex(event.email), error)
+            }
         }
     }
 }

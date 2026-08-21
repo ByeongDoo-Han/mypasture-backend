@@ -3,6 +3,8 @@ package com.example.mypasture.auth.presentation
 import com.example.mypasture.auth.application.AccountDeletionConfirmationException
 import com.example.mypasture.auth.application.AccountDeletionReauthenticationException
 import com.example.mypasture.auth.application.EmailAlreadyRegisteredException
+import com.example.mypasture.auth.application.EmailVerificationRequiredException
+import com.example.mypasture.auth.application.InvalidEmailVerificationCodeException
 import com.example.mypasture.auth.application.InvalidCredentialsException
 import com.example.mypasture.auth.application.InvalidPasswordResetTokenException
 import com.example.mypasture.auth.application.InvalidRefreshTokenException
@@ -29,6 +31,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 @RestControllerAdvice(assignableTypes = [AuthController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class AuthExceptionHandler {
+    @ExceptionHandler(InvalidEmailVerificationCodeException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun handleInvalidEmailVerificationCode(request: HttpServletRequest) =
+        AuthErrorCode.INVALID_EMAIL_VERIFICATION_CODE.toResponse(request)
+
+    @ExceptionHandler(EmailVerificationRequiredException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun handleEmailVerificationRequired(request: HttpServletRequest) =
+        AuthErrorCode.EMAIL_VERIFICATION_REQUIRED.toResponse(request)
+
     @ExceptionHandler(EmailAlreadyRegisteredException::class)
     @ResponseStatus(HttpStatus.CONFLICT)
     fun handleEmailAlreadyRegistered(request: HttpServletRequest) =
@@ -110,6 +122,8 @@ enum class AuthErrorCode(
     override val code: String,
     override val defaultMessage: String,
 ) : ErrorCode {
+    INVALID_EMAIL_VERIFICATION_CODE("INVALID_EMAIL_VERIFICATION_CODE", "인증번호가 만료되었거나 올바르지 않습니다."),
+    EMAIL_VERIFICATION_REQUIRED("EMAIL_VERIFICATION_REQUIRED", "이메일 인증을 완료한 뒤 회원가입해 주세요."),
     EMAIL_ALREADY_REGISTERED("EMAIL_ALREADY_REGISTERED", "이미 가입된 이메일입니다."),
     INVALID_CREDENTIALS("INVALID_CREDENTIALS", "이메일 또는 비밀번호가 올바르지 않습니다."),
     UNSUPPORTED_SOCIAL_PROVIDER("UNSUPPORTED_SOCIAL_PROVIDER", "지원하지 않는 소셜 로그인 제공자입니다."),

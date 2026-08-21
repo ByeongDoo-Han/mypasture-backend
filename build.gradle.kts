@@ -78,6 +78,7 @@ tasks.withType<Test> {
 }
 
 tasks.named<Test>("test") {
+    systemProperty("app.auth.email-verification.required", "false")
     useJUnitPlatform {
         excludeTags("openai-live")
     }

@@ -10,11 +10,17 @@ import com.example.mypasture.config.AiProperties
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import io.netty.channel.ChannelOption
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.http.client.SimpleClientHttpRequestFactory
+import org.springframework.http.client.reactive.ReactorClientHttpConnector
 import org.springframework.stereotype.Component
-import org.springframework.web.client.RestClient
-import org.springframework.web.client.RestClientException
+import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.WebClientRequestException
+import org.springframework.web.reactive.function.client.WebClientResponseException
+import org.springframework.web.reactive.function.client.awaitBody
+import reactor.netty.http.client.HttpClient
 import java.math.BigDecimal
 import java.time.Duration
 
@@ -25,17 +31,18 @@ class OpenAiBibleCommentaryGenerator(
     private val properties: AiProperties,
     private val objectMapper: ObjectMapper,
 ) : BibleCommentaryGeneratorPort {
-    private val restClient: RestClient = RestClient.builder()
+    private val webClient: WebClient = WebClient.builder()
         .baseUrl(properties.baseUrl)
-        .requestFactory(
-            SimpleClientHttpRequestFactory().apply {
-                setConnectTimeout(Duration.ofMillis(properties.timeoutMs))
-                setReadTimeout(Duration.ofMillis(properties.timeoutMs))
-            },
+        .clientConnector(
+            ReactorClientHttpConnector(
+                HttpClient.create()
+                    .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, properties.timeoutMs.toInt())
+                    .responseTimeout(Duration.ofMillis(properties.timeoutMs)),
+            ),
         )
         .build()
 
-    override fun generate(chapter: BibleChapter): GeneratedBibleCommentary {
+    override suspend fun generate(chapter: BibleChapter): GeneratedBibleCommentary {
         val requestBody = buildRequest(chapter)
         val response = executeWithRetry(requestBody)
         val usage = response.path("usage")
@@ -62,20 +69,25 @@ class OpenAiBibleCommentaryGenerator(
         )
     }
 
-    private fun executeWithRetry(body: Map<String, Any>): JsonNode {
-        var lastFailure: RestClientException? = null
+    private suspend fun executeWithRetry(body: Map<String, Any>): JsonNode {
+        var lastFailure: Exception? = null
         repeat(3) { attempt ->
             try {
-                return restClient.post()
+                return webClient.post()
                     .uri("/v1/responses")
                     .header("Authorization", "Bearer ${properties.apiKey}")
-                    .body(body)
+                    .bodyValue(body)
                     .retrieve()
-                    .body(JsonNode::class.java)
-                    ?: error("OpenAI 응답 본문이 비어 있습니다.")
-            } catch (exception: RestClientException) {
+                    .awaitBody()
+            } catch (exception: WebClientResponseException) {
+                if (exception.statusCode.value() != 429 && !exception.statusCode.is5xxServerError) throw exception
                 lastFailure = exception
-                if (attempt < 2) Thread.sleep(500L * (attempt + 1))
+                if (attempt < 2) delay(500L * (attempt + 1))
+            } catch (exception: WebClientRequestException) {
+                lastFailure = exception
+                if (attempt < 2) delay(500L * (attempt + 1))
+            } catch (exception: CancellationException) {
+                throw exception
             }
         }
         throw lastFailure ?: IllegalStateException("OpenAI 해설 생성에 실패했습니다.")

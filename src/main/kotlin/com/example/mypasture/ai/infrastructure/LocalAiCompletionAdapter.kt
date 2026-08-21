@@ -12,7 +12,7 @@ import java.math.BigDecimal
 @Component
 @ConditionalOnProperty(prefix = "app.ai", name = ["mock-enabled"], havingValue = "true")
 class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort {
-    override fun answerWithCitations(question: String, citations: List<BibleCitation>): GroundedAnswer {
+    override suspend fun answerWithCitations(question: String, citations: List<BibleCitation>): GroundedAnswer {
         val references = citations.take(3).joinToString(", ") { "${it.book} ${it.chapter}:${it.verse} [${it.verseId}]" }
         val answer =
             "질문해 주신 마음을 $references 말씀에 비추어 함께 살펴볼 수 있습니다. " +
@@ -30,12 +30,12 @@ class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort {
     }
 
     /** 로컬 개발에서도 클라이언트가 SSE 누적 로직을 검증할 수 있도록 작은 조각으로 전달합니다. */
-    override fun answerWithCitations(
+    override suspend fun answerWithCitations(
         question: String,
         citations: List<BibleCitation>,
-        onDelta: (String) -> Unit,
+        onDelta: suspend (String) -> Unit,
     ): GroundedAnswer = answerWithCitations(question, citations).also { answer ->
-        answer.answer.chunked(12).forEach(onDelta)
+        answer.answer.chunked(12).forEach { onDelta(it) }
     }
 
     private fun estimateTokens(text: String): Int = (text.length / 3).coerceAtLeast(1)

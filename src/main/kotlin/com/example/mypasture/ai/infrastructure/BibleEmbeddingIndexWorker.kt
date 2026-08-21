@@ -1,6 +1,7 @@
 package com.example.mypasture.ai.infrastructure
 
 import com.example.mypasture.ai.application.BibleEmbeddingIndexService
+import kotlinx.coroutines.CancellationException
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
@@ -13,21 +14,24 @@ class BibleEmbeddingIndexWorker(
     private val indexService: BibleEmbeddingIndexService,
 ) {
     @Scheduled(fixedDelayString = "\${app.ai.embedding-index-poll-delay-ms:10000}")
-    fun indexNextBatch() {
-        runCatching { indexService.indexNextBatch() }
-            .onSuccess { summary ->
-                if (summary.processedInBatch > 0) {
-                    logger.info(
-                        "Bible embedding batch complete: processed={}, indexed={}, remaining={}, promptTokens={}, estimatedCostUsd={}",
-                        summary.processedInBatch,
-                        summary.indexedVerses,
-                        summary.remainingVerses,
-                        summary.promptTokens,
-                        summary.estimatedCostUsd,
-                    )
-                }
+    suspend fun indexNextBatch() {
+        try {
+            val summary = indexService.indexNextBatchAsync()
+            if (summary.processedInBatch > 0) {
+                logger.info(
+                    "Bible embedding batch complete: processed={}, indexed={}, remaining={}, promptTokens={}, estimatedCostUsd={}",
+                    summary.processedInBatch,
+                    summary.indexedVerses,
+                    summary.remainingVerses,
+                    summary.promptTokens,
+                    summary.estimatedCostUsd,
+                )
             }
-            .onFailure { logger.error("Bible embedding batch failed", it) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: RuntimeException) {
+            logger.error("Bible embedding batch failed", error)
+        }
     }
 
     companion object {

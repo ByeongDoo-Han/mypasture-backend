@@ -33,7 +33,7 @@ class JdbcBibleRetrievalAdapter(
     }
     @Volatile private var readiness = VectorIndexReadiness(false, 0)
 
-    override fun searchRelevantVerses(question: UnderstoodBibleQuestion, limit: Int): BibleRetrievalResult {
+    override suspend fun searchRelevantVerses(question: UnderstoodBibleQuestion, limit: Int): BibleRetrievalResult {
         val requestedLimit = limit.coerceAtMost(properties.ragTopK)
         require(requestedLimit > 0) { "RAG result limit must be greater than zero." }
 

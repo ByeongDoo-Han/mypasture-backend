@@ -21,6 +21,7 @@ import org.springframework.test.context.TestPropertySource
 import java.math.BigDecimal
 import java.util.UUID
 import java.util.concurrent.Executors
+import kotlinx.coroutines.test.runTest
 
 /** 개발 환경 AI가 실제 성경 원문을 근거로 답하고 사용량을 기록하는지 검증합니다. */
 @SpringBootTest
@@ -80,7 +81,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `local embedding is deterministic and matches configured dimensions`() {
+    fun `local embedding is deterministic and matches configured dimensions`() = runTest {
         val first = embeddingPort.embed(listOf("불안할 때의 말씀"))
         val second = embeddingPort.embed(listOf("불안할 때의 말씀"))
 

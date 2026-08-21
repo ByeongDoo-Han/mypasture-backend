@@ -10,7 +10,7 @@ import java.util.UUID
 
 /** 성경 구절 검색 구현체를 application layer와 분리하는 RAG 검색 포트입니다. */
 interface BibleRetrievalPort {
-    fun searchRelevantVerses(
+    suspend fun searchRelevantVerses(
         question: UnderstoodBibleQuestion,
         limit: Int = 10,
     ): BibleRetrievalResult
@@ -18,7 +18,7 @@ interface BibleRetrievalPort {
 
 /** 질문과 성경 본문을 같은 embedding model과 차원으로 변환하는 외부 AI 포트입니다. */
 interface TextEmbeddingPort {
-    fun embed(inputs: List<String>): TextEmbeddingBatch
+    suspend fun embed(inputs: List<String>): TextEmbeddingBatch
 }
 
 /** PostgreSQL의 성경 embedding index 상태와 멱등 upsert를 application layer에 제공합니다. */
@@ -38,7 +38,7 @@ interface BibleEmbeddingStorePort {
 
 /** OpenAI 같은 LLM 호출 구현체를 application layer와 분리하는 completion 포트입니다. */
 interface AiCompletionPort {
-    fun answerWithCitations(
+    suspend fun answerWithCitations(
         question: String,
         citations: List<BibleCitation>,
     ): GroundedAnswer
@@ -46,10 +46,10 @@ interface AiCompletionPort {
 
 /** LLM이 생성한 답변 조각을 완료 전부터 전달하는 실시간 completion 포트입니다. */
 interface AiStreamingCompletionPort {
-    fun answerWithCitations(
+    suspend fun answerWithCitations(
         question: String,
         citations: List<BibleCitation>,
-        onDelta: (String) -> Unit,
+        onDelta: suspend (String) -> Unit,
     ): GroundedAnswer
 }
 

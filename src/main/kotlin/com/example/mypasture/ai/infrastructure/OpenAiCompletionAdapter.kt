@@ -8,15 +8,24 @@ import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.config.AiProperties
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.netty.channel.ChannelOption
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.reactive.asFlow
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.http.client.SimpleClientHttpRequestFactory
+import org.springframework.core.ParameterizedTypeReference
+import org.springframework.http.client.reactive.ReactorClientHttpConnector
+import org.springframework.http.codec.ServerSentEvent
 import org.springframework.stereotype.Component
-import org.springframework.web.client.RestClient
-import org.springframework.web.client.RestClientException
-import org.springframework.web.client.RestClientResponseException
+import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.WebClientRequestException
+import org.springframework.web.reactive.function.client.WebClientResponseException
+import org.springframework.web.reactive.function.client.awaitBody
+import reactor.core.publisher.Flux
+import reactor.netty.http.client.HttpClient
 import java.math.BigDecimal
 import java.time.Duration
-import java.io.BufferedReader
 
 /** 운영 환경에서 OpenAI Responses API를 호출하고 RAG로 검색한 성경 구절만 근거로 전달합니다. */
 @Component
@@ -29,16 +38,16 @@ class OpenAiCompletionAdapter(
     private val client = createClient(properties.timeoutMs)
     private val streamingClient = createClient(properties.streamTimeoutMs)
 
-    override fun answerWithCitations(question: String, citations: List<BibleCitation>): GroundedAnswer {
+    override suspend fun answerWithCitations(question: String, citations: List<BibleCitation>): GroundedAnswer {
         val response = execute(requestBody(question, citations, streaming = false))
         return toGroundedAnswer(response, citations)
     }
 
     /** Responses API의 output_text delta를 수신하는 즉시 application callback으로 전달합니다. */
-    override fun answerWithCitations(
+    override suspend fun answerWithCitations(
         question: String,
         citations: List<BibleCitation>,
-        onDelta: (String) -> Unit,
+        onDelta: suspend (String) -> Unit,
     ): GroundedAnswer {
         val guard = StreamingCitationGuard(citations, citationValidator, onDelta)
         val response = executeStreaming(requestBody(question, citations, streaming = true)) { delta ->
@@ -73,75 +82,82 @@ class OpenAiCompletionAdapter(
         return GroundedAnswer(null, answer, usedCitations, inputTokens, outputTokens, estimate(inputTokens, outputTokens), false)
     }
 
-    private fun execute(body: Map<String, Any>): JsonNode {
+    private suspend fun execute(body: Map<String, Any>): JsonNode {
         var failure: Exception? = null
         repeat(3) { attempt ->
             try {
-                return client.post().uri("/v1/responses").header("Authorization", "Bearer ${properties.apiKey}").body(body).retrieve().body(JsonNode::class.java)
-                    ?: throw AiProviderException("AI 응답 본문이 없습니다.")
-            } catch (error: RestClientResponseException) {
+                return client.post()
+                    .uri("/v1/responses")
+                    .header("Authorization", "Bearer ${properties.apiKey}")
+                    .bodyValue(body)
+                    .retrieve()
+                    .awaitBody()
+            } catch (error: WebClientResponseException) {
                 if (error.statusCode.value() != 429 && !error.statusCode.is5xxServerError) {
                     throw AiProviderException("AI 요청이 거부되었습니다.", error)
                 }
                 failure = error
-                if (attempt < 2) Thread.sleep(400L * (attempt + 1))
-            } catch (error: RestClientException) {
+                if (attempt < 2) delay(400L * (attempt + 1))
+            } catch (error: WebClientRequestException) {
                 failure = error
-                if (attempt < 2) Thread.sleep(400L * (attempt + 1))
+                if (attempt < 2) delay(400L * (attempt + 1))
+            } catch (error: CancellationException) {
+                throw error
             }
         }
         throw AiProviderException("AI 서비스에 일시적으로 연결할 수 없습니다.", failure)
     }
 
-    private fun executeStreaming(body: Map<String, Any>, onDelta: (String) -> Unit): JsonNode {
+    private suspend fun executeStreaming(body: Map<String, Any>, onDelta: suspend (String) -> Unit): JsonNode {
         var failure: Exception? = null
         var emitted = false
         repeat(3) { attempt ->
             try {
-                return streamingClient.post()
+                var completedResponse: JsonNode? = null
+                streamingClient.post()
                     .uri("/v1/responses")
                     .header("Authorization", "Bearer ${properties.apiKey}")
-                    .body(body)
-                    .exchange { _, response ->
-                        if (!response.statusCode.is2xxSuccessful) {
-                            throw StreamingRequestException(response.statusCode.value() == 429 || response.statusCode.is5xxServerError)
-                        }
-                        parseStreamingResponse(response.body.bufferedReader()) { delta ->
-                            emitted = true
-                            onDelta(delta)
+                    .bodyValue(body)
+                    .exchangeToFlux { response ->
+                        if (!response.statusCode().is2xxSuccessful) {
+                            Flux.error<ServerSentEvent<String>>(
+                                StreamingRequestException(
+                                    response.statusCode().value() == 429 || response.statusCode().is5xxServerError,
+                                ),
+                            )
+                        } else {
+                            response.bodyToFlux(SSE_TYPE)
                         }
                     }
+                    .asFlow()
+                    .collect { event ->
+                        val data = event.data()?.trim().orEmpty()
+                        if (data.isBlank() || data == "[DONE]") return@collect
+                        val payload = objectMapper.readTree(data)
+                        when (payload.path("type").asText()) {
+                            "response.output_text.delta" -> payload.path("delta").asText().takeIf { it.isNotEmpty() }?.let {
+                                emitted = true
+                                onDelta(it)
+                            }
+                            "response.completed" -> completedResponse = payload.path("response")
+                            "response.failed", "response.incomplete", "error" -> {
+                                throw AiProviderException("AI streaming 응답이 완료되지 않았습니다.")
+                            }
+                        }
+                    }
+                return completedResponse ?: throw AiProviderException("AI streaming 완료 이벤트를 받지 못했습니다.")
             } catch (error: StreamingRequestException) {
                 if (!error.retryable || emitted) throw AiProviderException("AI streaming 요청이 거부되었습니다.", error)
                 failure = error
-            } catch (error: RestClientException) {
+            } catch (error: WebClientRequestException) {
                 if (emitted) throw AiProviderException("AI streaming 연결이 중단되었습니다.", error)
                 failure = error
+            } catch (error: CancellationException) {
+                throw error
             }
-            if (attempt < 2) Thread.sleep(400L * (attempt + 1))
+            if (attempt < 2) delay(400L * (attempt + 1))
         }
         throw AiProviderException("AI streaming 서비스에 일시적으로 연결할 수 없습니다.", failure)
-    }
-
-    private fun parseStreamingResponse(reader: BufferedReader, onDelta: (String) -> Unit): JsonNode {
-        var completedResponse: JsonNode? = null
-        reader.useLines { lines ->
-            lines.filter { it.startsWith("data:") }
-                .map { it.removePrefix("data:").trim() }
-                .filter { it.isNotBlank() && it != "[DONE]" }
-                .forEach { data ->
-                    val event = objectMapper.readTree(data)
-                    when (event.path("type").asText()) {
-                        "response.output_text.delta" -> event.path("delta").asText().takeIf { it.isNotEmpty() }?.let(onDelta)
-                        "response.completed" -> completedResponse = event.path("response")
-                        "response.failed", "response.incomplete", "error" -> {
-                            // 외부 제공자의 원문 오류에는 요청 식별자나 내부 정보가 포함될 수 있어 클라이언트로 전달하지 않습니다.
-                            throw AiProviderException("AI streaming 응답이 완료되지 않았습니다.")
-                        }
-                    }
-                }
-        }
-        return completedResponse ?: throw AiProviderException("AI streaming 완료 이벤트를 받지 못했습니다.")
     }
 
     private fun extractText(response: JsonNode): String {
@@ -151,16 +167,15 @@ class OpenAiCompletionAdapter(
 
     private fun estimate(input: Int, output: Int): BigDecimal = BigDecimal(input).divide(BigDecimal(1_000_000)).multiply(properties.commentaryInputCostPerMillion).add(BigDecimal(output).divide(BigDecimal(1_000_000)).multiply(properties.commentaryOutputCostPerMillion))
 
-    private fun createClient(readTimeoutMs: Long): RestClient =
-        RestClient.builder()
+    private fun createClient(readTimeoutMs: Long): WebClient {
+        val httpClient = HttpClient.create()
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, properties.timeoutMs.toInt())
+            .responseTimeout(Duration.ofMillis(readTimeoutMs))
+        return WebClient.builder()
             .baseUrl(properties.baseUrl)
-            .requestFactory(
-                SimpleClientHttpRequestFactory().apply {
-                    setConnectTimeout(Duration.ofMillis(properties.timeoutMs))
-                    setReadTimeout(Duration.ofMillis(readTimeoutMs))
-                },
-            )
+            .clientConnector(ReactorClientHttpConnector(httpClient))
             .build()
+    }
 
     /** HTTP 상태에 따라 delta 전 재시도 가능 여부를 보존하는 내부 예외입니다. */
     private class StreamingRequestException(val retryable: Boolean) : RuntimeException()
@@ -169,14 +184,14 @@ class OpenAiCompletionAdapter(
     private class StreamingCitationGuard(
         private val citations: List<BibleCitation>,
         private val validator: AiCitationValidator,
-        private val emit: (String) -> Unit,
+        private val emit: suspend (String) -> Unit,
     ) {
         private val fullText = StringBuilder()
         private val pending = StringBuilder()
         private val allowedIds = citations.map { it.verseId }.toSet()
         private var grounded = false
 
-        fun accept(delta: String) {
+        suspend fun accept(delta: String) {
             fullText.append(delta)
             pending.append(delta)
             val safeEnd = safeEnd(pending.toString())
@@ -192,7 +207,7 @@ class OpenAiCompletionAdapter(
             pending.delete(0, safeEnd)
         }
 
-        fun finish(): String {
+        suspend fun finish(): String {
             val answer = fullText.toString()
             validator.validate(answer, citations)
             if (pending.isNotEmpty()) {
@@ -213,5 +228,9 @@ class OpenAiCompletionAdapter(
             private val CITATION_ID_REGEX = Regex("\\[(\\d+)]")
             private val TRAILING_REFERENCE = Regex("\\d{1,3}(?::\\d{0,3})?$")
         }
+    }
+
+    companion object {
+        private val SSE_TYPE = object : ParameterizedTypeReference<ServerSentEvent<String>>() {}
     }
 }

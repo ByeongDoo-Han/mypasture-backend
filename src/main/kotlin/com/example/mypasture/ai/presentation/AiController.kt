@@ -12,13 +12,13 @@ import com.example.mypasture.ai.domain.AiAssistantStage
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.common.error.ApiErrorResponse
 import com.example.mypasture.config.AiProperties
+import com.example.mypasture.config.AiStreamingCoroutineRunner
 import jakarta.validation.constraints.Size
-import org.springframework.beans.factory.annotation.Qualifier
+import kotlinx.coroutines.CancellationException
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.math.BigDecimal
-import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** AI 목자에게 전달할 최대 300자의 사용자 질문입니다. */
@@ -63,7 +63,7 @@ data class AiDailyUsageResponse(
 @RequestMapping("/api/v1/ai")
 class AiController(
     private val askBibleAssistant: AskBibleAssistantUseCase,
-    @Qualifier("aiStreamingExecutor") private val streamingExecutor: Executor,
+    private val streamingRunner: AiStreamingCoroutineRunner,
     private val properties: AiProperties,
 ) : AiApi {
     override fun todayUsage(principal: JwtPrincipal): AiDailyUsageResponse =
@@ -71,8 +71,8 @@ class AiController(
             AiDailyUsageResponse(it.limit, it.used, it.remaining, it.unlimited)
         }
 
-    override fun chat(principal: JwtPrincipal, request: AskAiRequest): AskAiResponse =
-        askBibleAssistant.ask(principal.userId, principal.subscriptionTier, request.question).toResponse()
+    override suspend fun chat(principal: JwtPrincipal, request: AskAiRequest): AskAiResponse =
+        askBibleAssistant.askAsync(principal.userId, principal.subscriptionTier, request.question).toResponse()
 
     /** OpenAI delta를 기다리지 않고 전달하며 완료 후 검증된 인용과 사용량을 별도 이벤트로 보냅니다. */
     override fun stream(principal: JwtPrincipal, request: AskAiRequest): SseEmitter {
@@ -82,10 +82,9 @@ class AiController(
         emitter.onTimeout { active.set(false) }
         emitter.onError { active.set(false) }
 
-        try {
-            streamingExecutor.execute {
-                runCatching {
-                    val result = askBibleAssistant.stream(
+        val accepted = streamingRunner.tryLaunch {
+            try {
+                val result = askBibleAssistant.streamAsync(
                         userId = principal.userId,
                         subscriptionTier = principal.subscriptionTier,
                         question = request.question,
@@ -97,28 +96,30 @@ class AiController(
                             emitter.send(SseEmitter.event().name("delta").data(delta))
                         },
                     )
-                    if (active.get()) {
-                        emitter.send(SseEmitter.event().name("citations").data(result.citations))
-                        emitter.send(SseEmitter.event().name("usage").data(result.toStreamUsage()))
-                        emitter.send(SseEmitter.event().name("done").data(mapOf("status" to "completed")))
-                        emitter.complete()
+                if (active.get()) {
+                    emitter.send(SseEmitter.event().name("citations").data(result.citations))
+                    emitter.send(SseEmitter.event().name("usage").data(result.toStreamUsage()))
+                    emitter.send(SseEmitter.event().name("done").data(mapOf("status" to "completed")))
+                    emitter.complete()
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                if (active.compareAndSet(true, false)) {
+                    runCatching {
+                        emitter.send(
+                            SseEmitter.event().name("error").data(
+                                error.toStreamErrorResponse(),
+                            ),
+                        )
                     }
-                }.onFailure { error ->
-                    if (active.compareAndSet(true, false)) {
-                        runCatching {
-                            emitter.send(
-                                SseEmitter.event().name("error").data(
-                                    error.toStreamErrorResponse(),
-                                ),
-                            )
-                        }
-                        emitter.complete()
-                    }
+                    emitter.complete()
                 }
             }
-        } catch (error: RuntimeException) {
+        }
+        if (!accepted) {
             active.set(false)
-            emitter.completeWithError(AiProviderException("AI streaming 처리 용량을 초과했습니다.", error))
+            emitter.completeWithError(AiProviderException("AI streaming 처리 용량을 초과했습니다."))
         }
         return emitter
     }

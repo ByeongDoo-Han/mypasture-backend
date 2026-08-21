@@ -2,6 +2,9 @@ package com.example.mypasture.ai.application
 
 import com.example.mypasture.ai.domain.BibleEmbeddingIndexSummary
 import com.example.mypasture.config.AiProperties
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.springframework.stereotype.Service
 
 /** pgvector가 없는 DB에서 embedding index 작업을 요청했을 때 발생합니다. */
@@ -19,16 +22,19 @@ class BibleEmbeddingIndexService(
         return currentStatus(lockAcquired = true)
     }
 
-    fun indexNextBatch(): BibleEmbeddingIndexSummary {
+    fun indexNextBatch(): BibleEmbeddingIndexSummary = runBlocking { indexNextBatchAsync() }
+
+    /** Scheduler에서 OpenAI embedding 응답을 기다리는 동안 worker thread를 반환합니다. */
+    suspend fun indexNextBatchAsync(): BibleEmbeddingIndexSummary = withContext(Dispatchers.IO) {
         requirePgVectorConfiguration()
-        val lock = storePort.tryAcquireIndexLock() ?: return currentStatus(lockAcquired = false)
+        val lock = storePort.tryAcquireIndexLock() ?: return@withContext currentStatus(lockAcquired = false)
         try {
             val sources = storePort.findPendingSources(
                 properties.embeddingModel,
                 properties.embeddingDimensions,
                 properties.embeddingBatchSize,
             )
-            if (sources.isEmpty()) return currentStatus(lockAcquired = true)
+            if (sources.isEmpty()) return@withContext currentStatus(lockAcquired = true)
 
             val embedding = embeddingPort.embed(sources.map { it.content })
             require(embedding.vectors.size == sources.size) { "Embedding response count does not match source count." }
@@ -41,7 +47,7 @@ class BibleEmbeddingIndexService(
                 sources,
                 embedding.vectors,
             )
-            return currentStatus(
+            return@withContext currentStatus(
                 lockAcquired = true,
                 processed = sources.size,
                 promptTokens = embedding.promptTokens,

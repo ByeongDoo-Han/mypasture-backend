@@ -4,6 +4,9 @@ import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.ai.domain.AiAssistantStage
 import com.example.mypasture.config.AiProperties
 import com.example.mypasture.user.domain.SubscriptionTier
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -60,6 +63,13 @@ class AskBibleAssistantUseCase(
         userId: UUID,
         subscriptionTier: SubscriptionTier,
         question: String,
+    ): GroundedAnswer = runBlocking { askAsync(userId, subscriptionTier, question) }
+
+    /** HTTP 요청 스레드를 점유하지 않고 외부 AI 응답을 기다리는 coroutine 진입점입니다. */
+    suspend fun askAsync(
+        userId: UUID,
+        subscriptionTier: SubscriptionTier,
+        question: String,
     ): GroundedAnswer = execute(userId, subscriptionTier, question) { normalized, citations ->
         completionPort.answerWithCitations(normalized, citations)
     }
@@ -71,6 +81,17 @@ class AskBibleAssistantUseCase(
         question: String,
         onStage: (AiAssistantStage) -> Unit = {},
         onDelta: (String) -> Unit,
+    ): GroundedAnswer = runBlocking {
+        streamAsync(userId, subscriptionTier, question, onStage) { onDelta(it) }
+    }
+
+    /** SSE scope의 취소와 timeout을 외부 AI 호출까지 전달하는 coroutine 스트리밍 진입점입니다. */
+    suspend fun streamAsync(
+        userId: UUID,
+        subscriptionTier: SubscriptionTier,
+        question: String,
+        onStage: (AiAssistantStage) -> Unit = {},
+        onDelta: suspend (String) -> Unit,
     ): GroundedAnswer = execute(
         userId = userId,
         subscriptionTier = subscriptionTier,
@@ -81,14 +102,14 @@ class AskBibleAssistantUseCase(
         streamingCompletionPort.answerWithCitations(normalized, citations, onDelta)
     }
 
-    private fun execute(
+    private suspend fun execute(
         userId: UUID,
         subscriptionTier: SubscriptionTier,
         question: String,
         onStage: (AiAssistantStage) -> Unit = {},
-        onCacheHit: (GroundedAnswer) -> Unit = {},
-        complete: (String, List<com.example.mypasture.ai.domain.BibleCitation>) -> GroundedAnswer,
-    ): GroundedAnswer {
+        onCacheHit: suspend (GroundedAnswer) -> Unit = {},
+        complete: suspend (String, List<com.example.mypasture.ai.domain.BibleCitation>) -> GroundedAnswer,
+    ): GroundedAnswer = withContext(Dispatchers.IO) {
         // 모든 AI 입력 정책은 여기서 먼저 막습니다. Controller validation만 믿지 말고 use case에서도 한 번 더 방어합니다.
         val normalized = question.trim()
         if (normalized.length > properties.maxInputChars) throw AiInputTooLongException()
@@ -116,7 +137,7 @@ class AskBibleAssistantUseCase(
                 )
                 usagePort.complete(reservationId, cacheHit)
                 onCacheHit(cacheHit)
-                return cacheHit
+                return@withContext cacheHit
             }
 
             val understoodQuestion = questionUnderstandingService.understand(normalized)
@@ -138,7 +159,7 @@ class AskBibleAssistantUseCase(
             )
             usagePort.complete(reservationId, answer)
             cachePort.put(userId, normalized, answer)
-            return answer
+            return@withContext answer
         } catch (error: RuntimeException) {
             usagePort.fail(reservationId, error::class.simpleName ?: "AI_REQUEST_FAILED")
             throw error

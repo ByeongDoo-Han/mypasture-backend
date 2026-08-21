@@ -9,9 +9,9 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.sun.net.httpserver.HttpServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import kotlinx.coroutines.test.runTest
 import java.math.BigDecimal
 import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicInteger
@@ -26,7 +26,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `streams output text deltas and returns completed usage`() {
+    fun `streams output text deltas and returns completed usage`() = runTest {
         val requestBodies = mutableListOf<String>()
         val port = startServer { exchange ->
             requestBodies += exchange.requestBody.bufferedReader().readText()
@@ -53,7 +53,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `sets minimal reasoning for gpt 5 models`() {
+    fun `sets minimal reasoning for gpt 5 models`() = runTest {
         val requestBodies = mutableListOf<String>()
         val port = startServer { exchange ->
             requestBodies += exchange.requestBody.bufferedReader().readText()
@@ -70,7 +70,28 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `does not retry after a delta was already delivered`() {
+    fun `retries a transient response without blocking a thread`() = runTest {
+        val calls = AtomicInteger()
+        val port = startServer { exchange ->
+            if (calls.incrementAndGet() == 1) {
+                exchange.sendResponseHeaders(429, -1)
+            } else {
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(200, 0)
+                exchange.responseBody.bufferedWriter().use { writer ->
+                    writer.write("""{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"근거: [42] 답변"}]}],"usage":{}}""")
+                }
+            }
+        }
+
+        val answer = adapter(port).answerWithCitations("질문", listOf(citation()))
+
+        assertEquals("근거: [42] 답변", answer.answer)
+        assertEquals(2, calls.get())
+    }
+
+    @Test
+    fun `does not retry after a delta was already delivered`() = runTest {
         val calls = AtomicInteger()
         val port = startServer { exchange ->
             calls.incrementAndGet()
@@ -82,14 +103,13 @@ class OpenAiCompletionAdapterTests {
             }
         }
 
-        assertThrows(AiProviderException::class.java) {
-            adapter(port).answerWithCitations("질문", listOf(citation())) { }
-        }
+        val error = runCatching { adapter(port).answerWithCitations("질문", listOf(citation())) { } }.exceptionOrNull()
+        assertTrue(error is AiProviderException)
         assertEquals(1, calls.get())
     }
 
     @Test
-    fun `does not expose an unknown citation in streamed deltas`() {
+    fun `does not expose an unknown citation in streamed deltas`() = runTest {
         val port = startServer { exchange ->
             exchange.responseHeaders.add("Content-Type", "text/event-stream")
             exchange.sendResponseHeaders(200, 0)
@@ -101,9 +121,8 @@ class OpenAiCompletionAdapterTests {
         }
         val delivered = mutableListOf<String>()
 
-        assertThrows(AiProviderException::class.java) {
-            adapter(port).answerWithCitations("질문", listOf(citation())) { delivered += it }
-        }
+        val error = runCatching { adapter(port).answerWithCitations("질문", listOf(citation())) { delivered += it } }.exceptionOrNull()
+        assertTrue(error is AiProviderException)
         assertTrue(delivered.isEmpty())
     }
 

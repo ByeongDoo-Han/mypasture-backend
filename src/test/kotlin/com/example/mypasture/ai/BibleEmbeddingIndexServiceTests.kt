@@ -60,7 +60,7 @@ class BibleEmbeddingIndexServiceTests {
     private class FakeEmbeddingPort(private val dimensions: Int = 1_536) : TextEmbeddingPort {
         var calls = 0
 
-        override fun embed(inputs: List<String>): TextEmbeddingBatch {
+        override suspend fun embed(inputs: List<String>): TextEmbeddingBatch {
             calls++
             return TextEmbeddingBatch(
                 vectors = inputs.map { FloatArray(dimensions) { 0.01f } },

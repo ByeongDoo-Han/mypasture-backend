@@ -5,11 +5,14 @@ import com.example.mypasture.bible.application.BibleCommentaryService
 import com.example.mypasture.bible.application.BibleReaderService
 import com.example.mypasture.bible.domain.BibleCommentaryJobStatus
 import com.example.mypasture.config.AiProperties
+import kotlinx.coroutines.CancellationException
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.data.domain.PageRequest
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.support.TransactionTemplate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
@@ -27,13 +30,16 @@ class BibleCommentaryGenerationWorker(
     private val clock: Clock = Clock.systemUTC(),
 ) {
     @Scheduled(fixedDelayString = "\${app.ai.commentary-poll-delay-ms:5000}")
-    fun processNext() {
-        val jobId = claimNextJob() ?: return
+    suspend fun processNext() = withContext(Dispatchers.IO) {
+        val jobId = claimNextJob() ?: return@withContext
         try {
             val job = jobRepository.findById(jobId).orElseThrow()
             val chapter = bibleReaderService.getChapter(job.version, job.bookCode, job.chapter)
             val generated = generator.generate(chapter)
             commentaryService.saveGeneratedDraft(job.id, generated, properties.commentaryPromptVersion)
+        } catch (exception: CancellationException) {
+            failJob(jobId, "서버 종료로 해설 생성이 취소되었습니다.")
+            throw exception
         } catch (exception: Exception) {
             failJob(jobId, exception.message ?: exception::class.simpleName ?: "알 수 없는 생성 오류")
         }

@@ -55,6 +55,7 @@ class AuthService(
     private val jwtProperties: JwtProperties,
     private val oauthProperties: OAuthProperties,
     private val eventPublisher: ApplicationEventPublisher,
+    private val emailVerificationService: EmailVerificationService,
 ) {
     private val secureRandom = SecureRandom()
 
@@ -66,6 +67,7 @@ class AuthService(
         ) {
             throw EmailAlreadyRegisteredException()
         }
+        emailVerificationService.consumeForSignup(email, request.verificationToken)
 
         val user =
             userRepository.save(

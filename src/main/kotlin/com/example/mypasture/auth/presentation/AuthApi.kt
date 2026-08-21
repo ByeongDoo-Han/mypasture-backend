@@ -2,6 +2,10 @@ package com.example.mypasture.auth.presentation
 
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.auth.presentation.dto.DeleteAccountRequest
+import com.example.mypasture.auth.presentation.dto.EmailVerificationConfirmRequest
+import com.example.mypasture.auth.presentation.dto.EmailVerificationConfirmedResponse
+import com.example.mypasture.auth.presentation.dto.EmailVerificationRequest
+import com.example.mypasture.auth.presentation.dto.EmailVerificationRequestedResponse
 import com.example.mypasture.auth.presentation.dto.PasswordResetConfirmRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequestedResponse
@@ -26,6 +30,17 @@ import org.springframework.web.bind.annotation.ResponseStatus
 interface AuthApi {
     @GetMapping("/health")
     fun health(): Map<String, String>
+
+    @PostMapping("/email-verifications")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    fun requestEmailVerification(
+        @Valid @RequestBody request: EmailVerificationRequest,
+    ): EmailVerificationRequestedResponse
+
+    @PostMapping("/email-verifications/confirm")
+    fun confirmEmailVerification(
+        @Valid @RequestBody request: EmailVerificationConfirmRequest,
+    ): EmailVerificationConfirmedResponse
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)

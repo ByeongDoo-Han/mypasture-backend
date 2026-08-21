@@ -1,8 +1,11 @@
 package com.example.mypasture.auth.presentation
 
 import com.example.mypasture.auth.application.AuthService
+import com.example.mypasture.auth.application.EmailVerificationService
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.auth.presentation.dto.DeleteAccountRequest
+import com.example.mypasture.auth.presentation.dto.EmailVerificationConfirmRequest
+import com.example.mypasture.auth.presentation.dto.EmailVerificationRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetConfirmRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequest
 import com.example.mypasture.auth.presentation.dto.RefreshAccessTokenRequest
@@ -17,8 +20,15 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/v1/auth")
 class AuthController(
     private val authService: AuthService,
+    private val emailVerificationService: EmailVerificationService,
 ) : AuthApi {
     override fun health(): Map<String, String> = mapOf("status" to "auth-ready")
+
+    override fun requestEmailVerification(request: EmailVerificationRequest) =
+        emailVerificationService.request(request)
+
+    override fun confirmEmailVerification(request: EmailVerificationConfirmRequest) =
+        emailVerificationService.confirm(request)
 
     override fun signup(request: UserSignupRequest) = authService.signup(request)
 

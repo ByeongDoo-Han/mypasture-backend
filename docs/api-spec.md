@@ -28,10 +28,15 @@ Authorization: Bearer {accessToken}
 
 ```text
 GET  /api/v1/auth/health
+POST /api/v1/auth/email-verifications
+POST /api/v1/auth/email-verifications/confirm
 POST /api/v1/auth/signup
 POST /api/v1/auth/login
-POST /api/v1/auth/oauth/{provider}
+POST /api/v1/auth/social-login
+POST /api/v1/auth/social-login/challenges
 POST /api/v1/auth/refresh
+POST /api/v1/auth/password-reset/requests
+POST /api/v1/auth/password-reset/confirm
 ```
 
 ### Content Type
@@ -122,7 +127,55 @@ GET /api/v1/auth/health
 
 Response `200`: `{"status":"auth-ready"}`
 
-### 1.2 Email signup
+### 1.2 Request email verification
+
+Status: `IMPLEMENTED`
+
+```http
+POST /api/v1/auth/email-verifications
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+```
+
+Response `202`는 계정 존재 여부와 관계없이 동일합니다.
+
+```json
+{
+  "message": "인증 가능한 이메일이라면 인증번호를 발송했습니다.",
+  "expiresInSeconds": 600,
+  "resendAfterSeconds": 60
+}
+```
+
+### 1.3 Confirm email verification
+
+Status: `IMPLEMENTED`
+
+```http
+POST /api/v1/auth/email-verifications/confirm
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "code": "123456"
+}
+```
+
+Response `200`의 `verificationToken`은 같은 이메일 회원가입에 한 번만 사용할 수 있습니다.
+
+```json
+{
+  "verificationToken": "one-time-signup-token",
+  "expiresAt": "2026-08-22T01:00:00Z"
+}
+```
+
+Errors: `400 INVALID_EMAIL_VERIFICATION_CODE`.
+
+### 1.4 Email signup
 
 Status: `IMPLEMENTED`
 
@@ -133,7 +186,8 @@ Content-Type: application/json
 {
   "email": "user@example.com",
   "password": "password123!",
-  "displayName": "홍길동"
+  "displayName": "홍길동",
+  "verificationToken": "one-time-signup-token"
 }
 ```
 
@@ -155,9 +209,9 @@ Response `201`:
 }
 ```
 
-Errors: `409 EMAIL_ALREADY_REGISTERED`.
+Errors: `400 EMAIL_VERIFICATION_REQUIRED`, `409 EMAIL_ALREADY_REGISTERED`.
 
-### 1.3 Email login
+### 1.5 Email login
 
 Status: `IMPLEMENTED`
 
@@ -185,7 +239,7 @@ Response `200`:
 
 Errors: `401 INVALID_CREDENTIALS`.
 
-### 1.4 Social login
+### 1.6 Social login
 
 Status: `IMPLEMENTED`
 
@@ -207,7 +261,7 @@ Content-Type: application/json
 
 Response `200`: Email login과 동일한 JWT 응답.
 
-### 1.5 Request password reset
+### 1.7 Request password reset
 
 Status: `IMPLEMENTED`
 
@@ -230,7 +284,7 @@ Response `202`:
 
 이메일 존재 여부와 무관하게 같은 응답을 반환한다. EMAIL 계정에만 30분 유효한 일회성 토큰을 발급하며 동일 계정은 기본 60초 cooldown을 적용한다.
 
-### 1.6 Confirm password reset
+### 1.8 Confirm password reset
 
 Status: `IMPLEMENTED`
 
@@ -253,7 +307,7 @@ Errors:
 | 400 | `INVALID_PASSWORD_RESET_TOKEN` |
 | 400 | `PASSWORD_REUSE_NOT_ALLOWED` |
 
-### 1.7 Current user
+### 1.9 Current user
 
 Status: `IMPLEMENTED`
 
@@ -264,7 +318,7 @@ Authorization: Bearer <access-token>
 
 Response `200`: current user profile.
 
-### 1.8 Delete account
+### 1.10 Delete account
 
 Status: `IMPLEMENTED`
 
@@ -291,7 +345,7 @@ Errors:
 | 401 | `REAUTHENTICATION_FAILED` |
 | 401 | `UNAUTHORIZED` |
 
-### 1.9 Refresh token / logout
+### 1.11 Refresh token / logout
 
 Status: `IMPLEMENTED`
 

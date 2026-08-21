@@ -5,6 +5,8 @@ import com.example.mypasture.notification.domain.DeliveryStatus
 import com.example.mypasture.notification.domain.DevicePlatform
 import com.example.mypasture.notification.infrastructure.NotificationDeliveryRepository
 import com.example.mypasture.user.domain.UserEntity
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -44,7 +46,7 @@ class NotificationDispatchTests(
     private lateinit var pushSender: PushSender
 
     @Test
-    fun `concurrent and repeated scheduler execution sends a daily word once`() {
+    fun `concurrent and repeated scheduler execution sends a daily word once`() = runTest {
         val user = registerDueDevice()
         val start = CountDownLatch(1)
         val executor = Executors.newFixedThreadPool(2)
@@ -53,7 +55,7 @@ class NotificationDispatchTests(
             val attempts = List(2) {
                 executor.submit {
                     start.await()
-                    notificationService.dispatchDueDailyWords()
+                    runBlocking { notificationService.dispatchDueDailyWords() }
                 }
             }
             start.countDown()
@@ -69,7 +71,7 @@ class NotificationDispatchTests(
     }
 
     @Test
-    fun `push failure is recorded without a sent timestamp`() {
+    fun `push failure is recorded without a sent timestamp`() = runTest {
         val user = registerDueDevice()
         doThrow(IllegalStateException("FCM unavailable"))
             .`when`(pushSender).send(anyString(), anyString(), anyString(), anyMap())

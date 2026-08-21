@@ -2,6 +2,7 @@ package com.example.mypasture.quiet_time.presentation
 
 import com.example.mypasture.quiet_time.application.QuietTimeForbiddenException
 import com.example.mypasture.quiet_time.application.QuietTimeNotFoundException
+import com.example.mypasture.quiet_time.application.QuietTimeParticipationRequiredException
 import com.example.mypasture.quiet_time.application.QuietTimeQrExpiredException
 import com.example.mypasture.quiet_time.application.QuietTimeQrNotOpenException
 import com.example.mypasture.quiet_time.application.QuietTimeQrRevokedException
@@ -29,6 +30,11 @@ class QuietTimeExceptionHandler {
     @ResponseStatus(HttpStatus.FORBIDDEN)
     fun handleForbidden(request: HttpServletRequest) =
         QuietTimeErrorCode.LEADER_REQUIRED.toResponse(request)
+
+    @ExceptionHandler(QuietTimeParticipationRequiredException::class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    fun handleParticipationRequired(request: HttpServletRequest) =
+        QuietTimeErrorCode.PARTICIPATION_REQUIRED.toResponse(request)
 
     @ExceptionHandler(QuietTimeQrNotOpenException::class)
     @ResponseStatus(HttpStatus.CONFLICT)
@@ -63,6 +69,7 @@ enum class QuietTimeErrorCode(
 ) : ErrorCode {
     NOT_FOUND("QUIET_TIME_NOT_FOUND", "큐티목장 리소스를 찾을 수 없습니다."),
     LEADER_REQUIRED("QUIET_TIME_LEADER_REQUIRED", "목장 리더만 QR을 관리할 수 있습니다."),
+    PARTICIPATION_REQUIRED("QUIET_TIME_PARTICIPATION_REQUIRED", "이 QT 모임에 참여한 목원만 답변을 볼 수 있습니다."),
     QR_NOT_OPEN("QUIET_TIME_QR_NOT_OPEN", "아직 참여 가능한 시간이 아닙니다."),
     QR_EXPIRED("QUIET_TIME_QR_EXPIRED", "참여 가능한 시간이 종료되었습니다."),
     QR_REVOKED("QUIET_TIME_QR_REVOKED", "폐기되었거나 새 QR로 교체된 코드입니다."),

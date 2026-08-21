@@ -1056,6 +1056,37 @@ QR 상태는 SCHEDULED, OPEN, EXPIRED, REVOKED, CLOSED입니다.
 
 상세 정책: [큐티 모임 QR 만료 및 폐기 정책](quiet-time-qr-policy.ko.md)
 
+### 7.10 큐티 질문별 실시간 답변
+
+Status: IMPLEMENTED
+
+모임 리더 또는 QR 참여가 완료된 목원만 접근할 수 있습니다. 질문 문구는 클라이언트가 보내지 않고 서버가 세션 passage의 질문 유형과 0부터 시작하는 질문 번호로 확정합니다. 같은 사용자가 같은 질문에 다시 저장하면 새 행을 추가하지 않고 최신 답변을 갱신합니다.
+
+```http
+PUT /api/v1/quiet-time/sessions/{sessionId}/answers/{category}/{questionIndex}
+GET /api/v1/quiet-time/sessions/{sessionId}/answers
+GET /api/v1/quiet-time/sessions/{sessionId}/answers/stream
+```
+
+`category`는 `OBSERVATION`, `MEDITATION`, `SHARING` 중 하나이며 답변 본문은 1자 이상 2,000자 이하입니다. 저장 응답과 `answer-updated` SSE 이벤트는 다음 형식을 사용합니다.
+
+```json
+{
+  "id": "answer-uuid",
+  "sessionId": "session-uuid",
+  "userId": "user-uuid",
+  "authorDisplayName": "목원 한나",
+  "questionCategory": "MEDITATION",
+  "questionIndex": 0,
+  "questionText": "오늘 내 삶에 적용할 말씀은 무엇인가요?",
+  "content": "염려를 기도로 맡기겠습니다.",
+  "createdAt": "2026-08-22T01:00:00Z",
+  "updatedAt": "2026-08-22T01:05:00Z"
+}
+```
+
+SSE는 연결 중 변경을 빠르게 전달하는 채널이며 영속 메시지 큐가 아닙니다. 모바일은 최초 연결과 재연결 때 `GET .../answers` 스냅샷을 다시 조회해 연결 중 유실 가능성을 복구합니다. 운영 환경의 여러 백엔드 인스턴스는 Redis Pub/Sub으로 이벤트를 팬아웃하고, DB 커밋이 완료된 답변만 발행합니다.
+
 
 ## 8. Prayer API
 

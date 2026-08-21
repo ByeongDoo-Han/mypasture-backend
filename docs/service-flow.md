@@ -103,7 +103,18 @@ sequenceDiagram
     Member->>API: GET /api/v1/quiet-time/offline/{offlineCode}
     API->>DB: 오프라인 세션 조회
     API-->>Member: 본문, 질문, 실천, 기도 가이드
+    Member->>API: POST /api/v1/quiet-time/offline/{offlineCode}/join
+    API->>DB: 참여자 등록
+    Member->>API: GET /sessions/{sessionId}/answers
+    API-->>Member: 질문별 최신 답변 스냅샷
+    Member->>API: GET /sessions/{sessionId}/answers/stream
+    Member->>API: PUT /sessions/{sessionId}/answers/{category}/{index}
+    API->>DB: 답변 생성 또는 갱신
+    API-->>Member: answer-updated SSE
+    API-->>Leader: answer-updated SSE
 ```
+
+실시간 채널은 빠른 화면 반영을 담당하고 정합성의 원본은 PostgreSQL입니다. 연결이 끊겼다가 복구되면 클라이언트는 답변 스냅샷을 다시 조회합니다. 운영의 다중 인스턴스에서는 Redis Pub/Sub이 각 인스턴스의 SSE 연결로 변경 이벤트를 전달합니다.
 
 QR에는 앱 전용 scheme만 넣지 않고, 운영에서는 HTTPS landing URL을 넣는 것을 권장합니다.
 

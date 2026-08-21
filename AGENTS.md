@@ -58,12 +58,12 @@ git diff --check
 
 ## GitHub 작업 흐름
 
-- 기능 구현 전 GitHub Issue를 만들고 최신 `dev`에서 작업을 시작합니다.
+- 기능 구현 전 GitHub Issue를 만들고 최신 기본 브랜치(`main`, 없으면 `master`)에서 작업을 시작합니다.
 - 브랜치 이름은 `feat/<domain>-<issue-number>-<feature-slug>` 형식을 사용합니다.
 - 커밋은 `feat(<domain>): <summary> (#<issue-number>)` 형식을 기본으로 합니다.
-- PR의 base는 `dev`이며 본문에 `Closes #<issue-number>`를 포함합니다.
+- PR의 base는 기본 브랜치(`main`, 없으면 `master`)이며 본문에 `Closes #<issue-number>`를 포함합니다.
 - `./gradlew test`와 CI가 통과한 뒤 merge하고 원격 기능 브랜치를 삭제합니다.
-- `main` 대상 PR과 운영 배포는 사람의 별도 승인이 필요합니다.
+- 기본 브랜치 병합과 별개로 운영 배포는 사람의 별도 승인이 필요합니다.
 
 ## 완료 보고
 

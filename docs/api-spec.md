@@ -1497,6 +1497,29 @@ Response `200`:
 }
 ```
 
+### 14.9 Quiet Time Operations
+
+Status: `IMPLEMENTED`
+
+```http
+GET  /api/v1/admin/quiet-time/sessions?scope=STANDALONE&status=OPEN&page=0&size=20
+GET  /api/v1/admin/quiet-time/sessions/{sessionId}
+GET  /api/v1/admin/quiet-time/statistics?from=2026-08-01&to=2026-08-31
+POST /api/v1/admin/quiet-time/sessions/{sessionId}/close
+POST /api/v1/admin/quiet-time/sessions/{sessionId}/revoke-qr
+```
+
+관리자 조치 요청은 재시도 시 중복 기록을 막는 `operationId`와 5~500자의 사유가 필요합니다.
+
+```json
+{
+  "operationId": "9fc8ef06-1441-4c8d-a0bf-07d1421b9510",
+  "reason": "노출된 QR 초대 링크 즉시 폐기"
+}
+```
+
+목록과 통계는 사용자의 QT 답변·묵상 원문을 반환하지 않습니다. 상세 응답에는 세션 운영 정보와 최근 관리자 감사 로그만 포함됩니다.
+
 ## 15. Implementation Status Summary
 
 | Domain | API status |
@@ -1514,7 +1537,7 @@ Response `200`:
 | Talent/Reward | planned |
 | Notification | planned |
 | File/R2 | planned |
-| Admin | planned |
+| Admin | 인증, 성경 해설·embedding, QT 조회·통계·조치·감사 로그 구현; 나머지 운영 도메인 planned |
 
 ## 16. Next API Implementation Order
 

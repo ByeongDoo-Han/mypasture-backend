@@ -1,0 +1,43 @@
+### QT 관리자 운영 API
+### ADMIN 역할 계정으로 발급한 adminAccessToken이 필요합니다.
+
+### 최근 30일 QT 통계
+GET {{baseUrl}}/api/v1/admin/quiet-time/statistics
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+### 일회성 진행 중 QT 검색
+GET {{baseUrl}}/api/v1/admin/quiet-time/sessions?scope=STANDALONE&status=OPEN&page=0&size=20
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+> {%
+  if (response.body.content.length > 0) {
+    client.global.set("adminQuietTimeSessionId", response.body.content[0].id);
+  }
+%}
+
+### QT 상세 및 최근 감사 로그
+GET {{baseUrl}}/api/v1/admin/quiet-time/sessions/{{adminQuietTimeSessionId}}
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+### QR 즉시 폐기
+POST {{baseUrl}}/api/v1/admin/quiet-time/sessions/{{adminQuietTimeSessionId}}/revoke-qr
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "operationId": "{{$uuid}}",
+  "reason": "노출된 QR 초대 링크 즉시 폐기"
+}
+
+### QT 강제 종료
+POST {{baseUrl}}/api/v1/admin/quiet-time/sessions/{{adminQuietTimeSessionId}}/close
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "operationId": "{{$uuid}}",
+  "reason": "운영 정책 위반 세션 강제 종료"
+}

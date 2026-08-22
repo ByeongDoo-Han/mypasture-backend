@@ -94,7 +94,9 @@ data class QuietTimePastureResponse(
 /** QR로 공유되는 오프라인 큐티 세션 응답 DTO입니다. */
 data class QuietTimeSessionResponse(
     val id: UUID,
-    val pasture: QuietTimePastureResponse,
+    val scope: String,
+    val pasture: QuietTimePastureResponse?,
+    val hostDisplayName: String,
     val passage: QuietTimePassageResponse,
     val title: String,
     val meetingDate: LocalDate,
@@ -163,7 +165,9 @@ fun QuietTimePastureEntity.toResponse(): QuietTimePastureResponse =
 fun QuietTimeSessionQrView.toResponse(): QuietTimeSessionResponse =
     QuietTimeSessionResponse(
         id = session.id,
-        pasture = session.pasture.toResponse(),
+        scope = session.scope.name,
+        pasture = session.pasture?.toResponse(),
+        hostDisplayName = session.hostDisplayName,
         passage = session.passage.toResponse(),
         title = session.title,
         meetingDate = session.meetingDate,

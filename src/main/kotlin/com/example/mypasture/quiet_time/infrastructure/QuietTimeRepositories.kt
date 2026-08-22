@@ -29,6 +29,8 @@ interface QuietTimePassageRepository : JpaRepository<QuietTimePassageEntity, UUI
 @Repository
 interface QuietTimePastureRepository : JpaRepository<QuietTimePastureEntity, UUID> {
     fun existsByInviteCode(inviteCode: String): Boolean
+
+    fun findAllByLeaderUserIdOrderByCreatedAtDesc(leaderUserId: UUID): List<QuietTimePastureEntity>
 }
 
 /** 오프라인 큐티 세션을 조회하고 종료·재발급 요청을 직렬화하는 JPA repository입니다. */
@@ -50,7 +52,7 @@ interface QuietTimeQrInvitationRepository : JpaRepository<QuietTimeQrInvitationE
         select invitation
           from QuietTimeQrInvitationEntity invitation
           join fetch invitation.session session
-          join fetch session.pasture
+          left join fetch session.pasture
           join fetch session.passage
          where invitation.offlineCode = :offlineCode
         """,

@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController
 import java.time.LocalDate
 import java.util.UUID
 
-data class AttendanceItemResponse(val id: UUID, val pastureId: UUID, val sessionId: UUID, val date: LocalDate)
+data class AttendanceItemResponse(val id: UUID, val pastureId: UUID?, val sessionId: UUID, val date: LocalDate)
 data class AttendanceSummaryResponse(val currentStreak: Int, val total: Int, val attendances: List<AttendanceItemResponse>)
 
 /** 현재 사용자의 출석 기록과 연속 출석을 조회합니다. */

@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import org.springframework.test.web.servlet.put
 import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
@@ -52,6 +53,8 @@ class QuietTimeControllerTests(
         val expiresAt = Instant.parse(session["expiresAt"].asText())
 
         check(ChronoUnit.MINUTES.between(meetingEndsAt, expiresAt) == 30L)
+        check(session["scope"].asText() == "PASTURE")
+        check(!session["pasture"].isNull)
 
         mockMvc.get("/api/v1/quiet-time/offline/$offlineCode")
             .andExpect {
@@ -63,6 +66,77 @@ class QuietTimeControllerTests(
                 jsonPath("$.expiresAt") { exists() }
             }
 
+    }
+
+    @Test
+    fun `managed pastures only return the authenticated leaders pastures`() {
+        val mine = createPasture()
+        createPasture(token = createUserToken(), name = "다른 리더 목장")
+
+        mockMvc.get("/api/v1/quiet-time/pastures/mine") {
+            header("Authorization", "Bearer ${leaderToken()}")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.length()") { value(1) }
+            jsonPath("$[0].id") { value(mine.toString()) }
+        }
+    }
+
+    @Test
+    fun `standalone session is created without a pasture and records nullable pasture attendance`() {
+        val session = createStandaloneSession()
+        val sessionId = session["id"].asText()
+        val offlineCode = session["offlineCode"].asText()
+
+        check(session["scope"].asText() == "STANDALONE")
+        check(session["pasture"].isNull)
+        check(session["hostDisplayName"].asText() == "큐티 리더")
+
+        joinSession(offlineCode).andExpect {
+            status { isOk() }
+            jsonPath("$.session.scope") { value("STANDALONE") }
+            jsonPath("$.participantCount") { value(1) }
+        }
+
+        val pastureId = jdbcTemplate.queryForObject(
+            "select pasture_id from pasture_attendances where session_id = ?",
+            UUID::class.java,
+            UUID.fromString(sessionId),
+        )
+        check(pastureId == null)
+    }
+
+    @Test
+    fun `only standalone host can manage its qr`() {
+        val session = createStandaloneSession()
+
+        mockMvc.delete("/api/v1/quiet-time/sessions/${session["id"].asText()}/qr") {
+            header("Authorization", "Bearer ${createUserToken()}")
+        }.andExpect {
+            status { isForbidden() }
+            jsonPath("$.code") { value("QUIET_TIME_LEADER_REQUIRED") }
+        }
+
+        mockMvc.delete("/api/v1/quiet-time/sessions/${session["id"].asText()}/qr") {
+            header("Authorization", "Bearer ${leaderToken()}")
+        }.andExpect {
+            status { isNoContent() }
+        }
+    }
+
+    @Test
+    fun `standalone host can answer without joining the qr session`() {
+        val session = createStandaloneSession()
+
+        mockMvc.put("/api/v1/quiet-time/sessions/${session["id"].asText()}/answers/MEDITATION/0") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"일회성 모임 생성자가 작성한 묵상입니다."}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.authorDisplayName") { value("큐티 리더") }
+            jsonPath("$.content") { value("일회성 모임 생성자가 작성한 묵상입니다.") }
+        }
     }
 
     @Test
@@ -254,14 +328,17 @@ class QuietTimeControllerTests(
                 """.trimIndent()
         }
 
-    private fun createPasture(): UUID {
+    private fun createPasture(
+        token: String = leaderToken(),
+        name: String = "오프라인 큐티 목장",
+    ): UUID {
         val result = mockMvc.post("/api/v1/quiet-time/pastures") {
-            header("Authorization", "Bearer ${leaderToken()}")
+            header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
             content =
                 """
                 {
-                  "name": "오프라인 큐티 목장",
+                  "name": "$name",
                   "leaderName": "도한"
                 }
                 """.trimIndent()
@@ -296,6 +373,29 @@ class QuietTimeControllerTests(
             status { isOk() }
             jsonPath("$.offlineCode") { exists() }
             jsonPath("$.expiresAt") { exists() }
+        }.andReturn()
+        return objectMapper.readTree(result.response.contentAsString)
+    }
+
+    private fun createStandaloneSession(): JsonNode {
+        val meetingStartsAt = Instant.now().plusSeconds(60)
+        val meetingEndsAt = meetingStartsAt.plus(1, ChronoUnit.HOURS)
+        val result = mockMvc.post("/api/v1/quiet-time/sessions/standalone") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content =
+                """
+                {
+                  "title": "오늘만 함께하는 QT",
+                  "theme": "불안",
+                  "meetingStartsAt": "$meetingStartsAt",
+                  "meetingEndsAt": "$meetingEndsAt"
+                }
+                """.trimIndent()
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.offlineCode") { exists() }
+            jsonPath("$.scope") { value("STANDALONE") }
         }.andReturn()
         return objectMapper.readTree(result.response.contentAsString)
     }

@@ -11,7 +11,7 @@ import java.util.UUID
 @Service
 class AttendanceService(private val repository: AttendanceRepository, private val clock: Clock = Clock.systemUTC()) {
     @Transactional
-    fun recordQuietTime(userId: UUID, pastureId: UUID, sessionId: UUID, timezone: String = "Asia/Seoul"): AttendanceEntity {
+    fun recordQuietTime(userId: UUID, pastureId: UUID?, sessionId: UUID, timezone: String = "Asia/Seoul"): AttendanceEntity {
         repository.findByUserIdAndSessionId(userId, sessionId)?.let { return it }
         val now = Instant.now(clock)
         return repository.save(AttendanceEntity(userId = userId, pastureId = pastureId, sessionId = sessionId, attendanceDate = LocalDate.ofInstant(now, ZoneId.of(timezone)), checkedInAt = now))

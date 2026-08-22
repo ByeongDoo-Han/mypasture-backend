@@ -18,6 +18,9 @@ enum class QuietTimeSensitivityLevel { LOW, MEDIUM, HIGH }
 /** 큐티 본문을 추천하기 좋은 모임 규모를 표현하는 enum입니다. */
 enum class QuietTimeGroupSize { INDIVIDUAL, SMALL_GROUP, PASTURE }
 
+/** QT 모임이 고정 목장에 속하는지 일회성 모임인지 구분합니다. */
+enum class QuietTimeSessionScope { PASTURE, STANDALONE }
+
 /** 큐티목장 오프라인 세션의 진행 상태를 표현하는 enum입니다. */
 enum class QuietTimeSessionStatus { DRAFT, OPEN, CLOSED }
 
@@ -84,9 +87,13 @@ class QuietTimeSessionEntity(
     @Id
     val id: UUID = UUID.randomUUID(),
     @ManyToOne(fetch = FetchType.LAZY)
-    val pasture: QuietTimePastureEntity,
+    val pasture: QuietTimePastureEntity? = null,
     @ManyToOne(fetch = FetchType.LAZY)
     val passage: QuietTimePassageEntity,
+    @Enumerated(EnumType.STRING)
+    val scope: QuietTimeSessionScope,
+    val hostUserId: UUID? = null,
+    val hostDisplayName: String,
     val title: String,
     val meetingDate: LocalDate,
     val meetingStartsAt: Instant,
@@ -95,6 +102,18 @@ class QuietTimeSessionEntity(
     var status: QuietTimeSessionStatus = QuietTimeSessionStatus.OPEN,
     val createdAt: Instant = Instant.now(),
 ) {
+    fun isManagedBy(userId: UUID): Boolean =
+        when (scope) {
+            QuietTimeSessionScope.PASTURE -> pasture?.leaderUserId == userId
+            QuietTimeSessionScope.STANDALONE -> hostUserId == userId
+        }
+
+    fun managerDisplayName(): String =
+        when (scope) {
+            QuietTimeSessionScope.PASTURE -> pasture?.leaderName ?: hostDisplayName
+            QuietTimeSessionScope.STANDALONE -> hostDisplayName
+        }
+
     fun close() {
         status = QuietTimeSessionStatus.CLOSED
     }

@@ -28,6 +28,6 @@ class QuietTimeReflectionService(private val sessionRepository: QuietTimeSession
         return reflectionRepository.findAllBySessionIdAndSharedWithPastureTrueOrderByUpdatedAtDesc(sessionId)
     }
     private fun requireParticipantOrLeader(session: com.example.mypasture.quiet_time.domain.QuietTimeSessionEntity, userId: UUID) {
-        if (session.pasture.leaderUserId != userId && !participantRepository.existsBySessionIdAndUserId(session.id, userId)) throw QuietTimeForbiddenException()
+        if (!session.isManagedBy(userId) && !participantRepository.existsBySessionIdAndUserId(session.id, userId)) throw QuietTimeForbiddenException()
     }
 }

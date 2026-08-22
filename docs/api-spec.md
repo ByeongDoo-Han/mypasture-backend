@@ -1042,9 +1042,13 @@ DELETE /api/v1/pastures/{pastureId}/members/{memberId}
 
 Status: IMPLEMENTED
 
-세션 생성은 POST /api/v1/quiet-time/pastures/{pastureId}/sessions를 사용하며 JWT가 필요합니다. 요청에는 title, passageId, meetingStartsAt, meetingEndsAt, joinStartsAt을 전달할 수 있습니다.
+QT 세션은 고정 목장 소속 `PASTURE`와 목장 없이 생성자에게 귀속되는 `STANDALONE` 범위로 구분합니다. 두 생성 API 모두 JWT가 필요하며 요청에는 title, passageId, meetingStartsAt, meetingEndsAt, joinStartsAt을 전달할 수 있습니다.
 
-응답에는 offlineCode, inviteUrl, joinStartsAt, expiresAt, qrStatus가 포함됩니다. expiresAt은 기본적으로 모임 종료 30분 후이며 QR 이미지는 프론트에서 inviteUrl을 기반으로 생성합니다.
+- GET /api/v1/quiet-time/pastures/mine
+- POST /api/v1/quiet-time/pastures/{pastureId}/sessions
+- POST /api/v1/quiet-time/sessions/standalone
+
+응답에는 `scope`, nullable `pasture`, `hostDisplayName`, offlineCode, inviteUrl, joinStartsAt, expiresAt, qrStatus가 포함됩니다. expiresAt은 기본적으로 모임 종료 30분 후이며 QR 이미지는 프론트에서 inviteUrl을 기반으로 생성합니다.
 
 - GET /api/v1/quiet-time/offline/{offlineCode}
 - POST /api/v1/quiet-time/offline/{offlineCode}/join
@@ -1055,6 +1059,8 @@ Status: IMPLEMENTED
 QR 상태는 SCHEDULED, OPEN, EXPIRED, REVOKED, CLOSED입니다.
 
 상세 정책: [큐티 모임 QR 만료 및 폐기 정책](quiet-time-qr-policy.ko.md)
+
+범위와 소유권 정책: [고정 목장 및 일회성 QT 정책](quiet-time-session-scope-policy.ko.md)
 
 ### 7.10 큐티 질문별 실시간 답변
 

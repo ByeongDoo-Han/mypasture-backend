@@ -1,0 +1,47 @@
+### 고정 목장 QT와 일회성 QT 생성 API
+### local 환경과 accessToken을 선택한 뒤 순서대로 실행합니다.
+
+### 내가 리더로 관리하는 고정 목장
+GET {{baseUrl}}/api/v1/quiet-time/pastures/mine
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 고정 목장 생성
+POST {{baseUrl}}/api/v1/quiet-time/pastures
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "주일 청년 목장",
+  "leaderName": "목장 리더"
+}
+
+> {% client.global.set("quietTimePastureId", response.body.id); %}
+
+### 고정 목장 안에서 QT 생성
+POST {{baseUrl}}/api/v1/quiet-time/pastures/{{quietTimePastureId}}/sessions
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "주일 말씀 나눔",
+  "theme": "공동체"
+}
+
+> {% client.global.set("pastureQuietTimeCode", response.body.offlineCode); %}
+
+### 목장 없이 일회성 QT 생성
+POST {{baseUrl}}/api/v1/quiet-time/sessions/standalone
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "오늘만 함께하는 QT",
+  "theme": "불안"
+}
+
+> {% client.global.set("standaloneQuietTimeCode", response.body.offlineCode); %}
+
+### 일회성 QT 조회. pasture는 null이고 scope는 STANDALONE이어야 합니다.
+GET {{baseUrl}}/api/v1/quiet-time/offline/{{standaloneQuietTimeCode}}
+Accept: application/json

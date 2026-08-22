@@ -7,6 +7,7 @@ import com.example.mypasture.quiet_time.domain.QuietTimeParticipantEntity
 import com.example.mypasture.quiet_time.domain.QuietTimePastureEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeQrInvitationEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeQrStatus
+import com.example.mypasture.quiet_time.domain.QuietTimeSessionScope
 import com.example.mypasture.quiet_time.domain.QuietTimeSessionStatus
 import com.example.mypasture.quiet_time.domain.QuietTimeSensitivityLevel
 import com.example.mypasture.quiet_time.domain.QuietTimeSessionEntity
@@ -73,8 +74,38 @@ class QuietTimeService(
         )
     }
 
+    /** 로그인 사용자가 리더로 관리하는 고정 목장 목록을 반환합니다. */
+    @Transactional(readOnly = true)
+    fun getManagedPastures(userId: UUID): List<QuietTimePastureEntity> =
+        pastureRepository.findAllByLeaderUserIdOrderByCreatedAtDesc(userId)
+
+    /** 기존 내부 호출을 고정 목장 QT 생성으로 연결하는 호환 진입점입니다. */
     @Transactional
     fun createOfflineSession(
+        leaderUserId: UUID,
+        pastureId: UUID,
+        title: String?,
+        passageId: UUID?,
+        theme: String?,
+        meetingDate: LocalDate?,
+        meetingStartsAt: Instant?,
+        meetingEndsAt: Instant?,
+        joinStartsAt: Instant?,
+    ): QuietTimeSessionQrView =
+        createPastureSession(
+            leaderUserId = leaderUserId,
+            pastureId = pastureId,
+            title = title,
+            passageId = passageId,
+            theme = theme,
+            meetingDate = meetingDate,
+            meetingStartsAt = meetingStartsAt,
+            meetingEndsAt = meetingEndsAt,
+            joinStartsAt = joinStartsAt,
+        )
+
+    @Transactional
+    fun createPastureSession(
         leaderUserId: UUID,
         pastureId: UUID,
         title: String?,
@@ -89,6 +120,69 @@ class QuietTimeService(
         val pasture = pastureRepository.findById(pastureId)
             .orElseThrow { QuietTimeNotFoundException("Quiet time pasture was not found: $pastureId") }
         requirePastureLeader(pasture, leaderUserId)
+
+        return createSession(
+            scope = QuietTimeSessionScope.PASTURE,
+            pasture = pasture,
+            hostUserId = leaderUserId,
+            hostDisplayName = pasture.leaderName,
+            title = title,
+            passageId = passageId,
+            theme = theme,
+            meetingDate = meetingDate,
+            meetingStartsAt = meetingStartsAt,
+            meetingEndsAt = meetingEndsAt,
+            joinStartsAt = joinStartsAt,
+            now = now,
+        )
+    }
+
+    /** 고정 목장 없이 생성자 소유로 유지되는 일회성 현장 QT를 생성합니다. */
+    @Transactional
+    fun createStandaloneSession(
+        hostUserId: UUID,
+        hostDisplayName: String,
+        title: String?,
+        passageId: UUID?,
+        theme: String?,
+        meetingDate: LocalDate?,
+        meetingStartsAt: Instant?,
+        meetingEndsAt: Instant?,
+        joinStartsAt: Instant?,
+    ): QuietTimeSessionQrView {
+        require(hostDisplayName.trim().length in 1..80) { "Host display name length must be between 1 and 80." }
+        return createSession(
+            scope = QuietTimeSessionScope.STANDALONE,
+            pasture = null,
+            hostUserId = hostUserId,
+            hostDisplayName = hostDisplayName.trim(),
+            title = title,
+            passageId = passageId,
+            theme = theme,
+            meetingDate = meetingDate,
+            meetingStartsAt = meetingStartsAt,
+            meetingEndsAt = meetingEndsAt,
+            joinStartsAt = joinStartsAt,
+            now = Instant.now(clock),
+        )
+    }
+
+    private fun createSession(
+        scope: QuietTimeSessionScope,
+        pasture: QuietTimePastureEntity?,
+        hostUserId: UUID,
+        hostDisplayName: String,
+        title: String?,
+        passageId: UUID?,
+        theme: String?,
+        meetingDate: LocalDate?,
+        meetingStartsAt: Instant?,
+        meetingEndsAt: Instant?,
+        joinStartsAt: Instant?,
+        now: Instant,
+    ): QuietTimeSessionQrView {
+        val normalizedTitle = title?.trim()?.takeIf { it.isNotBlank() }
+        require(normalizedTitle == null || normalizedTitle.length <= 120) { "Session title must not exceed 120 characters." }
 
         val passage = passageId?.let {
             passageRepository.findById(it)
@@ -106,7 +200,10 @@ class QuietTimeService(
             QuietTimeSessionEntity(
                 pasture = pasture,
                 passage = passage,
-                title = title?.trim()?.takeIf { it.isNotBlank() } ?: "${pasture.name} 오프라인 큐티",
+                scope = scope,
+                hostUserId = hostUserId,
+                hostDisplayName = hostDisplayName,
+                title = normalizedTitle ?: pasture?.let { "${it.name} 오프라인 큐티" } ?: "일회성 현장 큐티",
                 meetingDate = meetingDate ?: LocalDate.ofInstant(startsAt, ZoneOffset.UTC),
                 meetingStartsAt = startsAt,
                 meetingEndsAt = endsAt,
@@ -154,7 +251,7 @@ class QuietTimeService(
             ),
         )
         if (participant.userId == null) participant.userId = userId
-        attendanceService.recordQuietTime(userId, session.pasture.id, session.id)
+        attendanceService.recordQuietTime(userId, session.pasture?.id, session.id)
 
         return QuietTimeJoinResult(
             sessionView = QuietTimeSessionQrView(session, invitation, qrStatus),
@@ -174,7 +271,7 @@ class QuietTimeService(
         val now = Instant.now(clock)
         val session = sessionRepository.findByIdForUpdate(sessionId)
             ?: throw QuietTimeNotFoundException("Quiet time session was not found: $sessionId")
-        requirePastureLeader(session.pasture, leaderUserId)
+        requireSessionManager(session, leaderUserId)
         if (session.status == QuietTimeSessionStatus.CLOSED) throw QuietTimeSessionClosedException()
         val expiresAt = session.meetingEndsAt.plusSeconds(qrProperties.expiryGraceMinutes * 60)
         if (!expiresAt.isAfter(now)) throw QuietTimeQrExpiredException()
@@ -195,7 +292,7 @@ class QuietTimeService(
         val now = Instant.now(clock)
         val session = sessionRepository.findByIdForUpdate(sessionId)
             ?: throw QuietTimeNotFoundException("Quiet time session was not found: $sessionId")
-        requirePastureLeader(session.pasture, leaderUserId)
+        requireSessionManager(session, leaderUserId)
         qrInvitationRepository.findActiveBySessionId(session.id, now).forEach { it.revoke(now) }
     }
 
@@ -208,7 +305,7 @@ class QuietTimeService(
         val now = Instant.now(clock)
         val session = sessionRepository.findByIdForUpdate(sessionId)
             ?: throw QuietTimeNotFoundException("Quiet time session was not found: $sessionId")
-        requirePastureLeader(session.pasture, leaderUserId)
+        requireSessionManager(session, leaderUserId)
         session.close()
         qrInvitationRepository.findActiveBySessionId(session.id, now).forEach { it.revoke(now) }
     }
@@ -250,6 +347,13 @@ class QuietTimeService(
         userId: UUID,
     ) {
         if (pasture.leaderUserId != userId) throw QuietTimeForbiddenException()
+    }
+
+    private fun requireSessionManager(
+        session: QuietTimeSessionEntity,
+        userId: UUID,
+    ) {
+        if (!session.isManagedBy(userId)) throw QuietTimeForbiddenException()
     }
 
     private fun findInvitation(offlineCode: String): QuietTimeQrInvitationEntity =
@@ -358,8 +462,8 @@ class QuietTimeService(
 /** 큐티목장 리소스를 찾을 수 없을 때 발생하는 예외입니다. */
 class QuietTimeNotFoundException(message: String) : RuntimeException(message)
 
-/** 큐티목장 리더가 아닌 사용자가 QR 관리 기능을 요청했을 때 발생하는 예외입니다. */
-class QuietTimeForbiddenException : RuntimeException("Only the pasture leader can manage this QR")
+/** 고정 목장 리더 또는 일회성 모임 생성자가 아닌 사용자가 관리 기능을 요청했습니다. */
+class QuietTimeForbiddenException : RuntimeException("Only the quiet time session manager can perform this action")
 
 /** QR 참여 시작 시간 이전에 참여를 요청했을 때 발생하는 예외입니다. */
 class QuietTimeQrNotOpenException : RuntimeException("Quiet time QR is not open yet")

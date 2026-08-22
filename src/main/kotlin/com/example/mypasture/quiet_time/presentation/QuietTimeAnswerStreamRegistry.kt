@@ -33,7 +33,7 @@ class QuietTimeAnswerStreamRegistry(
             )
         } catch (error: Exception) {
             cleanup()
-            emitter.completeWithError(error)
+            runCatching { emitter.completeWithError(error) }
         }
         return emitter
     }
@@ -59,7 +59,7 @@ class QuietTimeAnswerStreamRegistry(
     }
 
     fun completeSession(sessionId: UUID) {
-        emitters.remove(sessionId)?.values?.forEach(SseEmitter::complete)
+        emitters.remove(sessionId)?.values?.forEach { emitter -> runCatching { emitter.complete() } }
     }
 
     private fun sendToSession(sessionId: UUID, event: SseEmitter.SseEventBuilder) {
@@ -68,7 +68,8 @@ class QuietTimeAnswerStreamRegistry(
                 emitter.send(event)
             } catch (_: Exception) {
                 remove(sessionId, emitterId)
-                emitter.complete()
+                // 컨테이너가 이미 오류 콜백을 끝낸 emitter는 complete도 실패할 수 있습니다.
+                runCatching { emitter.complete() }
             }
         }
     }

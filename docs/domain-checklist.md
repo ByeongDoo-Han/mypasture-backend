@@ -89,6 +89,9 @@ Package: com.example.mypasture.quiet_time
 - [x] 다중 서버 Redis Pub/Sub 팬아웃과 단일 서버 로컬 대체 구현
 - [x] 최초 답변 동시 생성 방지를 위한 세션 행 잠금과 유일 키
 - [x] 질문별 답변 권한·갱신·SSE 통합 테스트
+- [x] 고정 목장 `PASTURE`와 목장 없는 `STANDALONE` 세션 범위 분리
+- [x] 일회성 세션 생성자 소유권과 nullable 목장 출석
+- [x] 로그인 리더의 고정 목장 목록 조회
 
 구현 필요:
 
@@ -104,8 +107,12 @@ Package: com.example.mypasture.quiet_time
 - [ ] 기존 leader 없는 목장 데이터 이관
 - [ ] 답변 삭제·수정 이력과 리더 신고/숨김 정책
 - [ ] 장시간 모임의 SSE 동시 연결 수 모니터링과 부하 테스트
+- [ ] 고정 목장 membership과 리더·부리더 역할
+- [ ] 일회성 참가자의 동의 기반 고정 목장 전환
 
 정책 문서: [큐티 모임 QR 만료 및 폐기 정책](quiet-time-qr-policy.ko.md)
+
+범위 정책: [고정 목장 및 일회성 QT 정책](quiet-time-session-scope-policy.ko.md)
 
 
 ## Auth Domain

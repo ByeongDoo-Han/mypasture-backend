@@ -80,7 +80,7 @@ class QuietTimeQuestionAnswerService(
             .orElseThrow { QuietTimeNotFoundException("Quiet time session was not found: $sessionId") }
 
     private fun requireParticipantOrLeader(session: QuietTimeSessionEntity, userId: UUID): String {
-        if (session.pasture.leaderUserId == userId) return session.pasture.leaderName
+        if (session.isManagedBy(userId)) return session.managerDisplayName()
         return participantRepository.findBySessionIdAndUserId(session.id, userId)?.displayName
             ?: throw QuietTimeParticipationRequiredException()
     }

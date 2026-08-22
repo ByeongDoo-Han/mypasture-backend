@@ -31,14 +31,33 @@ class QuietTimeController(
     ): QuietTimePastureResponse =
         quietTimeService.createPasture(principal.userId, request.name, request.leaderName).toResponse()
 
+    override fun managedPastures(principal: JwtPrincipal): List<QuietTimePastureResponse> =
+        quietTimeService.getManagedPastures(principal.userId).map { it.toResponse() }
+
     override fun createSession(
         principal: JwtPrincipal,
         pastureId: UUID,
         request: CreateQuietTimeSessionRequest,
     ): QuietTimeSessionResponse =
-        quietTimeService.createOfflineSession(
+        quietTimeService.createPastureSession(
             leaderUserId = principal.userId,
             pastureId = pastureId,
+            title = request.title,
+            passageId = request.passageId,
+            theme = request.theme,
+            meetingDate = request.meetingDate,
+            meetingStartsAt = request.meetingStartsAt,
+            meetingEndsAt = request.meetingEndsAt,
+            joinStartsAt = request.joinStartsAt,
+        ).toResponse()
+
+    override fun createStandaloneSession(
+        principal: JwtPrincipal,
+        request: CreateQuietTimeSessionRequest,
+    ): QuietTimeSessionResponse =
+        quietTimeService.createStandaloneSession(
+            hostUserId = principal.userId,
+            hostDisplayName = principal.displayName,
             title = request.title,
             passageId = request.passageId,
             theme = request.theme,

@@ -17,8 +17,14 @@ interface QuietTimeApi {
     @PostMapping("/pastures")
     fun createPasture(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: CreateQuietTimePastureRequest): QuietTimePastureResponse
 
+    @GetMapping("/pastures/mine")
+    fun managedPastures(@AuthenticationPrincipal principal: JwtPrincipal): List<QuietTimePastureResponse>
+
     @PostMapping("/pastures/{pastureId}/sessions")
     fun createSession(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable pastureId: UUID, @Valid @RequestBody request: CreateQuietTimeSessionRequest): QuietTimeSessionResponse
+
+    @PostMapping("/sessions/standalone")
+    fun createStandaloneSession(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: CreateQuietTimeSessionRequest): QuietTimeSessionResponse
 
     @GetMapping("/offline/{offlineCode}")
     fun offlineSession(@PathVariable offlineCode: String): QuietTimeSessionResponse

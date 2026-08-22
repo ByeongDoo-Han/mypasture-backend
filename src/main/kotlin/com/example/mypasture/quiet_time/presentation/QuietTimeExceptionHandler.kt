@@ -1,6 +1,7 @@
 package com.example.mypasture.quiet_time.presentation
 
 import com.example.mypasture.quiet_time.application.QuietTimeForbiddenException
+import com.example.mypasture.quiet_time.application.QuietTimeAdminOperationConflictException
 import com.example.mypasture.quiet_time.application.QuietTimeNotFoundException
 import com.example.mypasture.quiet_time.application.QuietTimeParticipationRequiredException
 import com.example.mypasture.quiet_time.application.QuietTimeQrExpiredException
@@ -18,9 +19,14 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
 
 /** 큐티목장과 QR 정책 예외를 일관된 HTTP 응답으로 변환하는 controller advice입니다. */
-@RestControllerAdvice(assignableTypes = [QuietTimeController::class])
+@RestControllerAdvice(assignableTypes = [QuietTimeController::class, QuietTimeAdminController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class QuietTimeExceptionHandler {
+    @ExceptionHandler(QuietTimeAdminOperationConflictException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handleAdminOperationConflict(request: HttpServletRequest) =
+        QuietTimeErrorCode.ADMIN_OPERATION_CONFLICT.toResponse(request)
+
     @ExceptionHandler(QuietTimeNotFoundException::class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     fun handleNotFound(exception: QuietTimeNotFoundException, request: HttpServletRequest) =
@@ -74,5 +80,6 @@ enum class QuietTimeErrorCode(
     QR_EXPIRED("QUIET_TIME_QR_EXPIRED", "참여 가능한 시간이 종료되었습니다."),
     QR_REVOKED("QUIET_TIME_QR_REVOKED", "폐기되었거나 새 QR로 교체된 코드입니다."),
     SESSION_CLOSED("QUIET_TIME_SESSION_CLOSED", "종료된 큐티 모임입니다."),
+    ADMIN_OPERATION_CONFLICT("QUIET_TIME_ADMIN_OPERATION_CONFLICT", "이미 다른 관리자 작업에 사용된 operationId입니다."),
     INVALID_REQUEST("INVALID_QUIET_TIME_REQUEST", "큐티목장 요청이 올바르지 않습니다."),
 }

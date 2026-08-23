@@ -2,6 +2,9 @@ package com.example.mypasture.ai
 
 import com.example.mypasture.ai.application.AiProviderException
 import com.example.mypasture.ai.domain.BibleCitation
+import com.example.mypasture.ai.domain.AiReasoningEffort
+import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
+import com.example.mypasture.ai.domain.AiUseCase
 import com.example.mypasture.ai.infrastructure.AiCitationValidator
 import com.example.mypasture.ai.infrastructure.OpenAiCompletionAdapter
 import com.example.mypasture.config.AiProperties
@@ -53,7 +56,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `sets minimal reasoning for gpt 5 models`() = runTest {
+    fun `sets low reasoning for gpt 5 models`() = runTest {
         val requestBodies = mutableListOf<String>()
         val port = startServer { exchange ->
             requestBodies += exchange.requestBody.bufferedReader().readText()
@@ -66,7 +69,31 @@ class OpenAiCompletionAdapterTests {
 
         adapter(port, model = "gpt-5-mini").answerWithCitations("질문", listOf(citation()))
 
-        assertTrue(requestBodies.single().contains("\"reasoning\":{\"effort\":\"minimal\"}"))
+        assertTrue(requestBodies.single().contains("\"reasoning\":{\"effort\":\"low\"}"))
+    }
+
+    @Test
+    fun `evaluates answer with strict structured output and records evaluator usage`() = runTest {
+        val requestBodies = mutableListOf<String>()
+        val port = startServer { exchange ->
+            requestBodies += exchange.requestBody.bufferedReader().readText()
+            exchange.responseHeaders.add("Content-Type", "application/json")
+            exchange.sendResponseHeaders(200, 0)
+            exchange.responseBody.bufferedWriter().use { writer ->
+                writer.write(
+                    """{"output":[{"type":"message","content":[{"type":"output_text","text":"{\"passed\":true,\"grounding_score\":5,\"citation_score\":5,\"safety_score\":5,\"relevance_score\":4,\"pastoral_tone_score\":5,\"fabricated_scripture\":false,\"uncertain\":false,\"issues\":[]}"}]}],"usage":{"input_tokens":10,"output_tokens":5}}""",
+                )
+            }
+        }
+
+        val result = adapter(port).evaluate("질문", listOf(citation()), "근거: [42] 답변", runtimeConfig())
+
+        assertTrue(result.passed)
+        assertEquals(4, result.relevanceScore)
+        assertEquals(10, result.promptTokens)
+        assertTrue(requestBodies.single().contains("\"name\":\"bible_answer_evaluation\""))
+        assertTrue(requestBodies.single().contains("\"strict\":true"))
+        assertTrue(requestBodies.single().contains("\"model\":\"gpt-5.6-luna\""))
     }
 
     @Test
@@ -138,6 +165,22 @@ class OpenAiCompletionAdapterTests {
         OpenAiCompletionAdapter(properties(port).copy(model = model), AiCitationValidator(), jacksonObjectMapper())
 
     private fun citation() = BibleCitation(42, "KOR1910", "시편", 23, 1, "여호와는 나의 목자시니")
+
+    private fun runtimeConfig() = AiRuntimeConfigSnapshot(
+        id = null,
+        useCase = AiUseCase.AI_PASTOR,
+        version = 0,
+        generatorModel = "gpt-5.6-terra",
+        evaluatorModel = "gpt-5.6-luna",
+        generatorReasoningEffort = AiReasoningEffort.LOW,
+        evaluatorReasoningEffort = AiReasoningEffort.MEDIUM,
+        maxOutputTokens = 100,
+        evaluationMaxOutputTokens = 100,
+        evaluationEnabled = true,
+        evaluationThreshold = 4,
+        maxRevisionCount = 1,
+        source = "TEST",
+    )
 
     private fun properties(port: Int) =
         AiProperties(

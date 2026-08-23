@@ -13,6 +13,8 @@ import java.util.UUID
 enum class AdminAuditAction {
     QUIET_TIME_FORCE_CLOSED,
     QUIET_TIME_QR_REVOKED,
+    AI_RUNTIME_CONFIG_ACTIVATED,
+    AI_RUNTIME_CONFIG_ROLLED_BACK,
 }
 
 /** 관리자 변경 요청의 주체, 대상, 사유와 멱등 키를 영구 보존하는 JPA entity입니다. */
@@ -31,5 +33,7 @@ class AdminAuditLogEntity(
     val reason: String,
     @Column(columnDefinition = "text")
     val details: String,
+    @Column(length = 64)
+    val requestFingerprint: String? = null,
     val createdAt: Instant = Instant.now(),
 )

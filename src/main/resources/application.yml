@@ -60,7 +60,9 @@ app:
       sse-timeout-ms: ${QUIET_TIME_SSE_TIMEOUT_MS:1800000}
       heartbeat-delay-ms: ${QUIET_TIME_SSE_HEARTBEAT_DELAY_MS:15000}
   ai:
-    model: ${OPENAI_MODEL:gpt-5-mini}
+    model: ${OPENAI_MODEL:gpt-5.6-terra}
+    generator-model: ${OPENAI_GENERATOR_MODEL:${OPENAI_MODEL:gpt-5.6-terra}}
+    evaluator-model: ${OPENAI_EVALUATOR_MODEL:gpt-5.6-luna}
     embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
     embedding-dimensions: ${AI_EMBEDDING_DIMENSIONS:1536}
     embedding-batch-size: ${AI_EMBEDDING_BATCH_SIZE:100}
@@ -71,7 +73,12 @@ app:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com}
     max-input-chars: ${AI_MAX_INPUT_CHARS:300}
     max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:700}
-    reasoning-effort: ${OPENAI_REASONING_EFFORT:minimal}
+    reasoning-effort: ${OPENAI_REASONING_EFFORT:low}
+    evaluator-reasoning-effort: ${OPENAI_EVALUATOR_REASONING_EFFORT:medium}
+    evaluation-enabled: ${AI_EVALUATION_ENABLED:true}
+    evaluation-threshold: ${AI_EVALUATION_THRESHOLD:4}
+    evaluation-max-output-tokens: ${AI_EVALUATION_MAX_OUTPUT_TOKENS:250}
+    max-revision-count: ${AI_MAX_REVISION_COUNT:1}
     free-daily-limit: ${AI_FREE_DAILY_LIMIT:10}
     premium-daily-safety-limit: ${AI_PREMIUM_DAILY_SAFETY_LIMIT:500}
     privacy-hash-secret: ${AI_PRIVACY_HASH_SECRET:local-ai-privacy-secret-change-me}

@@ -53,6 +53,7 @@ enum class AiAssistantStage {
     UNDERSTANDING_QUESTION,
     SEARCHING_SCRIPTURE,
     GENERATING_ANSWER,
+    REVIEWING_ANSWER,
 }
 
 /** 검색된 성경 근거와 질문 embedding 사용량을 completion 단계로 전달합니다. */
@@ -101,6 +102,20 @@ data class GroundedAnswer(
     val embeddingCostUsd: BigDecimal = BigDecimal.ZERO,
     val retrievalStrategy: RagRetrievalStrategy = RagRetrievalStrategy.LEXICAL_FALLBACK,
     val questionIntent: BibleQuestionIntent = BibleQuestionIntent.BIBLE_QA,
+    val modelConfigVersionId: UUID? = null,
+    val generatorModel: String? = null,
+    val evaluatorModel: String? = null,
+    val evaluationPromptTokens: Int = 0,
+    val evaluationCompletionTokens: Int = 0,
+    val evaluationCostUsd: BigDecimal = BigDecimal.ZERO,
+    val evaluationPassed: Boolean? = null,
+    val evaluationGroundingScore: Int? = null,
+    val evaluationCitationScore: Int? = null,
+    val evaluationSafetyScore: Int? = null,
+    val evaluationRelevanceScore: Int? = null,
+    val evaluationPastoralToneScore: Int? = null,
+    val evaluationIssues: List<String> = emptyList(),
+    val revisionCount: Int = 0,
 )
 
 /** AI 입력 제한과 무료 사용자 사용량 제한 정책을 표현하는 도메인 모델입니다. */

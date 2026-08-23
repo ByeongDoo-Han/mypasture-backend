@@ -84,11 +84,23 @@ AI_STREAM_TIMEOUT_MS=60000
 AI_STREAM_CORE_POOL_SIZE=8
 AI_STREAM_MAX_POOL_SIZE=64
 AI_STREAM_QUEUE_CAPACITY=200
+OPENAI_GENERATOR_MODEL=gpt-5.6-terra
+OPENAI_EVALUATOR_MODEL=gpt-5.6-luna
+OPENAI_REASONING_EFFORT=low
+OPENAI_EVALUATOR_REASONING_EFFORT=medium
+AI_EVALUATION_ENABLED=true
+AI_EVALUATION_THRESHOLD=4
+AI_EVALUATION_MAX_OUTPUT_TOKENS=250
+AI_MAX_REVISION_COUNT=1
 ```
 
 백필 worker는 한 서버에서만 활성화하고, 관리자 상태 API에서 `remainingVerses=0`을 확인한 후 다시
 비활성화합니다. 로컬의 `AI_MOCK_ENABLED=true`는 결정적 가짜 embedding과 lexical fallback으로 흐름만
 검증하며 실제 OpenAI 검색 품질을 의미하지 않습니다.
+
+생성·평가 모델의 환경 변수는 DB에 활성 버전이 없을 때만 기본값으로 사용됩니다. 운영 중 변경은 관리자
+`/ai-models` 화면에서 새 버전으로 활성화하며, 과거 버전 복원도 새 이력으로 남습니다. 평가가 켜진 경우
+응답은 서버에서 잠시 버퍼링되어 근거·인용·안전성·관련성·목회적 어조를 검사한 뒤 최종본만 전송됩니다.
 
 ### OpenAI API Key 최소 비용 검증
 

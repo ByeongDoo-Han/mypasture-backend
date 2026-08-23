@@ -2,6 +2,9 @@ package com.example.mypasture.ai.application
 
 import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.ai.domain.AiAssistantStage
+import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
+import com.example.mypasture.ai.domain.BibleRetrievalResult
+import com.example.mypasture.ai.domain.BibleQuestionIntent
 import com.example.mypasture.config.AiProperties
 import com.example.mypasture.user.domain.SubscriptionTier
 import kotlinx.coroutines.Dispatchers
@@ -38,10 +41,11 @@ class AskBibleAssistantUseCase(
     private val properties: AiProperties,
     private val questionUnderstandingService: BibleQuestionUnderstandingService,
     private val retrievalPort: BibleRetrievalPort,
-    private val completionPort: AiCompletionPort,
+    private val qualityService: AiAnswerQualityService,
     private val streamingCompletionPort: AiStreamingCompletionPort,
     private val cachePort: AiCachePort,
     private val usagePort: AiUsagePort,
+    private val runtimeConfigService: AiRuntimeConfigService,
 ) {
     /** AI 호출 전에도 모바일이 정확한 남은 횟수를 표시할 수 있게 합니다. */
     fun dailyUsage(userId: UUID, subscriptionTier: SubscriptionTier): AiDailyUsage {
@@ -70,8 +74,8 @@ class AskBibleAssistantUseCase(
         userId: UUID,
         subscriptionTier: SubscriptionTier,
         question: String,
-    ): GroundedAnswer = execute(userId, subscriptionTier, question) { normalized, citations ->
-        completionPort.answerWithCitations(normalized, citations)
+    ): GroundedAnswer = execute(userId, subscriptionTier, question) { normalized, citations, config ->
+        qualityService.generate(normalized, citations, config)
     }
 
     /** RAG 검색이 끝난 뒤 LLM의 답변 조각을 생성 즉시 호출자에게 전달합니다. */
@@ -98,8 +102,16 @@ class AskBibleAssistantUseCase(
         question = question,
         onStage = onStage,
         onCacheHit = { onDelta(it.answer) },
-    ) { normalized, citations ->
-        streamingCompletionPort.answerWithCitations(normalized, citations, onDelta)
+    ) { normalized, citations, config ->
+        if (config.evaluationEnabled) {
+            qualityService.generate(normalized, citations, config) {
+                onStage(AiAssistantStage.REVIEWING_ANSWER)
+            }.also { answer ->
+                answer.answer.chunked(24).forEach { onDelta(it) }
+            }
+        } else {
+            streamingCompletionPort.answerWithCitations(normalized, citations, config, onDelta)
+        }
     }
 
     private suspend fun execute(
@@ -108,7 +120,7 @@ class AskBibleAssistantUseCase(
         question: String,
         onStage: (AiAssistantStage) -> Unit = {},
         onCacheHit: suspend (GroundedAnswer) -> Unit = {},
-        complete: suspend (String, List<com.example.mypasture.ai.domain.BibleCitation>) -> GroundedAnswer,
+        complete: suspend (String, List<com.example.mypasture.ai.domain.BibleCitation>, AiRuntimeConfigSnapshot) -> GroundedAnswer,
     ): GroundedAnswer = withContext(Dispatchers.IO) {
         // 모든 AI 입력 정책은 여기서 먼저 막습니다. Controller validation만 믿지 말고 use case에서도 한 번 더 방어합니다.
         val normalized = question.trim()
@@ -120,13 +132,16 @@ class AskBibleAssistantUseCase(
         } else {
             properties.premiumDailySafetyLimit.toLong()
         }
-        val reservationId = usagePort.reserve(userId, normalized, dailyLimit) ?: throw AiQuotaExceededException()
+        val runtimeConfig = runtimeConfigService.current()
+        val reservationId = usagePort.reserve(userId, normalized, dailyLimit, runtimeConfig) ?: throw AiQuotaExceededException()
+        var consumedRetrieval: BibleRetrievalResult? = null
+        var consumedIntent = BibleQuestionIntent.BIBLE_QA
 
         try {
             onStage(AiAssistantStage.UNDERSTANDING_QUESTION)
 
             // 상담 내용이 다른 사용자에게 재사용되지 않도록 사용자별 HMAC cache를 사용합니다.
-            cachePort.get(userId, normalized)?.let { cached ->
+            cachePort.get(userId, normalized, runtimeConfig.cacheScope)?.let { cached ->
                 val cacheHit = cached.copy(
                     promptTokens = 0,
                     completionTokens = 0,
@@ -141,15 +156,17 @@ class AskBibleAssistantUseCase(
             }
 
             val understoodQuestion = questionUnderstandingService.understand(normalized)
+            consumedIntent = understoodQuestion.intent
 
             // RAG 강제 지점입니다. AI는 DB 검색 결과가 없으면 답변하지 않아야 합니다.
             onStage(AiAssistantStage.SEARCHING_SCRIPTURE)
             val retrieval = retrievalPort.searchRelevantVerses(understoodQuestion)
+            consumedRetrieval = retrieval
             if (retrieval.citations.isEmpty()) throw AiGroundingNotFoundException()
 
             // 일반 응답과 streaming 응답 모두 같은 RAG, 비용 기록, cache 정책을 통과합니다.
             onStage(AiAssistantStage.GENERATING_ANSWER)
-            val completion = complete(normalized, retrieval.citations)
+            val completion = complete(normalized, retrieval.citations, runtimeConfig)
             val answer = completion.copy(
                 estimatedCostUsd = completion.estimatedCostUsd.add(retrieval.embeddingCostUsd),
                 embeddingTokens = retrieval.embeddingTokens,
@@ -158,10 +175,20 @@ class AskBibleAssistantUseCase(
                 questionIntent = understoodQuestion.intent,
             )
             usagePort.complete(reservationId, answer)
-            cachePort.put(userId, normalized, answer)
+            cachePort.put(userId, normalized, runtimeConfig.cacheScope, answer)
             return@withContext answer
         } catch (error: RuntimeException) {
-            usagePort.fail(reservationId, error::class.simpleName ?: "AI_REQUEST_FAILED")
+            val consumedAnswer = (error as? AiAnswerRejectedException)?.rejectedAnswer?.let { rejected ->
+                val retrieval = consumedRetrieval
+                if (retrieval == null) rejected else rejected.copy(
+                    estimatedCostUsd = rejected.estimatedCostUsd.add(retrieval.embeddingCostUsd),
+                    embeddingTokens = retrieval.embeddingTokens,
+                    embeddingCostUsd = retrieval.embeddingCostUsd,
+                    retrievalStrategy = retrieval.strategy,
+                    questionIntent = consumedIntent,
+                )
+            }
+            usagePort.fail(reservationId, error::class.simpleName ?: "AI_REQUEST_FAILED", consumedAnswer)
             throw error
         }
     }

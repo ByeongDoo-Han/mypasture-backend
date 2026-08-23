@@ -1,6 +1,8 @@
 package com.example.mypasture.ai.application
 
 import com.example.mypasture.ai.domain.BibleCitation
+import com.example.mypasture.ai.domain.AiAnswerEvaluation
+import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
 import com.example.mypasture.ai.domain.BibleEmbeddingSource
 import com.example.mypasture.ai.domain.BibleRetrievalResult
 import com.example.mypasture.ai.domain.GroundedAnswer
@@ -41,6 +43,9 @@ interface AiCompletionPort {
     suspend fun answerWithCitations(
         question: String,
         citations: List<BibleCitation>,
+        config: AiRuntimeConfigSnapshot,
+        previousAnswer: String? = null,
+        revisionInstructions: List<String> = emptyList(),
     ): GroundedAnswer
 }
 
@@ -49,17 +54,29 @@ interface AiStreamingCompletionPort {
     suspend fun answerWithCitations(
         question: String,
         citations: List<BibleCitation>,
+        config: AiRuntimeConfigSnapshot,
         onDelta: suspend (String) -> Unit,
     ): GroundedAnswer
 }
 
+/** 생성 답변을 성경 근거와 비교해 구조화 점수로 검증하는 평가 모델 포트입니다. */
+interface AiAnswerEvaluationPort {
+    suspend fun evaluate(
+        question: String,
+        citations: List<BibleCitation>,
+        answer: String,
+        config: AiRuntimeConfigSnapshot,
+    ): AiAnswerEvaluation
+}
+
 /** 동일하거나 재사용 가능한 AI 질문 답변을 저장해 비용을 줄이는 캐시 포트입니다. */
 interface AiCachePort {
-    fun get(userId: UUID, question: String): GroundedAnswer?
+    fun get(userId: UUID, question: String, cacheScope: String): GroundedAnswer?
 
     fun put(
         userId: UUID,
         question: String,
+        cacheScope: String,
         answer: GroundedAnswer,
     )
 }
@@ -72,6 +89,7 @@ interface AiUsagePort {
         userId: UUID,
         question: String,
         dailyLimit: Long,
+        config: AiRuntimeConfigSnapshot? = null,
     ): UUID?
 
     fun complete(
@@ -79,5 +97,5 @@ interface AiUsagePort {
         answer: GroundedAnswer,
     )
 
-    fun fail(reservationId: UUID, errorCode: String)
+    fun fail(reservationId: UUID, errorCode: String, consumedAnswer: GroundedAnswer? = null)
 }

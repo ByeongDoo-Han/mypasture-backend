@@ -15,6 +15,10 @@ enum class AdminAuditAction {
     QUIET_TIME_QR_REVOKED,
     AI_RUNTIME_CONFIG_ACTIVATED,
     AI_RUNTIME_CONFIG_ROLLED_BACK,
+    DAILY_WORD_GENERATION_QUEUED,
+    DAILY_WORD_UPDATED,
+    DAILY_WORD_PUBLISHED,
+    DAILY_WORD_REJECTED,
 }
 
 /** 관리자 변경 요청의 주체, 대상, 사유와 멱등 키를 영구 보존하는 JPA entity입니다. */

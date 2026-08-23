@@ -4,6 +4,7 @@ import com.example.mypasture.config.AiProperties
 import com.example.mypasture.config.AuthSecurityProperties
 import com.example.mypasture.config.BibleProperties
 import com.example.mypasture.config.CorsProperties
+import com.example.mypasture.config.DailyWordProperties
 import com.example.mypasture.config.EmailVerificationProperties
 import com.example.mypasture.config.FirebaseProperties
 import com.example.mypasture.config.JwtProperties
@@ -25,6 +26,7 @@ import org.springframework.scheduling.annotation.EnableScheduling
     AuthSecurityProperties::class,
     BibleProperties::class,
     CorsProperties::class,
+    DailyWordProperties::class,
     EmailVerificationProperties::class,
     FirebaseProperties::class,
     JwtProperties::class,

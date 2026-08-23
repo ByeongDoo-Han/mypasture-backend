@@ -5,12 +5,16 @@ import com.example.mypasture.ai.application.AskBibleAssistantUseCase
 import com.example.mypasture.attendance.application.AttendanceService
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.daily_word.application.DailyWordService
+import com.example.mypasture.daily_word.infrastructure.DailyWordRepository
+import com.example.mypasture.bible.infrastructure.BibleBookEntityRepository
+import com.example.mypasture.bible.infrastructure.BibleVerseEntityRepository
 import com.example.mypasture.notification.application.NotificationService
 import com.example.mypasture.quiet_time.application.QuietTimeReflectionService
 import com.example.mypasture.quiet_time.application.QuietTimeService
 import com.example.mypasture.reading.application.ReadingService
 import com.example.mypasture.user.domain.SubscriptionTier
 import com.example.mypasture.user.domain.UserEntity
+import com.example.mypasture.testing.DailyWordFixtures
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -28,6 +32,9 @@ class MvpDailyFlowTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val readingService: ReadingService,
     @Autowired private val dailyWordService: DailyWordService,
+    @Autowired private val dailyWordRepository: DailyWordRepository,
+    @Autowired private val bibleBookRepository: BibleBookEntityRepository,
+    @Autowired private val bibleVerseRepository: BibleVerseEntityRepository,
     @Autowired private val notificationService: NotificationService,
     @Autowired private val quietTimeService: QuietTimeService,
     @Autowired private val reflectionService: QuietTimeReflectionService,
@@ -44,8 +51,10 @@ class MvpDailyFlowTests(
     }
 
     @Test fun `daily word is generated once and shared by all users`() {
-        val date = generateSequence(LocalDate.of(2026, 8, 14)) { it.plusDays(1) }.first { Math.floorMod(it.toEpochDay(), 4L) == 0L }
-        assertEquals(dailyWordService.getOrCreate(date).id, dailyWordService.getOrCreate(date).id)
+        val date = LocalDate.of(2026, 8, 14)
+        val published = DailyWordFixtures.published(date, dailyWordRepository, bibleBookRepository, bibleVerseRepository)
+        assertEquals(published.id, dailyWordService.getPublished(date).id)
+        assertEquals(published.id, dailyWordService.getPublished(date).id)
     }
 
     @Test fun `daily notification setting validates timezone and persists`() {

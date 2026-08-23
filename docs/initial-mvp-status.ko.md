@@ -3,7 +3,7 @@
 ## 사용자 흐름
 
 1. 이메일 회원가입 또는 로그인 후 JWT를 기기 보안 저장소에 보관한다.
-2. 오늘의 말씀을 확인하고 66권에서 장을 골라 읽는다.
+2. 관리자가 원문을 검수해 게시한 오늘의 말씀을 확인하고 66권에서 장을 골라 읽는다.
 3. 장을 열거나 완독하면 진행률과 날짜별 읽기 기록이 저장된다.
 4. 리더가 현장 QT를 생성해 초대 링크 기반 QR을 목원에게 보여준다.
 5. 목원이 QR을 스캔하면 세션 참여와 출석이 한 번만 기록된다.
@@ -37,6 +37,9 @@
 ```text
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5-mini
+DAILY_WORD_GENERATION_ENABLED=true
+DAILY_WORD_PROVIDER=openai
+DAILY_WORD_PROMPT_VERSION=daily-word-v1
 FIREBASE_ENABLED=true
 FIREBASE_PROJECT_ID=
 FIREBASE_CREDENTIALS_PATH=/run/secrets/firebase-service-account.json

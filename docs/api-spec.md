@@ -801,19 +801,20 @@ DELETE /api/v1/ai/conversations/{conversationId}
 
 ### 4.5 Daily Meditation AI Batch
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
-관리자 또는 batch worker가 하루 1회 생성합니다. 모든 사용자는 DB에 저장된 같은 결과를 조회합니다.
+매일 다음 날 초안을 한 번 예약하고 worker가 RAG 검색, 원문 재검증, Structured Output 생성을 수행합니다. 초안은 관리자 게시 전에는 공개되지 않습니다.
 
 ```http
-POST /api/v1/admin/daily-words/generate
+POST /api/v1/admin/daily-words/{date}/generation-jobs
+GET  /api/v1/admin/daily-words/generation-jobs
 ```
 
 ## 5. Today's Word API
 
 ### 5.1 Get Today's Word
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
 ```http
 GET /api/v1/today-word?date=2026-08-03
@@ -823,28 +824,29 @@ Response `200`:
 
 ```json
 {
+  "id": "uuid",
   "date": "2026-08-03",
-  "verse": {
-    "verseId": 1,
-    "book": "시편",
-    "chapter": 23,
-    "verse": 1,
-    "text": "..."
-  },
+  "version": "KOR1910",
+  "bookCode": "PSA",
+  "bookName": "시편",
+  "chapter": 23,
+  "verse": 1,
+  "verseText": "...",
   "meditation": "오늘의 묵상",
-  "practiceQuestions": [
-    "오늘 이 말씀을 어디에 적용할 수 있나요?"
-  ]
+  "actionQuestion": "오늘 이 말씀을 어디에 적용할 수 있나요?",
+  "publishedAt": "2026-08-02T10:00:00Z"
 }
 ```
 
+게시본이 없으면 `404 DAILY_WORD_NOT_PUBLISHED`, 저장된 본문이 현재 `bible_verses` 원문과 다르면 `422 DAILY_WORD_SOURCE_MISMATCH`를 반환합니다. 공개 요청에서는 AI를 호출하지 않습니다.
+
 ### 5.2 Today Word Notification Settings
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
 ```http
-GET /api/v1/today-word/notification-settings
-PUT /api/v1/today-word/notification-settings
+GET /api/v1/notifications/settings/daily-word
+PUT /api/v1/notifications/settings/daily-word
 ```
 
 Request:
@@ -852,7 +854,7 @@ Request:
 ```json
 {
   "enabled": true,
-  "times": ["07:00", "21:00"],
+  "notificationTime": "07:00:00",
   "timezone": "Asia/Seoul"
 }
 ```
@@ -1417,15 +1419,18 @@ POST  /api/v1/admin/users/{userId}/unblock
 
 ### 14.2 Today Word Management
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
 ```http
-GET    /api/v1/admin/today-words
-POST   /api/v1/admin/today-words
-PATCH  /api/v1/admin/today-words/{todayWordId}
-DELETE /api/v1/admin/today-words/{todayWordId}
-POST   /api/v1/admin/today-words/generate
+GET  /api/v1/admin/daily-words?from={date}&to={date}&status={status}
+GET  /api/v1/admin/daily-words/generation-jobs
+POST /api/v1/admin/daily-words/{date}/generation-jobs
+PUT  /api/v1/admin/daily-words/{dailyWordId}
+POST /api/v1/admin/daily-words/{dailyWordId}/publish
+POST /api/v1/admin/daily-words/{dailyWordId}/reject
 ```
+
+모든 변경 요청은 `operationId`와 5자 이상의 `reason`을 받습니다. 생성 작업은 날짜별 활성 작업 유일 제약과 lease로 중복 실행을 막고, 게시 시 `verse_id`와 성경 원문을 다시 검증합니다.
 
 ### 14.3 Challenge Management
 
@@ -1593,16 +1598,16 @@ POST /api/v1/admin/ai/runtime-config/rollback
 | User/Profile | planned |
 | Bible | 66권 DB 조회·검색과 pgvector RAG index 구현 |
 | AI Assistant | OpenAI Responses/Embeddings, RAG 인용 검증, 생성·평가 모델과 최대 1회 수정 구현 |
-| Today Word | planned |
+| Today Word | RAG 생성 작업, 원문 검증, 관리자 검수·게시와 공개 조회 구현 |
 | Challenge | planned |
 | Pasture | planned |
 | Prayer | planned |
 | Journal | planned |
 | Verse Card | planned |
 | Talent/Reward | planned |
-| Notification | planned |
+| Notification | 기기별 delivery, lease 복구, 재시도와 게시된 오늘의 말씀 발송 구현 |
 | File/R2 | planned |
-| Admin | 인증, 성경 해설·embedding, QT 운영, AI 모델 버전·롤백·감사 로그 구현; 나머지 운영 도메인 planned |
+| Admin | 인증, 성경 해설·embedding, QT 운영, AI 모델 및 오늘의 말씀 검수·감사 로그 구현 |
 
 ## 16. Next API Implementation Order
 

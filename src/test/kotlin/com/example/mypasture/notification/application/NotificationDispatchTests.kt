@@ -2,6 +2,9 @@ package com.example.mypasture.notification.application
 
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.daily_word.application.DailyWordService
+import com.example.mypasture.daily_word.infrastructure.DailyWordRepository
+import com.example.mypasture.bible.infrastructure.BibleBookEntityRepository
+import com.example.mypasture.bible.infrastructure.BibleVerseEntityRepository
 import com.example.mypasture.notification.domain.DeliveryStatus
 import com.example.mypasture.notification.domain.DevicePlatform
 import com.example.mypasture.notification.domain.NotificationDeviceEntity
@@ -9,6 +12,7 @@ import com.example.mypasture.notification.infrastructure.NotificationDeliveryRep
 import com.example.mypasture.notification.infrastructure.NotificationDeviceRepository
 import com.example.mypasture.notification.infrastructure.DailyWordNotificationSettingRepository
 import com.example.mypasture.user.domain.UserEntity
+import com.example.mypasture.testing.DailyWordFixtures
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -69,6 +73,9 @@ class NotificationDispatchTests(
     @Autowired private val deviceRepository: NotificationDeviceRepository,
     @Autowired private val settingRepository: DailyWordNotificationSettingRepository,
     @Autowired private val dailyWordService: DailyWordService,
+    @Autowired private val dailyWordRepository: DailyWordRepository,
+    @Autowired private val bibleBookRepository: BibleBookEntityRepository,
+    @Autowired private val bibleVerseRepository: BibleVerseEntityRepository,
     @Autowired private val clock: MutableClock,
 ) {
     @MockitoBean
@@ -79,6 +86,8 @@ class NotificationDispatchTests(
         deliveryRepository.deleteAllInBatch()
         settingRepository.deleteAllInBatch()
         deviceRepository.deleteAllInBatch()
+        dailyWordRepository.deleteAllInBatch()
+        DailyWordFixtures.published(LOCAL_DATE, dailyWordRepository, bibleBookRepository, bibleVerseRepository)
         clock.reset(INITIAL_NOW)
     }
 
@@ -122,6 +131,17 @@ class NotificationDispatchTests(
     }
 
     @Test
+    fun `unpublished day does not reserve or send notifications`() = runTest {
+        val registration = registerDueDevices(1)
+        dailyWordRepository.deleteAllInBatch()
+
+        notificationService.dispatchDueDailyWords()
+
+        assertTrue(deliveriesFor(registration.user).isEmpty())
+        verify(pushSender, times(0)).send(anyString(), anyString(), anyString(), anyMap())
+    }
+
+    @Test
     fun `transient failure retries after backoff and then succeeds`() = runTest {
         val registration = registerDueDevices(1)
         val firstFailure = AtomicBoolean(true)
@@ -153,7 +173,7 @@ class NotificationDispatchTests(
     @Test
     fun `expired processing lease is recovered and stale worker cannot overwrite result`() = runTest {
         val registration = registerDueDevices(1)
-        val word = dailyWordService.getOrCreate(LOCAL_DATE)
+        val word = dailyWordService.getPublished(LOCAL_DATE)
         deliveryCoordinator.reserve(registration.user.id, word, registration.devices.single(), clock.instant())
         val abandonedClaim = deliveryCoordinator.claimReady(clock.instant()).single()
 
@@ -233,7 +253,7 @@ class NotificationDispatchTests(
     fun `unregister dead letters pending work before deactivating device`() = runTest {
         val registration = registerDueDevices(1)
         val device = registration.devices.single()
-        val word = dailyWordService.getOrCreate(LOCAL_DATE)
+        val word = dailyWordService.getPublished(LOCAL_DATE)
         deliveryCoordinator.reserve(registration.user.id, word, device, clock.instant())
 
         notificationService.unregister(registration.user.id, device.deviceId)

@@ -1,5 +1,6 @@
 package com.example.mypasture.ai
 
+import com.example.mypasture.ai.domain.AiUseCase
 import com.example.mypasture.ai.infrastructure.AiRuntimeConfigVersionRepository
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -62,7 +63,7 @@ class AiRuntimeConfigAdminControllerTests(
         }.andExpect {
             status { isOk() }
             jsonPath("$.current.id") { value(rollbackResult["config"]["id"].asText()) }
-            jsonPath("$.history.length()") { value(versionRepository.count().toInt().coerceAtMost(20)) }
+            jsonPath("$.history.length()") { value(versionRepository.countByUseCase(AiUseCase.AI_PASTOR).toInt().coerceAtMost(20)) }
         }.andReturn()
         val overviewJson = objectMapper.readTree(overview.response.contentAsString)
         check(overviewJson["models"].any { it["modelId"].asText() == "gpt-5.6-luna" })
@@ -84,6 +85,39 @@ class AiRuntimeConfigAdminControllerTests(
         }.andExpect {
             status { isBadRequest() }
             jsonPath("$.code") { value("AI_INVALID_RUNTIME_CONFIG") }
+        }
+    }
+
+    @Test
+    fun `daily word runtime configuration is isolated from ai pastor`() {
+        val activated = postBody(
+            "/api/v1/admin/ai/runtime-config/activate",
+            activationRequest(
+                UUID.randomUUID(),
+                "gpt-5.4-mini",
+                "gpt-5.4-nano",
+                "오늘의 말씀 생성 비용 최적화 설정",
+                "DAILY_WORD",
+            ),
+        )
+
+        mockMvc.get("/api/v1/admin/ai/runtime-config") {
+            header("Authorization", "Bearer ${adminToken()}")
+            param("useCase", "DAILY_WORD")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.current.id") { value(activated["config"]["id"].asText()) }
+            jsonPath("$.current.useCase") { value("DAILY_WORD") }
+            jsonPath("$.current.generatorModel") { value("gpt-5.4-mini") }
+            jsonPath("$.history[0].config.useCase") { value("DAILY_WORD") }
+        }
+
+        mockMvc.get("/api/v1/admin/ai/runtime-config") {
+            header("Authorization", "Bearer ${adminToken()}")
+            param("useCase", "AI_PASTOR")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.current.useCase") { value("AI_PASTOR") }
         }
     }
 
@@ -109,11 +143,25 @@ class AiRuntimeConfigAdminControllerTests(
         }.andExpect { status { isOk() } }.andReturn().response.contentAsString,
     )
 
-    private fun activationRequest(operationId: UUID, generator: String, evaluator: String, reason: String) =
+    private fun postBody(path: String, body: String): JsonNode = objectMapper.readTree(
+        mockMvc.post(path) {
+            header("Authorization", "Bearer ${adminToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = body
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsString,
+    )
+
+    private fun activationRequest(
+        operationId: UUID,
+        generator: String,
+        evaluator: String,
+        reason: String,
+        useCase: String = "AI_PASTOR",
+    ) =
         objectMapper.writeValueAsString(
             mapOf(
                 "operationId" to operationId,
-                "useCase" to "AI_PASTOR",
+                "useCase" to useCase,
                 "generatorModel" to generator,
                 "evaluatorModel" to evaluator,
                 "generatorReasoningEffort" to "LOW",

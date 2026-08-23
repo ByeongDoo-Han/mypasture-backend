@@ -20,4 +20,5 @@ interface AiRuntimeConfigPointerRepository : JpaRepository<AiRuntimeConfigPointe
 /** 불변 AI 설정 버전과 관리자 이력을 저장합니다. */
 interface AiRuntimeConfigVersionRepository : JpaRepository<AiRuntimeConfigVersionEntity, UUID> {
     fun findTop20ByUseCaseOrderByVersionNumberDesc(useCase: AiUseCase): List<AiRuntimeConfigVersionEntity>
+    fun countByUseCase(useCase: AiUseCase): Long
 }

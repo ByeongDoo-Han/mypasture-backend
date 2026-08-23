@@ -1,6 +1,7 @@
 package com.example.mypasture.ai.presentation
 
 import com.example.mypasture.ai.application.AiRuntimeConfigService
+import com.example.mypasture.ai.domain.AiUseCase
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -11,10 +12,10 @@ import org.springframework.web.bind.annotation.RestController
 class AiRuntimeConfigAdminController(
     private val service: AiRuntimeConfigService,
 ) : AiRuntimeConfigAdminApi {
-    override fun overview(): AiRuntimeConfigOverviewResponse = AiRuntimeConfigOverviewResponse(
-        current = service.current().toResponse(),
+    override fun overview(useCase: AiUseCase): AiRuntimeConfigOverviewResponse = AiRuntimeConfigOverviewResponse(
+        current = service.current(useCase).toResponse(),
         models = service.allowedModels().map { it.toResponse() },
-        history = service.history().map { it.toResponse() },
+        history = service.history(useCase).map { it.toResponse() },
     )
 
     override fun activate(

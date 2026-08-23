@@ -21,7 +21,57 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
+import java.math.BigDecimal
 import java.util.UUID
+
+/** 운영자가 날짜별 게시 준비 상태를 즉시 판단할 수 있는 값입니다. */
+enum class DailyWordReadinessStatus { MISSING, DRAFT, PUBLISHED, REJECTED }
+
+/** 오늘 또는 내일의 게시 준비 상태입니다. */
+data class DailyWordReadiness(
+    val date: LocalDate,
+    val status: DailyWordReadinessStatus,
+    val publishedAt: Instant?,
+)
+
+/** 제한된 날짜 범위의 콘텐츠 상태 집계입니다. */
+data class DailyWordContentSummary(
+    val draft: Int,
+    val published: Int,
+    val rejected: Int,
+    val missing: Int,
+    val datesNeedingAttention: List<LocalDate>,
+)
+
+/** 생성 작업 전체를 로딩하지 않고 DB 집계로 계산한 상태 요약입니다. */
+data class DailyWordJobSummary(
+    val pending: Long,
+    val processing: Long,
+    val completed: Long,
+    val failed: Long,
+    val oldestActiveCreatedAt: Instant?,
+)
+
+/** 날짜 범위에 저장된 현재 콘텐츠의 AI 사용량과 예상 비용 합계입니다. */
+data class DailyWordUsageSummary(
+    val embeddingTokens: Long,
+    val promptTokens: Long,
+    val completionTokens: Long,
+    val estimatedCostUsd: BigDecimal,
+)
+
+/** 오늘의 말씀 운영 화면에서 한 번에 소비하는 읽기 전용 집계입니다. */
+data class DailyWordOperationsSummary(
+    val from: LocalDate,
+    val to: LocalDate,
+    val generatedAt: Instant,
+    val today: DailyWordReadiness,
+    val tomorrow: DailyWordReadiness,
+    val content: DailyWordContentSummary,
+    val jobs: DailyWordJobSummary,
+    val usage: DailyWordUsageSummary,
+)
 
 /** 오늘의 말씀 생성 큐, 원문 재검증, 관리자 검수와 게시 규칙을 조합합니다. */
 @Service
@@ -39,12 +89,53 @@ class DailyWordService(
             ?: throw DailyWordNotPublishedException(date)
 
     fun list(from: LocalDate, to: LocalDate, status: DailyWordStatus?): List<DailyWordEntity> {
-        require(!to.isBefore(from)) { "조회 종료일은 시작일보다 빠를 수 없습니다." }
-        require(!to.isAfter(from.plusDays(92))) { "조회 기간은 최대 93일입니다." }
+        validateRange(from, to)
         return repository.findForAdmin(from, to, status)
     }
 
     fun listJobs(): List<DailyWordGenerationJobEntity> = jobRepository.findAllByOrderByCreatedAtDesc().take(100)
+
+    /** 콘텐츠는 최대 93개만 읽고 생성 작업 수는 DB에서 집계해 운영 조회 비용을 제한합니다. */
+    fun operationsSummary(from: LocalDate, to: LocalDate): DailyWordOperationsSummary {
+        validateRange(from, to)
+        val words = repository.findForAdmin(from, to, null)
+        val wordsByDate = words.associateBy { it.wordDate }
+        val dates = (0..ChronoUnit.DAYS.between(from, to)).map { from.plusDays(it) }
+        val activeStatuses = listOf(DailyWordGenerationJobStatus.PENDING, DailyWordGenerationJobStatus.PROCESSING)
+        val today = LocalDate.now(clock.withZone(SEOUL))
+
+        return DailyWordOperationsSummary(
+            from = from,
+            to = to,
+            generatedAt = Instant.now(clock),
+            today = readiness(today),
+            tomorrow = readiness(today.plusDays(1)),
+            content = DailyWordContentSummary(
+                draft = words.count { it.status == DailyWordStatus.DRAFT },
+                published = words.count { it.status == DailyWordStatus.PUBLISHED },
+                rejected = words.count { it.status == DailyWordStatus.REJECTED },
+                missing = dates.count { it !in wordsByDate },
+                datesNeedingAttention = dates.filter {
+                    !it.isBefore(today) && wordsByDate[it]?.status != DailyWordStatus.PUBLISHED
+                },
+            ),
+            jobs = DailyWordJobSummary(
+                pending = countJobs(from, to, DailyWordGenerationJobStatus.PENDING),
+                processing = countJobs(from, to, DailyWordGenerationJobStatus.PROCESSING),
+                completed = countJobs(from, to, DailyWordGenerationJobStatus.COMPLETED),
+                failed = countJobs(from, to, DailyWordGenerationJobStatus.FAILED),
+                oldestActiveCreatedAt = jobRepository
+                    .findFirstByWordDateBetweenAndStatusInOrderByCreatedAtAsc(from, to, activeStatuses)
+                    ?.createdAt,
+            ),
+            usage = DailyWordUsageSummary(
+                embeddingTokens = words.sumOf { it.embeddingTokens.toLong() },
+                promptTokens = words.sumOf { it.promptTokens.toLong() },
+                completionTokens = words.sumOf { it.completionTokens.toLong() },
+                estimatedCostUsd = words.fold(BigDecimal.ZERO) { total, word -> total + word.estimatedCostUsd },
+            ),
+        )
+    }
 
     /** 스케줄러는 이미 콘텐츠나 활성 작업이 있으면 비용을 발생시키지 않고 건너뜁니다. */
     @Transactional
@@ -175,6 +266,25 @@ class DailyWordService(
         date,
         listOf(DailyWordGenerationJobStatus.PENDING, DailyWordGenerationJobStatus.PROCESSING),
     )
+
+    private fun countJobs(from: LocalDate, to: LocalDate, status: DailyWordGenerationJobStatus) =
+        jobRepository.countByWordDateBetweenAndStatus(from, to, status)
+
+    private fun readiness(date: LocalDate): DailyWordReadiness {
+        val word = repository.findByWordDate(date)
+        val status = when (word?.status) {
+            DailyWordStatus.DRAFT -> DailyWordReadinessStatus.DRAFT
+            DailyWordStatus.PUBLISHED -> DailyWordReadinessStatus.PUBLISHED
+            DailyWordStatus.REJECTED -> DailyWordReadinessStatus.REJECTED
+            null -> DailyWordReadinessStatus.MISSING
+        }
+        return DailyWordReadiness(date, status, word?.publishedAt)
+    }
+
+    private fun validateRange(from: LocalDate, to: LocalDate) {
+        require(!to.isBefore(from)) { "조회 종료일은 시작일보다 빠를 수 없습니다." }
+        require(!to.isAfter(from.plusDays(92))) { "조회 기간은 최대 93일입니다." }
+    }
 
     private fun verifiedVerse(citation: BibleCitation) =
         verseRepository.findById(citation.verseId).orElseThrow { DailyWordGenerationException("RAG 절을 DB에서 찾을 수 없습니다.") }

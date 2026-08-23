@@ -4,6 +4,7 @@ import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.daily_word.domain.DailyWordGenerationJobStatus
 import com.example.mypasture.daily_word.domain.DailyWordSource
 import com.example.mypasture.daily_word.domain.DailyWordStatus
+import com.example.mypasture.daily_word.application.DailyWordReadinessStatus
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.Size
@@ -27,6 +28,12 @@ interface DailyWordAdminApi {
 
     @GetMapping("/generation-jobs")
     fun jobs(): List<DailyWordGenerationJobResponse>
+
+    @GetMapping("/operations-summary")
+    fun operationsSummary(
+        @RequestParam from: LocalDate?,
+        @RequestParam to: LocalDate?,
+    ): DailyWordOperationsSummaryResponse
 
     @PostMapping("/{date}/generation-jobs")
     suspend fun generate(
@@ -108,4 +115,45 @@ data class DailyWordGenerationJobResponse(
     val dailyWordId: UUID?,
     val createdAt: Instant,
     val updatedAt: Instant,
+)
+
+/** 관리자 대시보드가 사용하는 게시 준비, 작업 건전성과 비용 집계 응답입니다. */
+data class DailyWordOperationsSummaryResponse(
+    val from: LocalDate,
+    val to: LocalDate,
+    val generatedAt: Instant,
+    val today: DailyWordReadinessResponse,
+    val tomorrow: DailyWordReadinessResponse,
+    val content: DailyWordContentSummaryResponse,
+    val jobs: DailyWordJobSummaryResponse,
+    val usage: DailyWordUsageSummaryResponse,
+)
+
+/** 특정 날짜 콘텐츠가 사용자 노출 준비를 마쳤는지 나타냅니다. */
+data class DailyWordReadinessResponse(val date: LocalDate, val status: DailyWordReadinessStatus, val publishedAt: Instant?)
+
+/** 조회 범위의 콘텐츠 상태와 앞으로 조치할 날짜를 제공합니다. */
+data class DailyWordContentSummaryResponse(
+    val draft: Int,
+    val published: Int,
+    val rejected: Int,
+    val missing: Int,
+    val datesNeedingAttention: List<LocalDate>,
+)
+
+/** 생성 작업 상태와 가장 오래된 활성 작업 시각을 제공합니다. */
+data class DailyWordJobSummaryResponse(
+    val pending: Long,
+    val processing: Long,
+    val completed: Long,
+    val failed: Long,
+    val oldestActiveCreatedAt: Instant?,
+)
+
+/** 저장된 오늘의 말씀 생성 토큰과 예상 비용의 합계를 제공합니다. */
+data class DailyWordUsageSummaryResponse(
+    val embeddingTokens: Long,
+    val promptTokens: Long,
+    val completionTokens: Long,
+    val estimatedCostUsd: BigDecimal,
 )

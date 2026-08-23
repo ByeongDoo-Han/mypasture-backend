@@ -1424,6 +1424,7 @@ Status: `IMPLEMENTED`
 ```http
 GET  /api/v1/admin/daily-words?from={date}&to={date}&status={status}
 GET  /api/v1/admin/daily-words/generation-jobs
+GET  /api/v1/admin/daily-words/operations-summary?from={date}&to={date}
 POST /api/v1/admin/daily-words/{date}/generation-jobs
 PUT  /api/v1/admin/daily-words/{dailyWordId}
 POST /api/v1/admin/daily-words/{dailyWordId}/publish
@@ -1431,6 +1432,8 @@ POST /api/v1/admin/daily-words/{dailyWordId}/reject
 ```
 
 모든 변경 요청은 `operationId`와 5자 이상의 `reason`을 받습니다. 생성 작업은 날짜별 활성 작업 유일 제약과 lease로 중복 실행을 막고, 게시 시 `verse_id`와 성경 원문을 다시 검증합니다.
+
+운영 요약은 최대 93일 범위에서 오늘·내일 게시 준비 상태, 콘텐츠 및 생성 작업 상태, 게시가 필요한 날짜, AI 토큰과 예상 비용 합계를 반환합니다. 생성 작업은 행 전체가 아니라 DB 상태 집계로 계산합니다.
 
 ### 14.3 Challenge Management
 
@@ -1564,12 +1567,13 @@ POST /api/v1/admin/quiet-time/sessions/{sessionId}/revoke-qr
 Status: `IMPLEMENTED`
 
 ```http
-GET  /api/v1/admin/ai/runtime-config
+GET  /api/v1/admin/ai/runtime-config?useCase=AI_PASTOR
+GET  /api/v1/admin/ai/runtime-config?useCase=DAILY_WORD
 POST /api/v1/admin/ai/runtime-config/activate
 POST /api/v1/admin/ai/runtime-config/rollback
 ```
 
-활성화 요청은 서버 허용 목록에 있는 생성·평가 모델만 사용할 수 있으며, `operationId`와 5~500자의 변경 사유가 필요합니다.
+조회와 이력은 `AI_PASTOR`, `DAILY_WORD` use case별로 분리됩니다. 활성화 요청은 서버 허용 목록에 있는 생성·평가 모델만 사용할 수 있으며, `operationId`와 5~500자의 변경 사유가 필요합니다.
 
 ```json
 {

@@ -49,7 +49,7 @@ class DailyWordEntity(
     var embeddingTokens: Int = 0,
     var promptTokens: Int = 0,
     var completionTokens: Int = 0,
-    var estimatedCostUsd: BigDecimal = BigDecimal.ZERO,
+    @Column(precision = 18, scale = 8) var estimatedCostUsd: BigDecimal = BigDecimal.ZERO,
     var generatedAt: Instant? = null,
     var reviewedBy: UUID? = null,
     var reviewedAt: Instant? = null,

@@ -41,6 +41,12 @@ interface DailyWordRepository : JpaRepository<DailyWordEntity, UUID> {
 interface DailyWordGenerationJobRepository : JpaRepository<DailyWordGenerationJobEntity, UUID> {
     fun existsByWordDateAndStatusIn(wordDate: LocalDate, statuses: Collection<DailyWordGenerationJobStatus>): Boolean
     fun findAllByOrderByCreatedAtDesc(): List<DailyWordGenerationJobEntity>
+    fun countByWordDateBetweenAndStatus(from: LocalDate, to: LocalDate, status: DailyWordGenerationJobStatus): Long
+    fun findFirstByWordDateBetweenAndStatusInOrderByCreatedAtAsc(
+        from: LocalDate,
+        to: LocalDate,
+        statuses: Collection<DailyWordGenerationJobStatus>,
+    ): DailyWordGenerationJobEntity?
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(

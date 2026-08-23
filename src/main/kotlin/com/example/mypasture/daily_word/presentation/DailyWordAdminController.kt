@@ -2,6 +2,7 @@ package com.example.mypasture.daily_word.presentation
 
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.daily_word.application.DailyWordService
+import com.example.mypasture.daily_word.application.DailyWordOperationsSummary
 import com.example.mypasture.daily_word.domain.DailyWordEntity
 import com.example.mypasture.daily_word.domain.DailyWordGenerationJobEntity
 import com.example.mypasture.daily_word.domain.DailyWordStatus
@@ -23,6 +24,13 @@ class DailyWordAdminController(private val service: DailyWordService) : DailyWor
     }
 
     override fun jobs() = service.listJobs().map { it.toResponse() }
+
+    override fun operationsSummary(from: LocalDate?, to: LocalDate?): DailyWordOperationsSummaryResponse {
+        val today = LocalDate.now(SEOUL)
+        val start = from ?: today.minusDays(30)
+        val end = to ?: today.plusDays(1)
+        return service.operationsSummary(start, end).toResponse()
+    }
 
     override suspend fun generate(principal: JwtPrincipal, date: LocalDate, request: GenerateDailyWordRequest) =
         ResponseEntity.accepted().body(
@@ -50,4 +58,32 @@ private fun DailyWordEntity.toAdminResponse() = DailyWordAdminResponse(
 
 private fun DailyWordGenerationJobEntity.toResponse() = DailyWordGenerationJobResponse(
     id, wordDate, status, attemptCount, errorMessage, dailyWordId, createdAt, updatedAt,
+)
+
+private fun DailyWordOperationsSummary.toResponse() = DailyWordOperationsSummaryResponse(
+    from = from,
+    to = to,
+    generatedAt = generatedAt,
+    today = DailyWordReadinessResponse(today.date, today.status, today.publishedAt),
+    tomorrow = DailyWordReadinessResponse(tomorrow.date, tomorrow.status, tomorrow.publishedAt),
+    content = DailyWordContentSummaryResponse(
+        content.draft,
+        content.published,
+        content.rejected,
+        content.missing,
+        content.datesNeedingAttention,
+    ),
+    jobs = DailyWordJobSummaryResponse(
+        jobs.pending,
+        jobs.processing,
+        jobs.completed,
+        jobs.failed,
+        jobs.oldestActiveCreatedAt,
+    ),
+    usage = DailyWordUsageSummaryResponse(
+        usage.embeddingTokens,
+        usage.promptTokens,
+        usage.completionTokens,
+        usage.estimatedCostUsd,
+    ),
 )

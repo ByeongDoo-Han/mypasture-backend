@@ -6,6 +6,7 @@ import java.util.UUID
 /** 관리자가 독립적으로 운영할 수 있는 AI 사용 목적입니다. */
 enum class AiUseCase {
     AI_PASTOR,
+    DAILY_WORD,
 }
 
 /** OpenAI 모델에 전달할 수 있는 검증된 추론 강도입니다. */

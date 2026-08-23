@@ -265,6 +265,29 @@ Package 예정: `com.example.mypasture.challenge`
 - [ ] leaderboard/cache 전략
 - [ ] batch/scheduler 테스트
 
+## Daily Word Domain
+
+Package: `com.example.mypasture.daily_word`
+
+구현됨:
+
+- [x] 날짜별 활성 생성 작업 유일 제약과 비동기 작업 큐
+- [x] 만료 lease 회수와 fencing token 기반 stale worker 차단
+- [x] 주제별 RAG 검색 후 실제 `bible_verses.id`와 원문 재검증
+- [x] OpenAI Structured Output 묵상·실천 질문 생성과 local provider
+- [x] `DRAFT`, `PUBLISHED`, `REJECTED` 검수 상태
+- [x] 관리자 생성·편집·게시·반려 API와 operationId 감사 로그
+- [x] 모델, 프롬프트 버전, embedding/prompt/completion token과 예상 비용 저장
+- [x] 게시본만 공개 API와 FCM에서 사용
+
+구현 필요:
+
+- [ ] 신학·문체 검수 기준표와 2인 승인 정책
+- [ ] 생성 실패율·대기 시간·비용 Micrometer 지표
+- [ ] 성경력과 교회 절기를 반영한 주제 편성
+
+운영 문서: [오늘의 말씀 생성·검수·게시 운영 가이드](daily-word-publishing-operations.ko.md)
+
 ## Notification Domain
 
 Package: `com.example.mypasture.notification`
@@ -317,7 +340,7 @@ Package 예정: `com.example.mypasture.admin`
 구현 필요:
 
 - [ ] 회원 관리
-- [ ] 오늘의 말씀 관리
+- [x] 오늘의 말씀 생성·검수·게시 관리
 - [ ] 챌린지/리워드 관리
 - [ ] 기도제목 moderation
 - [ ] AI 사용량/비용 통계

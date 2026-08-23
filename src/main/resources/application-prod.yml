@@ -52,6 +52,9 @@ app:
   bible:
     kor1910-html-path: ${KOR1910_HTML_PATH}
     import-enabled: ${BIBLE_IMPORT_ENABLED:false}
+  daily-word:
+    generation-enabled: ${DAILY_WORD_GENERATION_ENABLED:true}
+    provider: ${DAILY_WORD_PROVIDER:openai}
   quiet-time:
     realtime:
       redis-enabled: ${QUIET_TIME_REALTIME_REDIS_ENABLED:true}

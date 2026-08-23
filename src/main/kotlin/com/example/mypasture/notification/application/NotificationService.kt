@@ -2,6 +2,7 @@ package com.example.mypasture.notification.application
 
 import com.example.mypasture.config.NotificationDeliveryProperties
 import com.example.mypasture.daily_word.application.DailyWordService
+import com.example.mypasture.daily_word.application.DailyWordNotPublishedException
 import com.example.mypasture.daily_word.domain.DailyWordEntity
 import com.example.mypasture.notification.domain.DailyWordNotificationSettingEntity
 import com.example.mypasture.notification.domain.DeliveryStatus
@@ -173,7 +174,7 @@ class NotificationService(
     }
 
     private fun reserveDueDeliveries(now: Instant) {
-        val wordsByDate = mutableMapOf<java.time.LocalDate, DailyWordEntity>()
+        val wordsByDate = mutableMapOf<java.time.LocalDate, DailyWordEntity?>()
         var pageNumber = 0
         do {
             val page = settingRepository.findAllByEnabledTrue(
@@ -183,8 +184,8 @@ class NotificationService(
                 val local = ZonedDateTime.ofInstant(now, ZoneId.of(setting.timezone))
                 if (local.toLocalTime().withSecond(0).withNano(0) != setting.notificationTime) return@forEach
                 val word = wordsByDate.getOrPut(local.toLocalDate()) {
-                    dailyWordService.getOrCreate(local.toLocalDate())
-                }
+                    try { dailyWordService.getPublished(local.toLocalDate()) } catch (_: DailyWordNotPublishedException) { null }
+                } ?: return@forEach
                 deviceRepository.findAllByUserIdAndActiveTrue(setting.userId).forEach { device ->
                     reserveDevice(setting.userId, word, device, now)
                 }
@@ -301,7 +302,17 @@ class NotificationDeliveryCoordinator(
                 fcmToken = delivery.device.fcmToken,
                 title = "오늘의 말씀",
                 body = delivery.dailyWord.bookName + " " + delivery.dailyWord.chapter + ":" + delivery.dailyWord.verse,
-                data = mapOf("type" to "DAILY_WORD", "date" to delivery.dailyWord.wordDate.toString()),
+                data = mapOf(
+                    "type" to "DAILY_WORD",
+                    "route" to "today-word",
+                    "dailyWordId" to delivery.dailyWord.id.toString(),
+                    "date" to delivery.dailyWord.wordDate.toString(),
+                    "version" to delivery.dailyWord.bibleVersion,
+                    "bookCode" to delivery.dailyWord.bookCode,
+                    "bookName" to delivery.dailyWord.bookName,
+                    "chapter" to delivery.dailyWord.chapter.toString(),
+                    "verse" to delivery.dailyWord.verse.toString(),
+                ),
             )
         }
     }

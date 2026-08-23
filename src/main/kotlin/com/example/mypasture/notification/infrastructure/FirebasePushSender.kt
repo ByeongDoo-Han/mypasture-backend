@@ -1,12 +1,16 @@
 package com.example.mypasture.notification.infrastructure
 
 import com.example.mypasture.config.FirebaseProperties
+import com.example.mypasture.notification.application.PushDeliveryException
+import com.example.mypasture.notification.application.PushFailureDisposition
 import com.example.mypasture.notification.application.PushSender
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.FirebaseMessaging
+import com.google.firebase.messaging.FirebaseMessagingException
 import com.google.firebase.messaging.Message
+import com.google.firebase.messaging.MessagingErrorCode
 import com.google.firebase.messaging.Notification
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.slf4j.LoggerFactory
@@ -39,11 +43,38 @@ class FirebasePushSender(properties: FirebaseProperties) : PushSender {
                 {
                     runCatching { future.get() }
                         .onSuccess { if (continuation.isActive) continuation.resume(Unit) }
-                        .onFailure { if (continuation.isActive) continuation.resumeWithException(it) }
+                        .onFailure { if (continuation.isActive) continuation.resumeWithException(it.toPushDeliveryException()) }
                 },
                 { command -> command.run() },
             )
         }
+    }
+
+    /** FCM 오류 코드를 재시도, 영구 실패, 토큰 폐기 대상으로 명확히 분류합니다. */
+    private fun Throwable.toPushDeliveryException(): PushDeliveryException {
+        val firebaseError = generateSequence(this as Throwable?) { it.cause }
+            .filterIsInstance<FirebaseMessagingException>()
+            .firstOrNull()
+        val messagingCode = firebaseError?.messagingErrorCode
+        val disposition = when (messagingCode) {
+            MessagingErrorCode.UNREGISTERED,
+            MessagingErrorCode.SENDER_ID_MISMATCH,
+            -> PushFailureDisposition.PERMANENT_TOKEN
+
+            MessagingErrorCode.INTERNAL,
+            MessagingErrorCode.QUOTA_EXCEEDED,
+            MessagingErrorCode.UNAVAILABLE,
+            -> PushFailureDisposition.TRANSIENT
+
+            null -> PushFailureDisposition.TRANSIENT
+            else -> PushFailureDisposition.PERMANENT
+        }
+        return PushDeliveryException(
+            disposition = disposition,
+            errorCode = messagingCode?.name ?: "FCM_TRANSPORT_ERROR",
+            message = firebaseError?.message ?: message ?: "FCM delivery failed",
+            cause = this,
+        )
     }
 }
 

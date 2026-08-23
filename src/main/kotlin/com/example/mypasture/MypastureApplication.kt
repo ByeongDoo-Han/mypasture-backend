@@ -7,6 +7,7 @@ import com.example.mypasture.config.CorsProperties
 import com.example.mypasture.config.EmailVerificationProperties
 import com.example.mypasture.config.FirebaseProperties
 import com.example.mypasture.config.JwtProperties
+import com.example.mypasture.config.NotificationDeliveryProperties
 import com.example.mypasture.config.OAuthProperties
 import com.example.mypasture.config.QuietTimeQrProperties
 import com.example.mypasture.config.QuietTimeRealtimeProperties
@@ -27,6 +28,7 @@ import org.springframework.scheduling.annotation.EnableScheduling
     EmailVerificationProperties::class,
     FirebaseProperties::class,
     JwtProperties::class,
+    NotificationDeliveryProperties::class,
     OAuthProperties::class,
     QuietTimeQrProperties::class,
     QuietTimeRealtimeProperties::class,

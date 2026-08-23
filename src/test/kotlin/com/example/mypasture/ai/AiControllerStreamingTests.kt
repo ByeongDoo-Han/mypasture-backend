@@ -51,6 +51,7 @@ class AiControllerStreamingTests(
             accept = MediaType.TEXT_EVENT_STREAM
             content = """{"question":"창세기 말씀을 설명해주세요"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
+        initial.getAsyncResult(5_000)
 
         mockMvc.perform(asyncDispatch(initial))
             .andExpect(status().isOk)
@@ -84,6 +85,7 @@ class AiControllerStreamingTests(
             accept = MediaType.TEXT_EVENT_STREAM
             content = """{"question":"zxqvnoresulttoken"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
+        initial.getAsyncResult(5_000)
 
         mockMvc.perform(asyncDispatch(initial))
             .andExpect(status().isOk)

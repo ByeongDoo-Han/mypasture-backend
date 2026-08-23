@@ -606,21 +606,36 @@ DELETE /api/v1/bible-highlights/{highlightId}
 
 ### 3.6 Bookmarks
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
+
+모든 API는 Bearer access token이 필요합니다. 북마크는 `(user_id, verse_id)`로
+고유하므로 같은 `PUT` 요청을 반복해도 결과가 하나로 유지됩니다.
 
 ```http
-POST /api/v1/bible-bookmarks
-DELETE /api/v1/bible-bookmarks/{verseId}
-GET /api/v1/bible-bookmarks
+GET    /api/v1/bookmarks?page=0&size=50
+GET    /api/v1/bookmarks/status?version=KOR1910&bookCode=GEN&chapter=1
+PUT    /api/v1/bookmarks/{version}/{bookCode}/{chapter}/{verse}
+DELETE /api/v1/bookmarks/{version}/{bookCode}/{chapter}/{verse}
 ```
 
-Request:
+저장 응답:
 
 ```json
 {
-  "verseId": 1
+  "id": "c8c4c79c-5cbf-4fa2-a8b3-799df0b485f0",
+  "version": "KOR1910",
+  "bookCode": "GEN",
+  "bookName": "창세기",
+  "chapter": 1,
+  "verse": 1,
+  "text": "태초에 하나님이 천지를 창조하시니라",
+  "createdAt": "2026-08-23T00:00:00Z"
 }
 ```
+
+목록은 최신 저장순이며 `size`는 1부터 100까지 허용합니다. 장별 상태 API는
+`{ "verseNumbers": [1, 3, 7] }`만 반환하므로 전체 저장 목록을 읽지 않고도
+본문에 저장 상태를 표시할 수 있습니다.
 
 ### 3.7 Reading Progress
 

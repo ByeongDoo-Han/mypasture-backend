@@ -31,11 +31,13 @@
   - `BibleRetrievalPort`와 `JdbcBibleRetrievalAdapter`가 있습니다.
   - pgvector cosine Top-K 검색과 실제 `bible_verses` 재검증을 적용했습니다.
   - 본문 hash 기반 embedding 재생성과 관리자 진행률 API가 있습니다.
-- [ ] 성경 읽기 API
+- [x] 성경 읽기 API
 - [ ] 성경 검색 API
 - [ ] 성경 AI 해설 API 분리
 - [~] 하이라이트 DB 스키마
-- [~] 북마크 DB 스키마
+- [x] 절 단위 북마크 API와 DB 제약
+  - 사용자별 최신순 페이지 조회, 장별 저장 상태 조회, 저장·삭제 API가 있습니다.
+  - `(user_id, verse_id)` 유니크 제약과 사용자 행 잠금으로 중복 저장을 방지합니다.
 - [~] 읽기 진행률 DB 스키마
 - [ ] 읽기 기록 API
 - [ ] 오프라인 읽기 패키지 API

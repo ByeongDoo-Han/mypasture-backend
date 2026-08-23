@@ -1,0 +1,26 @@
+### 절 단위 말씀 저장 API
+### http-client.env.json에서 local 환경을 선택하고 accessToken을 설정한 뒤 실행합니다.
+
+### 창세기 1장 저장 상태 조회
+GET {{baseUrl}}/api/v1/bookmarks/status?version=KOR1910&bookCode=GEN&chapter=1
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 창세기 1장 1절 저장. 같은 요청을 반복해도 하나만 저장됩니다.
+PUT {{baseUrl}}/api/v1/bookmarks/KOR1910/GEN/1/1
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 저장한 말씀 최신순 조회
+GET {{baseUrl}}/api/v1/bookmarks?page=0&size=20
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 창세기 1장 1절 저장 취소
+DELETE {{baseUrl}}/api/v1/bookmarks/KOR1910/GEN/1/1
+Authorization: Bearer {{accessToken}}
+
+### 삭제 결과 확인
+GET {{baseUrl}}/api/v1/bookmarks/status?version=KOR1910&bookCode=GEN&chapter=1
+Authorization: Bearer {{accessToken}}
+Accept: application/json

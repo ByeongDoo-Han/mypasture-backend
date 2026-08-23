@@ -14,7 +14,9 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
 
 /** 성경 본문과 해설 도메인 예외를 일관된 HTTP 응답으로 변환합니다. */
-@RestControllerAdvice(assignableTypes = [BibleController::class, BibleCommentaryAdminController::class])
+@RestControllerAdvice(
+    assignableTypes = [BibleController::class, BibleBookmarkController::class, BibleCommentaryAdminController::class],
+)
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class BibleExceptionHandler {
     @ExceptionHandler(BibleNotFoundException::class)

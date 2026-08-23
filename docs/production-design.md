@@ -217,10 +217,10 @@ OpenAI 비용 기준:
 
 ## 9. 푸시 구조
 
-- 앱에서 FCM token 등록: `POST /api/v1/devices`
+- 앱에서 FCM token 등록: `POST /api/v1/notifications/devices`
 - 알림 설정: local timezone, quiet hours, daily word times
-- 예약: Spring Scheduler 또는 Cloud Scheduler + API endpoint
-- 발송: FCM multicast, 실패 token은 비활성화
+- 예약: Spring Scheduler가 활성 설정을 페이지로 조회하고 기기별 delivery를 멱등 생성
+- 발송: lease 기반 선점, 제한된 coroutine 병렬 처리, 일시 오류 backoff와 영구 token 비활성화
 - 이벤트: 오늘의 말씀, 챌린지 리마인더, 목장 댓글/공지, 기도 응답, 출석 streak
 
 ## 10. 챌린지 구조
@@ -422,4 +422,3 @@ Git:
 - Conventional Commits
 - migration 파일은 수정 금지, 새 파일로 보정
 - PR은 테스트 결과와 migration 영향 포함
-

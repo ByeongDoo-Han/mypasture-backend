@@ -1312,17 +1312,17 @@ Response `201`:
 
 ### 12.1 Register FCM Token
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
 ```http
-POST /api/v1/notifications/fcm-tokens
+POST /api/v1/notifications/devices
 ```
 
 Request:
 
 ```json
 {
-  "token": "fcm-token",
+  "fcmToken": "fcm-token",
   "platform": "IOS",
   "deviceId": "device-uuid"
 }
@@ -1332,13 +1332,32 @@ Response `204`
 
 ### 12.2 Delete FCM Token
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
 ```http
-DELETE /api/v1/notifications/fcm-tokens/{deviceId}
+DELETE /api/v1/notifications/devices/{deviceId}
 ```
 
-### 12.3 Notification Center
+기기 행과 발송 감사 이력은 유지하고 활성 상태만 해제합니다. 응답은 `204 No Content`입니다.
+
+### 12.3 Daily Word Notification Setting
+
+Status: `IMPLEMENTED`
+
+```http
+GET /api/v1/notifications/settings/daily-word
+PUT /api/v1/notifications/settings/daily-word
+```
+
+```json
+{
+  "enabled": true,
+  "notificationTime": "07:00:00",
+  "timezone": "Asia/Seoul"
+}
+```
+
+### 12.4 Notification Center
 
 Status: `PLANNED`
 

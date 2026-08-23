@@ -267,20 +267,28 @@ Package 예정: `com.example.mypasture.challenge`
 
 ## Notification Domain
 
-Package 예정: `com.example.mypasture.notification`
+Package: `com.example.mypasture.notification`
 
 구현됨:
 
-- [ ] 아직 없음
+- [x] JWT 사용자별 FCM 기기 등록·갱신·비활성화
+- [x] 사용자 시간대와 알림 시각 기반 오늘의 말씀 예약
+- [x] 활성 설정 페이지 조회와 coroutine 동시 발송 제한
+- [x] 기기별 delivery 원장과 중복 예약 방지
+- [x] `PROCESSING` lease 만료 복구와 fencing token
+- [x] 일시 오류 지수 backoff, 최대 시도 횟수와 `DEAD` 상태
+- [x] 영구 FCM 토큰 오류 시 기기 자동 비활성화
+- [x] 다중 서버·다중 기기·부분 실패 통합 테스트
 
 구현 필요:
 
-- [ ] FCM token 등록/갱신/삭제
-- [ ] 오늘의 말씀 push schedule
 - [ ] 목장/기도/챌린지 알림
 - [ ] 알림센터 저장소
 - [ ] admin push 발송
-- [ ] 실패 재시도와 dead-letter 정책
+- [ ] delivery 상태별 Micrometer metric과 운영 알림
+- [ ] `DEAD` 작업 수동 재처리·감사 API
+
+운영 문서: [푸시 발송 복구 및 재시도 운영 가이드](notification-delivery-operations.ko.md)
 
 ## Reward Domain
 

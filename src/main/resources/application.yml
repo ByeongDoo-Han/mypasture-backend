@@ -50,6 +50,15 @@ app:
     enabled: ${FIREBASE_ENABLED:false}
     project-id: ${FIREBASE_PROJECT_ID:}
     credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+  notification:
+    delivery:
+      max-attempts: ${NOTIFICATION_MAX_ATTEMPTS:5}
+      lease-duration: ${NOTIFICATION_LEASE_DURATION:2m}
+      initial-backoff: ${NOTIFICATION_INITIAL_BACKOFF:30s}
+      max-backoff: ${NOTIFICATION_MAX_BACKOFF:1h}
+      settings-page-size: ${NOTIFICATION_SETTINGS_PAGE_SIZE:500}
+      dispatch-batch-size: ${NOTIFICATION_DISPATCH_BATCH_SIZE:100}
+      max-batches-per-run: ${NOTIFICATION_MAX_BATCHES_PER_RUN:20}
   quiet-time:
     qr:
       default-meeting-duration-minutes: ${QUIET_TIME_DEFAULT_MEETING_DURATION_MINUTES:120}

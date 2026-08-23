@@ -40,6 +40,10 @@ OPENAI_MODEL=gpt-5-mini
 FIREBASE_ENABLED=true
 FIREBASE_PROJECT_ID=
 FIREBASE_CREDENTIALS_PATH=/run/secrets/firebase-service-account.json
+NOTIFICATION_MAX_ATTEMPTS=5
+NOTIFICATION_LEASE_DURATION=2m
+NOTIFICATION_INITIAL_BACKOFF=30s
+NOTIFICATION_MAX_BACKOFF=1h
 ```
 
 Firebase를 끈 개발 환경에서는 실제 발송 대신 제목과 토큰 끝자리만 로그로 남긴다. 운영에서는 서비스 계정 JSON을 이미지에 포함하지 말고 Secret Manager 또는 읽기 전용 secret volume으로 주입한다.

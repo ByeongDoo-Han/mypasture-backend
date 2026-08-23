@@ -204,7 +204,8 @@ Package: `com.example.mypasture.bible`
 - [ ] 1,189개 장 대량 생성용 OpenAI Batch API importer
 - [ ] 관리자 해설 비교·편집·검수 UI
 - [ ] 중단된 PROCESSING 작업 lease 회수와 재처리
-- [ ] 북마크·하이라이트·스크랩의 `verse_id` FK 전환
+- [x] 북마크의 `verse_id` FK 전환과 사용자별 유니크 제약
+- [ ] 하이라이트·스크랩의 `verse_id` FK 전환
 - [ ] 모바일 SQLite 스냅샷과 증분 오프라인 동기화
 - [ ] 번역본별 해설 재사용 및 번역 특화 해설 정책
 - [ ] 해설 오프라인 동기화와 오류 신고

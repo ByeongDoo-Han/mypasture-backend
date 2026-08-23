@@ -1520,6 +1520,37 @@ POST /api/v1/admin/quiet-time/sessions/{sessionId}/revoke-qr
 
 목록과 통계는 사용자의 QT 답변·묵상 원문을 반환하지 않습니다. 상세 응답에는 세션 운영 정보와 최근 관리자 감사 로그만 포함됩니다.
 
+### 14.10 AI Runtime Model Operations
+
+Status: `IMPLEMENTED`
+
+```http
+GET  /api/v1/admin/ai/runtime-config
+POST /api/v1/admin/ai/runtime-config/activate
+POST /api/v1/admin/ai/runtime-config/rollback
+```
+
+활성화 요청은 서버 허용 목록에 있는 생성·평가 모델만 사용할 수 있으며, `operationId`와 5~500자의 변경 사유가 필요합니다.
+
+```json
+{
+  "operationId": "9fc8ef06-1441-4c8d-a0bf-07d1421b9510",
+  "useCase": "AI_PASTOR",
+  "generatorModel": "gpt-5.6-terra",
+  "evaluatorModel": "gpt-5.6-luna",
+  "generatorReasoningEffort": "LOW",
+  "evaluatorReasoningEffort": "MEDIUM",
+  "maxOutputTokens": 700,
+  "evaluationMaxOutputTokens": 250,
+  "evaluationEnabled": true,
+  "evaluationThreshold": 4,
+  "maxRevisionCount": 1,
+  "reason": "품질 평가 결과와 비용 지표를 반영한 운영 설정"
+}
+```
+
+롤백은 과거 행을 수정하지 않고 대상 설정을 복제한 새 버전을 생성합니다. 모든 변경은 관리자 ID, 사유, 요청 지문과 함께 감사 로그에 남습니다.
+
 ## 15. Implementation Status Summary
 
 | Domain | API status |
@@ -1527,7 +1558,7 @@ POST /api/v1/admin/quiet-time/sessions/{sessionId}/revoke-qr
 | Auth | signup implemented, login partial, OAuth/JWT planned |
 | User/Profile | planned |
 | Bible | 66권 DB 조회·검색과 pgvector RAG index 구현 |
-| AI Assistant | OpenAI Responses/Embeddings, citation 검증 구현; upstream streaming 보완 필요 |
+| AI Assistant | OpenAI Responses/Embeddings, RAG 인용 검증, 생성·평가 모델과 최대 1회 수정 구현 |
 | Today Word | planned |
 | Challenge | planned |
 | Pasture | planned |
@@ -1537,7 +1568,7 @@ POST /api/v1/admin/quiet-time/sessions/{sessionId}/revoke-qr
 | Talent/Reward | planned |
 | Notification | planned |
 | File/R2 | planned |
-| Admin | 인증, 성경 해설·embedding, QT 조회·통계·조치·감사 로그 구현; 나머지 운영 도메인 planned |
+| Admin | 인증, 성경 해설·embedding, QT 운영, AI 모델 버전·롤백·감사 로그 구현; 나머지 운영 도메인 planned |
 
 ## 16. Next API Implementation Order
 

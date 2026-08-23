@@ -1,7 +1,10 @@
 package com.example.mypasture.ai.infrastructure
 
+import com.example.mypasture.ai.application.AiAnswerEvaluationPort
 import com.example.mypasture.ai.application.AiCompletionPort
 import com.example.mypasture.ai.application.AiStreamingCompletionPort
+import com.example.mypasture.ai.domain.AiAnswerEvaluation
+import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.GroundedAnswer
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -11,8 +14,14 @@ import java.math.BigDecimal
 /** 개발 환경에서 외부 비용 없이 RAG와 화면 흐름을 검증하는 성경 근거 응답기입니다. */
 @Component
 @ConditionalOnProperty(prefix = "app.ai", name = ["mock-enabled"], havingValue = "true")
-class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort {
-    override suspend fun answerWithCitations(question: String, citations: List<BibleCitation>): GroundedAnswer {
+class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort, AiAnswerEvaluationPort {
+    override suspend fun answerWithCitations(
+        question: String,
+        citations: List<BibleCitation>,
+        config: AiRuntimeConfigSnapshot,
+        previousAnswer: String?,
+        revisionInstructions: List<String>,
+    ): GroundedAnswer {
         val references = citations.take(3).joinToString(", ") { "${it.book} ${it.chapter}:${it.verse} [${it.verseId}]" }
         val answer =
             "질문해 주신 마음을 $references 말씀에 비추어 함께 살펴볼 수 있습니다. " +
@@ -26,6 +35,7 @@ class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort {
             completionTokens = estimateTokens(answer),
             estimatedCostUsd = BigDecimal.ZERO,
             cacheHit = false,
+            generatorModel = config.generatorModel,
         )
     }
 
@@ -33,10 +43,32 @@ class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort {
     override suspend fun answerWithCitations(
         question: String,
         citations: List<BibleCitation>,
+        config: AiRuntimeConfigSnapshot,
         onDelta: suspend (String) -> Unit,
-    ): GroundedAnswer = answerWithCitations(question, citations).also { answer ->
+    ): GroundedAnswer = answerWithCitations(question, citations, config).also { answer ->
         answer.answer.chunked(12).forEach { onDelta(it) }
     }
+
+    override suspend fun evaluate(
+        question: String,
+        citations: List<BibleCitation>,
+        answer: String,
+        config: AiRuntimeConfigSnapshot,
+    ): AiAnswerEvaluation = AiAnswerEvaluation(
+        passed = true,
+        groundingScore = 5,
+        citationScore = 5,
+        safetyScore = 5,
+        relevanceScore = 5,
+        pastoralToneScore = 5,
+        fabricatedScripture = false,
+        uncertain = false,
+        issues = emptyList(),
+        promptTokens = estimateTokens(question + answer),
+        completionTokens = 20,
+        estimatedCostUsd = BigDecimal.ZERO,
+        evaluatorModel = config.evaluatorModel,
+    )
 
     private fun estimateTokens(text: String): Int = (text.length / 3).coerceAtLeast(1)
 }

@@ -32,10 +32,36 @@ class AiUsageLogEntity(
     val requestHash: String,
     @Column(nullable = false, length = 80)
     val model: String,
+    @Column(name = "model_config_version_id")
+    val modelConfigVersionId: UUID? = null,
+    @Column(name = "evaluator_model", length = 80)
+    val evaluatorModel: String? = null,
     @Column(name = "prompt_tokens", nullable = false)
     var promptTokens: Int = 0,
     @Column(name = "completion_tokens", nullable = false)
     var completionTokens: Int = 0,
+    @Column(name = "evaluation_prompt_tokens", nullable = false)
+    var evaluationPromptTokens: Int = 0,
+    @Column(name = "evaluation_completion_tokens", nullable = false)
+    var evaluationCompletionTokens: Int = 0,
+    @Column(name = "evaluation_cost_usd", nullable = false, precision = 12, scale = 6)
+    var evaluationCostUsd: BigDecimal = BigDecimal.ZERO,
+    @Column(name = "evaluation_passed")
+    var evaluationPassed: Boolean? = null,
+    @Column(name = "evaluation_grounding_score")
+    var evaluationGroundingScore: Int? = null,
+    @Column(name = "evaluation_citation_score")
+    var evaluationCitationScore: Int? = null,
+    @Column(name = "evaluation_safety_score")
+    var evaluationSafetyScore: Int? = null,
+    @Column(name = "evaluation_relevance_score")
+    var evaluationRelevanceScore: Int? = null,
+    @Column(name = "evaluation_pastoral_tone_score")
+    var evaluationPastoralToneScore: Int? = null,
+    @Column(name = "evaluation_issues", columnDefinition = "text")
+    var evaluationIssues: String? = null,
+    @Column(name = "revision_count", nullable = false)
+    var revisionCount: Int = 0,
     @Column(name = "embedding_tokens", nullable = false)
     var embeddingTokens: Int = 0,
     @Column(name = "embedding_cost_usd", nullable = false, precision = 12, scale = 6)
@@ -61,6 +87,17 @@ class AiUsageLogEntity(
     fun complete(answer: GroundedAnswer, embeddingModel: String) {
         promptTokens = answer.promptTokens
         completionTokens = answer.completionTokens
+        evaluationPromptTokens = answer.evaluationPromptTokens
+        evaluationCompletionTokens = answer.evaluationCompletionTokens
+        evaluationCostUsd = answer.evaluationCostUsd
+        evaluationPassed = answer.evaluationPassed
+        evaluationGroundingScore = answer.evaluationGroundingScore
+        evaluationCitationScore = answer.evaluationCitationScore
+        evaluationSafetyScore = answer.evaluationSafetyScore
+        evaluationRelevanceScore = answer.evaluationRelevanceScore
+        evaluationPastoralToneScore = answer.evaluationPastoralToneScore
+        evaluationIssues = answer.evaluationIssues.joinToString("\n").takeIf { it.isNotBlank() }
+        revisionCount = answer.revisionCount
         embeddingTokens = answer.embeddingTokens
         embeddingCostUsd = answer.embeddingCostUsd
         this.embeddingModel = embeddingModel

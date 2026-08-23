@@ -2,6 +2,7 @@ package com.example.mypasture.ai.infrastructure
 
 import com.example.mypasture.ai.application.AiUsagePort
 import com.example.mypasture.ai.domain.AiUsageLogEntity
+import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
 import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.auth.infrastructure.UserRepository
 import org.springframework.data.jpa.repository.JpaRepository
@@ -36,14 +37,16 @@ class JdbcAiUsageAdapter(
 
     /** 사용자 행을 잠근 상태에서 사용량을 다시 세어 동시 요청의 quota 우회를 차단합니다. */
     @Transactional
-    override fun reserve(userId: UUID, question: String, dailyLimit: Long): UUID? {
+    override fun reserve(userId: UUID, question: String, dailyLimit: Long, config: AiRuntimeConfigSnapshot?): UUID? {
         userRepository.findActiveByIdForUpdate(userId) ?: return null
         if (countToday(userId) >= dailyLimit) return null
         return repository.save(
             AiUsageLogEntity(
                 userId = userId,
                 requestHash = hash(question),
-                model = properties.model,
+                model = config?.generatorModel ?: properties.generatorModel,
+                modelConfigVersionId = config?.id,
+                evaluatorModel = config?.evaluatorModel?.takeIf { config.evaluationEnabled },
             ),
         ).id
     }
@@ -54,8 +57,11 @@ class JdbcAiUsageAdapter(
     }
 
     @Transactional
-    override fun fail(reservationId: UUID, errorCode: String) {
-        repository.findById(reservationId).ifPresent { it.fail(errorCode) }
+    override fun fail(reservationId: UUID, errorCode: String, consumedAnswer: GroundedAnswer?) {
+        repository.findById(reservationId).ifPresent {
+            if (consumedAnswer != null) it.complete(consumedAnswer, properties.embeddingModel)
+            it.fail(errorCode)
+        }
     }
 
     private fun hash(value: String): String =

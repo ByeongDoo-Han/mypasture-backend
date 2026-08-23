@@ -5,6 +5,7 @@ import com.example.mypasture.ai.application.AiGroundingNotFoundException
 import com.example.mypasture.ai.application.AiInputTooLongException
 import com.example.mypasture.ai.application.AiQuotaExceededException
 import com.example.mypasture.ai.application.AiSafetyException
+import com.example.mypasture.ai.application.AiAnswerRejectedException
 import com.example.mypasture.ai.application.AskBibleAssistantUseCase
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.GroundedAnswer
@@ -74,7 +75,7 @@ class AiController(
     override suspend fun chat(principal: JwtPrincipal, request: AskAiRequest): AskAiResponse =
         askBibleAssistant.askAsync(principal.userId, principal.subscriptionTier, request.question).toResponse()
 
-    /** OpenAI delta를 기다리지 않고 전달하며 완료 후 검증된 인용과 사용량을 별도 이벤트로 보냅니다. */
+    /** 평가가 켜진 경우 검증된 최종 답변만 delta로 보내고 완료 후 인용과 사용량을 전달합니다. */
     override fun stream(principal: JwtPrincipal, request: AskAiRequest): SseEmitter {
         val emitter = SseEmitter(properties.streamTimeoutMs)
         val active = AtomicBoolean(true)
@@ -131,6 +132,7 @@ private fun Throwable.toStreamErrorResponse(): ApiErrorResponse =
         is AiInputTooLongException -> ApiErrorResponse.of(AiErrorCode.INPUT_TOO_LONG, message = message ?: AiErrorCode.INPUT_TOO_LONG.defaultMessage)
         is AiQuotaExceededException -> ApiErrorResponse.of(AiErrorCode.QUOTA_EXCEEDED, message = message ?: AiErrorCode.QUOTA_EXCEEDED.defaultMessage)
         is AiGroundingNotFoundException -> ApiErrorResponse.of(AiErrorCode.GROUNDING_NOT_FOUND, message = message ?: AiErrorCode.GROUNDING_NOT_FOUND.defaultMessage)
+        is AiAnswerRejectedException -> ApiErrorResponse.of(AiErrorCode.EVALUATION_REJECTED, message = message ?: AiErrorCode.EVALUATION_REJECTED.defaultMessage)
         is AiSafetyException -> ApiErrorResponse.of(AiErrorCode.SAFETY_ESCALATION, message = message ?: AiErrorCode.SAFETY_ESCALATION.defaultMessage)
         is AiProviderException -> ApiErrorResponse.of(AiErrorCode.PROVIDER_UNAVAILABLE, message = message ?: AiErrorCode.PROVIDER_UNAVAILABLE.defaultMessage)
         else -> ApiErrorResponse.of(AiErrorCode.STREAM_FAILED)

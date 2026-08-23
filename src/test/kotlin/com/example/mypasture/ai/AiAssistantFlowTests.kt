@@ -121,6 +121,7 @@ class AiAssistantFlowTests(
                 AiAssistantStage.UNDERSTANDING_QUESTION,
                 AiAssistantStage.SEARCHING_SCRIPTURE,
                 AiAssistantStage.GENERATING_ANSWER,
+                AiAssistantStage.REVIEWING_ANSWER,
             ),
             stages,
         )

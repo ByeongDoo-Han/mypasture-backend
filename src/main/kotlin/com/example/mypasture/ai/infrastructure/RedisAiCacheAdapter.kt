@@ -20,19 +20,19 @@ class RedisAiCacheAdapter(
     private val objectMapper: ObjectMapper,
     private val properties: AiProperties,
 ) : AiCachePort {
-    override fun get(userId: UUID, question: String): GroundedAnswer? = runCatching {
-        val payload = redis.opsForValue().get(key(userId, question)) ?: return null
+    override fun get(userId: UUID, question: String, cacheScope: String): GroundedAnswer? = runCatching {
+        val payload = redis.opsForValue().get(key(userId, question, cacheScope)) ?: return null
         objectMapper.readValue<GroundedAnswer>(payload)
     }.onFailure { logger.warn("AI cache lookup failed; continuing without cache", it) }.getOrNull()
 
-    override fun put(userId: UUID, question: String, answer: GroundedAnswer) {
+    override fun put(userId: UUID, question: String, cacheScope: String, answer: GroundedAnswer) {
         runCatching {
-            redis.opsForValue().set(key(userId, question), objectMapper.writeValueAsString(answer), Duration.ofSeconds(properties.cacheTtlSeconds))
+            redis.opsForValue().set(key(userId, question, cacheScope), objectMapper.writeValueAsString(answer), Duration.ofSeconds(properties.cacheTtlSeconds))
         }.onFailure { logger.warn("AI cache write failed; response remains available", it) }
     }
 
-    private fun key(userId: UUID, question: String): String {
-        val scopedInput = "${properties.model}:${properties.commentaryPromptVersion}:$userId:${question.lowercase().trim()}"
+    private fun key(userId: UUID, question: String, cacheScope: String): String {
+        val scopedInput = "$cacheScope:${properties.commentaryPromptVersion}:$userId:${question.lowercase().trim()}"
         val digest = Mac.getInstance("HmacSHA256")
             .apply { init(SecretKeySpec(properties.privacyHashSecret.toByteArray(), "HmacSHA256")) }
             .doFinal(scopedInput.toByteArray())

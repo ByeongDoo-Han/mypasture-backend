@@ -17,9 +17,9 @@ AI 목자 요청은 모바일에 저장된 성경이 아니라 서버의 검증�
 않으므로 사용자 요청당 호출 수, 지연 시간과 비용을 늘리지 않으며, GPT가 존재하지 않는 장·절을 검색 조건으로
 만드는 위험도 피합니다.
 
-`gpt-5-mini` 사용 시 `OPENAI_REASONING_EFFORT=minimal`을 기본값으로 사용합니다. AI 목자는 긴 추론보다
-검색된 구절을 짧게 설명하는 작업이므로 출력 한도를 추론 토큰이 모두 소비해 본문이 비는 상황과 지연 시간을
-줄이기 위한 설정입니다.
+기본 생성 모델은 `gpt-5.6-terra`, 추론 강도는 `low`이며 평가 모델은 `gpt-5.6-luna`, 추론 강도는
+`medium`입니다. AI 목자는 검색된 구절을 짧게 설명하므로 생성 단계의 불필요한 지연과 추론 토큰을 줄이고,
+평가 단계는 근거와 인용 오류를 구조화해 판별할 수 있는 수준으로 둡니다.
 
 전체 절의 index가 준비되기 전에는 일부 데이터만으로 vector 검색하지 않습니다. 로컬은 명시적인 lexical
 fallback을 사용할 수 있지만 운영 기본값은 fallback 비활성화이며 `AI_GROUNDING_NOT_FOUND`를 반환합니다.
@@ -69,16 +69,20 @@ OpenAI Embeddings API는 문자열 배열 입력과 `dimensions` 옵션을 지�
 
 ## 실시간 응답
 
-`POST /api/v1/ai/chat/stream`은 OpenAI Responses API의 `response.output_text.delta`를 SSE로 전달합니다.
-답변은 첫 번째 유효한 `[verseId]`가 확인될 때까지 잠시 보류하며, 검색 결과에 없는 ID나 장·절은
-클라이언트에 전송하기 전에 차단합니다. 정상 완료 이벤트 순서는 다음과 같습니다.
+`POST /api/v1/ai/chat/stream`은 평가 기능이 꺼진 경우 OpenAI Responses API의 `response.output_text.delta`를
+SSE로 전달합니다. 평가 기능이 켜진 기본 운영 설정에서는 생성 답변 전체를 서버에 보류하고 평가·최대 1회
+수정을 마친 최종본만 작은 delta로 전달합니다. 검증 전 답변은 한번 전송하면 취소할 수 없기 때문입니다.
+정상 완료 이벤트 순서는 다음과 같습니다.
 
 ```text
-event: delta
-data: 근거: [123] ...
-
 event: status
 data: {"stage":"UNDERSTANDING_QUESTION"}
+
+event: status
+data: {"stage":"REVIEWING_ANSWER"}
+
+event: delta
+data: 근거: [123] ...
 
 event: citations
 data: [{"verseId":123,...}]

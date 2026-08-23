@@ -36,4 +36,11 @@ data class AiProperties(
     val streamQueueCapacity: Int = 200,
     val reasoningEffort: String = "minimal",
     val privacyHashSecret: String = "local-ai-privacy-secret-change-me",
+    val generatorModel: String = model,
+    val evaluatorModel: String = "gpt-5.6-luna",
+    val evaluatorReasoningEffort: String = "medium",
+    val evaluationEnabled: Boolean = true,
+    val evaluationThreshold: Int = 4,
+    val evaluationMaxOutputTokens: Int = 250,
+    val maxRevisionCount: Int = 1,
 )

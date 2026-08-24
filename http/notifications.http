@@ -24,6 +24,26 @@ Authorization: Bearer {{accessToken}}
 POST {{baseUrl}}/api/v1/notifications/read-all
 Authorization: Bearer {{accessToken}}
 
+### 앱 수신 확인 (실제 deliveryId와 설치 deviceId 사용)
+POST {{baseUrl}}/api/v1/notifications/deliveries/{{notificationDeliveryId}}/ack
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "deviceId": "{{notificationDeviceId}}",
+  "event": "RECEIVED_BY_APP"
+}
+
+### 푸시 열기 확인 (중복 호출해도 최초 시각 유지)
+POST {{baseUrl}}/api/v1/notifications/deliveries/{{notificationDeliveryId}}/ack
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "deviceId": "{{notificationDeviceId}}",
+  "event": "OPENED"
+}
+
 ### 관리자 알림 운영 현황
 GET {{baseUrl}}/api/v1/admin/notifications/operations?from=2026-08-01T00:00:00Z&to=2026-08-31T00:00:00Z&page=0&size=20
 Authorization: Bearer {{adminAccessToken}}

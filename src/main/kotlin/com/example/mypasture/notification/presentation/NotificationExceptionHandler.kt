@@ -4,6 +4,7 @@ import com.example.mypasture.common.error.ErrorCode
 import com.example.mypasture.common.error.toResponse
 import com.example.mypasture.notification.application.NotificationInvalidCursorException
 import com.example.mypasture.notification.application.NotificationNotFoundException
+import com.example.mypasture.notification.application.NotificationDeliveryNotFoundException
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.core.Ordered
 import org.springframework.core.annotation.Order
@@ -16,9 +17,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 @RestControllerAdvice(assignableTypes = [NotificationController::class, NotificationAdminController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class NotificationExceptionHandler {
-    @ExceptionHandler(NotificationNotFoundException::class)
+    @ExceptionHandler(NotificationNotFoundException::class, NotificationDeliveryNotFoundException::class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
-    fun notFound(exception: NotificationNotFoundException, request: HttpServletRequest) =
+    fun notFound(exception: RuntimeException, request: HttpServletRequest) =
         NotificationErrorCode.NOT_FOUND.toResponse(request, exception.message ?: NotificationErrorCode.NOT_FOUND.defaultMessage)
 
     @ExceptionHandler(NotificationInvalidCursorException::class, IllegalArgumentException::class)

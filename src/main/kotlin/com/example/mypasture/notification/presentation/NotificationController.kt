@@ -4,6 +4,7 @@ import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.notification.application.NotificationService
 import com.example.mypasture.notification.application.NotificationInboxService
 import com.example.mypasture.notification.application.NotificationUnreadCount
+import com.example.mypasture.notification.application.NotificationDeliveryAcknowledgementService
 import com.example.mypasture.notification.domain.DailyWordNotificationSettingEntity
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController
 class NotificationController(
     private val service: NotificationService,
     private val inboxService: NotificationInboxService,
+    private val acknowledgementService: NotificationDeliveryAcknowledgementService,
 ) : NotificationApi {
     override fun register(principal: JwtPrincipal, request: RegisterDeviceRequest) { service.register(principal.userId, request.deviceId, request.fcmToken, request.platform) }
     override fun unregister(principal: JwtPrincipal, deviceId: String) = service.unregister(principal.userId, deviceId)
@@ -22,5 +24,10 @@ class NotificationController(
     override fun unreadCount(principal: JwtPrincipal) = NotificationUnreadCount(inboxService.unreadCount(principal.userId))
     override fun markRead(principal: JwtPrincipal, id: java.util.UUID) = inboxService.markRead(principal.userId, id)
     override fun markAllRead(principal: JwtPrincipal) = inboxService.markAllRead(principal.userId)
+    override fun acknowledgeDelivery(
+        principal: JwtPrincipal,
+        deliveryId: java.util.UUID,
+        request: NotificationDeliveryAcknowledgementRequest,
+    ) = acknowledgementService.acknowledge(principal.userId, deliveryId, request.deviceId, request.event)
 }
 private fun DailyWordNotificationSettingEntity.toResponse() = DailyWordNotificationSettingResponse(enabled, notificationTime, timezone)

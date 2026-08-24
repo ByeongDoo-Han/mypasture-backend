@@ -121,6 +121,7 @@ class NotificationDispatchTests(
         val pushData = mockingDetails(pushSender).invocations.single().arguments[3] as Map<*, *>
         assertEquals(broadcastRepository.findAll().single().id.toString(), pushData["notificationId"])
         val delivery = deliveriesFor(registration.user).single()
+        assertEquals(delivery.id.toString(), pushData["deliveryId"])
         assertEquals(DeliveryStatus.SENT, delivery.status)
         assertEquals(1, delivery.attemptCount)
         assertNull(delivery.leaseToken)

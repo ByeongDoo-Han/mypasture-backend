@@ -20,6 +20,7 @@ import com.example.mypasture.notification.infrastructure.NotificationBroadcastRe
 import com.example.mypasture.notification.infrastructure.NotificationDeliveryRepository
 import com.example.mypasture.notification.infrastructure.NotificationDeviceRepository
 import com.example.mypasture.notification.infrastructure.NotificationReadReceiptRepository
+import com.example.mypasture.notification.infrastructure.NotificationReadWatermarkRepository
 import com.example.mypasture.user.domain.UserEntity
 import com.example.mypasture.user.domain.UserRole
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -56,6 +57,7 @@ class NotificationInboxControllerTests(
     @Autowired private val publishedPort: DailyWordPublishedPort,
     @Autowired private val broadcastRepository: NotificationBroadcastRepository,
     @Autowired private val receiptRepository: NotificationReadReceiptRepository,
+    @Autowired private val watermarkRepository: NotificationReadWatermarkRepository,
     @Autowired private val inboxService: NotificationInboxService,
     @Autowired private val deviceRepository: NotificationDeviceRepository,
     @Autowired private val deliveryRepository: NotificationDeliveryRepository,
@@ -63,6 +65,10 @@ class NotificationInboxControllerTests(
 ) {
     @BeforeEach
     fun ensureBibleFixture() {
+        deliveryRepository.deleteAllInBatch()
+        receiptRepository.deleteAllInBatch()
+        watermarkRepository.deleteAllInBatch()
+        broadcastRepository.deleteAllInBatch()
         bibleImportCoordinator.importAll()
     }
 

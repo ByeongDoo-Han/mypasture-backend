@@ -48,6 +48,30 @@ interface DailyWordGenerationJobRepository : JpaRepository<DailyWordGenerationJo
         statuses: Collection<DailyWordGenerationJobStatus>,
     ): DailyWordGenerationJobEntity?
 
+    fun findFirstByWordDateAndStatusOrderByUpdatedAtDesc(
+        wordDate: LocalDate,
+        status: DailyWordGenerationJobStatus,
+    ): DailyWordGenerationJobEntity?
+
+    fun findFirstByWordDateAndStatusInAndUpdatedAtBeforeOrderByUpdatedAtAsc(
+        wordDate: LocalDate,
+        statuses: Collection<DailyWordGenerationJobStatus>,
+        updatedAt: Instant,
+    ): DailyWordGenerationJobEntity?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+        """
+        select job from DailyWordGenerationJobEntity job
+        where job.wordDate = :wordDate and job.status in :statuses
+        order by job.createdAt
+        """,
+    )
+    fun findActiveForUpdate(
+        wordDate: LocalDate,
+        statuses: Collection<DailyWordGenerationJobStatus>,
+    ): List<DailyWordGenerationJobEntity>
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(
         """

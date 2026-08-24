@@ -7,6 +7,7 @@ import com.example.mypasture.daily_word.application.DailyWordGenerationException
 import com.example.mypasture.daily_word.application.DailyWordNotFoundException
 import com.example.mypasture.daily_word.application.DailyWordNotPublishedException
 import com.example.mypasture.daily_word.application.DailyWordOperationConflictException
+import com.example.mypasture.daily_word.application.DailyWordManualOverrideException
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.core.Ordered
 import org.springframework.core.annotation.Order
@@ -24,7 +25,7 @@ class DailyWordExceptionHandler {
     fun notFound(exception: RuntimeException, request: HttpServletRequest) =
         DailyWordErrorCode.NOT_FOUND.toResponse(request, exception.message ?: DailyWordErrorCode.NOT_FOUND.defaultMessage)
 
-    @ExceptionHandler(DailyWordConflictException::class, DailyWordOperationConflictException::class, IllegalStateException::class)
+    @ExceptionHandler(DailyWordConflictException::class, DailyWordOperationConflictException::class, DailyWordManualOverrideException::class, IllegalStateException::class)
     @ResponseStatus(HttpStatus.CONFLICT)
     fun conflict(exception: RuntimeException, request: HttpServletRequest) =
         DailyWordErrorCode.CONFLICT.toResponse(request, exception.message ?: DailyWordErrorCode.CONFLICT.defaultMessage)

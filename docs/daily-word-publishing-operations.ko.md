@@ -14,6 +14,7 @@
 - `PROCESSING`: lease를 획득한 worker가 처리 중
 - `COMPLETED`: 검증된 초안 저장 완료
 - `FAILED`: 최대 시도 초과 또는 복구할 수 없는 생성 실패
+- `CANCELLED`: 관리자가 수동 복구를 시작해 더 이상 저장하면 안 되는 작업
 
 worker가 종료되면 `leaseUntil` 이후 다른 인스턴스가 작업을 회수합니다. 이전 worker는 lease token이 달라 결과를 저장할 수 없습니다. 날짜별 `PENDING/PROCESSING` 부분 유일 인덱스가 다중 서버의 활성 작업 중복을 최종 차단합니다.
 
@@ -33,6 +34,7 @@ worker가 종료되면 `leaseUntil` 이후 다른 인스턴스가 작업을 회�
 - 오늘과 내일의 `MISSING`, `DRAFT`, `PUBLISHED`, `REJECTED` 준비 상태
 - 최대 93일 범위의 콘텐츠 상태 수와 오늘 이후 게시가 필요한 날짜
 - 생성 작업의 대기, 처리, 완료, 실패 건수와 가장 오래된 활성 작업 시각
+- 수동 복구로 취소된 생성 작업 수
 - 현재 콘텐츠에 기록된 embedding, prompt, completion token과 예상 비용 합계
 
 콘텐츠는 날짜별 유일 행이므로 최대 93개만 읽습니다. 생성 작업은 누적 행을 반환하지 않고 DB에서 상태별로 집계해 장기 운영 중에도 응답 크기가 증가하지 않습니다. 이 값은 실시간 청구서가 아니라 콘텐츠에 저장된 생성 시점 비용의 운영 추정치입니다.
@@ -53,6 +55,14 @@ DAILY_WORD_LEASE_DURATION=2m
 DAILY_WORD_MAX_ATTEMPTS=3
 DAILY_WORD_PROMPT_VERSION=daily-word-v1
 DAILY_WORD_MAX_OUTPUT_TOKENS=500
+DAILY_WORD_INCIDENT_DETECTION_ENABLED=true
+DAILY_WORD_INCIDENT_DETECTION_CRON=0 */10 * * * *
+DAILY_WORD_INCIDENT_WARNING_TIME=20:00
+DAILY_WORD_INCIDENT_CRITICAL_TIME=22:00
+DAILY_WORD_INCIDENT_STALLED_THRESHOLD=10m
+DAILY_WORD_INCIDENT_EMAIL_DELIVERY=smtp
+DAILY_WORD_INCIDENT_EMAIL_FROM=operations@mypasture.app
+DAILY_WORD_INCIDENT_EMAIL_MAX_ATTEMPTS=5
 ```
 
 로컬 기본값은 자동 생성을 끕니다. 외부 비용 없이 흐름을 확인하려면 `DAILY_WORD_GENERATION_ENABLED=true`, `DAILY_WORD_PROVIDER=local`을 명시합니다. 운영에서는 `openai`만 사용하며 `OPENAI_API_KEY`는 Secret Manager로 주입합니다.
@@ -64,3 +74,23 @@ DAILY_WORD_MAX_OUTPUT_TOKENS=500
 - `FAILED`: 오류 원인과 시도 횟수를 확인한 뒤 관리자 재생성을 요청합니다.
 - `DAILY_WORD_SOURCE_MISMATCH`: 성경 재적재로 원문이 바뀌었는지 확인하고 새 초안을 생성·검수합니다.
 - 게시본 누락: 임의 자동 게시를 하지 말고 검수된 수동 콘텐츠를 준비하거나 해당 날짜 알림을 건너뜁니다.
+
+## 자동 감지와 이메일 알림
+
+- 오늘 게시본이 없으면 즉시 `CRITICAL` 사건을 만듭니다.
+- 내일 게시본은 기본 20시에 `WARNING`, 22시에 `CRITICAL`로 승격합니다.
+- 사용할 수 있는 초안이 없을 때 최종 실패 작업과 기준 시간 이상 멈춘 활성 작업을 별도 사건으로 만듭니다.
+- 같은 날짜와 유형은 하나의 사건으로 누적합니다. 같은 심각도의 반복 감지는 새 메일을 만들지 않고, 재발하거나 심각도가 올라갈 때만 `notificationVersion`을 증가시킵니다.
+- 관리자가 `확인`하면 대응 중임을 표시하고, `해결`하거나 실제 게시본이 생기면 종료합니다.
+- 이메일은 incident 트랜잭션에서 직접 보내지 않습니다. 관리자별 outbox를 먼저 저장하고 lease worker가 SMTP를 호출하며 실패 시 재시도합니다.
+
+## 수동 복구 절차
+
+1. 관리자 화면의 운영 사건에서 날짜와 원인을 확인하고 `확인` 처리합니다.
+2. 수동 복구 초안에서 DB 성경 검색 결과 중 실제 절을 선택합니다.
+3. 묵상, 실천 질문, 복구 사유를 입력하고 초안을 저장합니다.
+4. 저장 시 해당 날짜의 `PENDING` 또는 `PROCESSING` AI 작업은 `CANCELLED`가 됩니다.
+5. 생성 worker가 이미 외부 요청을 보냈더라도 수동 초안을 AI 결과로 덮어쓸 수 없습니다.
+6. 검수 목록에서 원문을 다시 확인해 게시한 뒤 사건이 자동 해결되는지 확인합니다.
+
+게시된 콘텐츠는 수동 초안으로 교체할 수 없습니다. 기존 미게시 콘텐츠 교체는 관리자 화면에서 명시적으로 선택해야 하며, 모든 요청은 `operationId`, 관리자 ID, 사유와 요청 지문을 감사 로그에 남깁니다.

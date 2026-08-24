@@ -8,6 +8,7 @@ import com.example.mypasture.ai.domain.UnderstoodBibleQuestion
 import com.example.mypasture.config.DailyWordProperties
 import com.example.mypasture.daily_word.application.DailyWordGenerationPort
 import com.example.mypasture.daily_word.application.DailyWordService
+import com.example.mypasture.daily_word.application.DailyWordManualOverrideException
 import com.example.mypasture.daily_word.domain.DailyWordGenerationJobStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -77,6 +78,8 @@ class DailyWordGenerationWorker(
         } catch (exception: CancellationException) {
             fail(claim, "서버 종료로 오늘의 말씀 생성이 취소되었습니다.")
             throw exception
+        } catch (exception: DailyWordManualOverrideException) {
+            fail(claim, exception.message ?: "수동 초안 보호로 생성 작업을 종료했습니다.", retry = false)
         } catch (exception: Exception) {
             fail(claim, exception.message ?: exception::class.simpleName ?: "알 수 없는 생성 오류")
         }
@@ -100,10 +103,10 @@ class DailyWordGenerationWorker(
         Claim(job.id, job.wordDate, token, job.attemptCount)
     }
 
-    private fun fail(claim: Claim, message: String) {
+    private fun fail(claim: Claim, message: String, retry: Boolean = claim.attemptCount < properties.maxAttempts) {
         transactionTemplate.executeWithoutResult {
             val job = jobRepository.findByIdForUpdate(claim.jobId) ?: return@executeWithoutResult
-            job.fail(claim.leaseToken, message, claim.attemptCount < properties.maxAttempts, Instant.now(clock))
+            job.fail(claim.leaseToken, message, retry, Instant.now(clock))
         }
     }
 

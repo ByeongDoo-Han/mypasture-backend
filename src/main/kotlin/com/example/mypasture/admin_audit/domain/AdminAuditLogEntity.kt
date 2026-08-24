@@ -19,6 +19,9 @@ enum class AdminAuditAction {
     DAILY_WORD_UPDATED,
     DAILY_WORD_PUBLISHED,
     DAILY_WORD_REJECTED,
+    DAILY_WORD_MANUAL_DRAFT_CREATED,
+    DAILY_WORD_INCIDENT_ACKNOWLEDGED,
+    DAILY_WORD_INCIDENT_RESOLVED,
 }
 
 /** 관리자 변경 요청의 주체, 대상, 사유와 멱등 키를 영구 보존하는 JPA entity입니다. */

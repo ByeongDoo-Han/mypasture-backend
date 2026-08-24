@@ -5,10 +5,12 @@ import com.example.mypasture.admin_audit.domain.AdminAuditLogEntity
 import com.example.mypasture.admin_audit.infrastructure.AdminAuditLogRepository
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.bible.infrastructure.BibleVerseEntityRepository
+import com.example.mypasture.bible.infrastructure.BibleBookEntityRepository
 import com.example.mypasture.daily_word.domain.DailyWordEntity
 import com.example.mypasture.daily_word.domain.DailyWordGenerationJobEntity
 import com.example.mypasture.daily_word.domain.DailyWordGenerationJobStatus
 import com.example.mypasture.daily_word.domain.DailyWordStatus
+import com.example.mypasture.daily_word.domain.DailyWordSource
 import com.example.mypasture.daily_word.domain.GeneratedDailyWord
 import com.example.mypasture.daily_word.infrastructure.DailyWordGenerationJobRepository
 import com.example.mypasture.daily_word.infrastructure.DailyWordRepository
@@ -50,6 +52,7 @@ data class DailyWordJobSummary(
     val processing: Long,
     val completed: Long,
     val failed: Long,
+    val cancelled: Long,
     val oldestActiveCreatedAt: Instant?,
 )
 
@@ -79,6 +82,7 @@ data class DailyWordOperationsSummary(
 class DailyWordService(
     private val repository: DailyWordRepository,
     private val jobRepository: DailyWordGenerationJobRepository,
+    private val bookRepository: BibleBookEntityRepository,
     private val verseRepository: BibleVerseEntityRepository,
     private val auditRepository: AdminAuditLogRepository,
     private val clock: Clock = Clock.systemUTC(),
@@ -124,6 +128,7 @@ class DailyWordService(
                 processing = countJobs(from, to, DailyWordGenerationJobStatus.PROCESSING),
                 completed = countJobs(from, to, DailyWordGenerationJobStatus.COMPLETED),
                 failed = countJobs(from, to, DailyWordGenerationJobStatus.FAILED),
+                cancelled = countJobs(from, to, DailyWordGenerationJobStatus.CANCELLED),
                 oldestActiveCreatedAt = jobRepository
                     .findFirstByWordDateBetweenAndStatusInOrderByCreatedAtAsc(from, to, activeStatuses)
                     ?.createdAt,
@@ -160,6 +165,7 @@ class DailyWordService(
         val current = repository.findByWordDate(date)
         if (current != null && !regenerate) throw DailyWordConflictException("이미 콘텐츠가 있습니다. 재생성 여부를 확인해 주세요.")
         if (current?.status == DailyWordStatus.PUBLISHED) throw DailyWordConflictException("게시된 콘텐츠는 재생성할 수 없습니다.")
+        if (current?.source == DailyWordSource.MANUAL) throw DailyWordConflictException("수동 복구 초안은 AI로 재생성할 수 없습니다.")
 
         val job = saveJob(DailyWordGenerationJobEntity(wordDate = date, requestedBy = adminId, requestReason = normalizedReason))
         audit(operationId, adminId, AdminAuditAction.DAILY_WORD_GENERATION_QUEUED, job.id, normalizedReason, fingerprint, "date=$date;regenerate=$regenerate")
@@ -178,6 +184,7 @@ class DailyWordService(
         val now = Instant.now(clock)
         val word = repository.findByWordDateForUpdate(job.wordDate)?.also {
             check(it.status != DailyWordStatus.PUBLISHED) { "게시된 오늘의 말씀은 생성 작업으로 덮어쓸 수 없습니다." }
+            if (it.source == DailyWordSource.MANUAL) throw DailyWordManualOverrideException()
             it.replaceDraft(citation, source.book.code, generated.copy(bookName = source.book.name), now)
         } ?: DailyWordEntity(
             wordDate = job.wordDate,
@@ -207,6 +214,78 @@ class DailyWordService(
         )
         val saved = repository.save(word)
         job.complete(saved.id, leaseToken, now)
+        return saved
+    }
+
+    /** 실제 DB 성경 절을 선택해 AI 장애 시에도 게시 가능한 관리자 초안을 만듭니다. */
+    @Transactional
+    fun createManualDraft(
+        date: LocalDate,
+        adminId: UUID,
+        operationId: UUID,
+        version: String,
+        bookCode: String,
+        chapter: Int,
+        verse: Int,
+        meditation: String,
+        actionQuestion: String,
+        replaceExisting: Boolean,
+        reason: String,
+    ): DailyWordEntity {
+        val today = LocalDate.now(clock.withZone(SEOUL))
+        require(!date.isBefore(today) && !date.isAfter(today.plusDays(14))) { "수동 초안은 오늘부터 14일 이내 날짜만 만들 수 있습니다." }
+        validateCopy(meditation, actionQuestion)
+        val normalizedReason = normalizeReason(reason)
+        val normalizedVersion = version.trim().uppercase()
+        val normalizedBookCode = bookCode.trim().uppercase()
+        val fingerprint = fingerprint(
+            "MANUAL",
+            "$date|$normalizedVersion|$normalizedBookCode|$chapter|$verse|${meditation.trim()}|${actionQuestion.trim()}|$replaceExisting|$normalizedReason",
+        )
+        existingWord(operationId, AdminAuditAction.DAILY_WORD_MANUAL_DRAFT_CREATED, fingerprint)?.let { return it }
+
+        val now = Instant.now(clock)
+        jobRepository.findActiveForUpdate(date, ACTIVE_JOB_STATUSES).forEach {
+            it.cancel("수동 초안 생성으로 취소되었습니다.", now)
+        }
+        val book = bookRepository.findByVersionAndCode(normalizedVersion, normalizedBookCode)
+            ?: throw DailyWordNotFoundException("성경 권을 찾을 수 없습니다.")
+        val source = verseRepository.findByVersionAndBook_IdAndChapterAndVerse(normalizedVersion, book.id, chapter, verse)
+            ?: throw DailyWordNotFoundException("성경 절을 찾을 수 없습니다.")
+        val citation = source.toCitation()
+        val current = repository.findByWordDateForUpdate(date)
+        if (current != null && !replaceExisting) throw DailyWordConflictException("이미 콘텐츠가 있습니다. 기존 초안 교체 여부를 확인해 주세요.")
+        if (current?.status == DailyWordStatus.PUBLISHED) throw DailyWordConflictException("게시된 콘텐츠는 수동 초안으로 교체할 수 없습니다.")
+
+        val word = current?.also {
+            it.replaceManualDraft(citation, book.code, book.name, meditation, actionQuestion, now)
+        } ?: DailyWordEntity(
+            wordDate = date,
+            verseId = source.id,
+            bibleVersion = source.version,
+            bookCode = book.code,
+            bookName = book.name,
+            chapter = source.chapter,
+            verse = source.verse,
+            verseText = source.text,
+            meditation = meditation.trim(),
+            actionQuestion = actionQuestion.trim(),
+            status = DailyWordStatus.DRAFT,
+            source = DailyWordSource.MANUAL,
+            generatedAt = now,
+            createdAt = now,
+            updatedAt = now,
+        )
+        val saved = repository.save(word)
+        audit(
+            operationId,
+            adminId,
+            AdminAuditAction.DAILY_WORD_MANUAL_DRAFT_CREATED,
+            saved.id,
+            normalizedReason,
+            fingerprint,
+            "date=$date;verseId=${source.id};revision=${saved.contentRevision};replace=$replaceExisting",
+        )
         return saved
     }
 
@@ -371,6 +450,7 @@ class DailyWordService(
 
     companion object {
         private val SEOUL = ZoneId.of("Asia/Seoul")
+        private val ACTIVE_JOB_STATUSES = listOf(DailyWordGenerationJobStatus.PENDING, DailyWordGenerationJobStatus.PROCESSING)
         private const val TARGET_TYPE = "DAILY_WORD"
     }
 }
@@ -379,4 +459,5 @@ class DailyWordNotPublishedException(date: LocalDate) : RuntimeException("$date 
 class DailyWordNotFoundException(message: String) : RuntimeException(message)
 class DailyWordConflictException(message: String) : RuntimeException(message)
 class DailyWordGenerationException(message: String) : RuntimeException(message)
+class DailyWordManualOverrideException : RuntimeException("수동 복구 초안은 AI 생성 결과로 덮어쓸 수 없습니다.")
 class DailyWordOperationConflictException : RuntimeException("operationId가 다른 오늘의 말씀 관리자 요청에 이미 사용되었습니다.")

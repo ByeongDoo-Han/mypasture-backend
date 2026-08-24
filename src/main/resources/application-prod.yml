@@ -55,6 +55,9 @@ app:
   daily-word:
     generation-enabled: ${DAILY_WORD_GENERATION_ENABLED:true}
     provider: ${DAILY_WORD_PROVIDER:openai}
+    incident-detection-enabled: ${DAILY_WORD_INCIDENT_DETECTION_ENABLED:true}
+    incident-email-delivery: ${DAILY_WORD_INCIDENT_EMAIL_DELIVERY:smtp}
+    incident-email-from: ${DAILY_WORD_INCIDENT_EMAIL_FROM}
   quiet-time:
     realtime:
       redis-enabled: ${QUIET_TIME_REALTIME_REDIS_ENABLED:true}

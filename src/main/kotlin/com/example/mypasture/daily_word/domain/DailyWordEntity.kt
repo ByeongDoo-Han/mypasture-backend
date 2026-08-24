@@ -21,7 +21,7 @@ enum class DailyWordStatus { DRAFT, PUBLISHED, REJECTED }
 enum class DailyWordSource { AI, MANUAL, CURATED }
 
 /** 비동기 생성 작업의 대기, 처리, 완료와 최종 실패 상태입니다. */
-enum class DailyWordGenerationJobStatus { PENDING, PROCESSING, COMPLETED, FAILED }
+enum class DailyWordGenerationJobStatus { PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED }
 
 /** 모든 사용자에게 같은 날 제공되는 검증 가능한 오늘의 말씀과 생성·검수 이력입니다. */
 @Entity
@@ -106,6 +106,44 @@ class DailyWordEntity(
         updatedAt = now
     }
 
+    /** 장애 복구용 수동 초안으로 교체하고 이전 AI 비용·모델 메타데이터를 제거합니다. */
+    fun replaceManualDraft(
+        citation: BibleCitation,
+        canonicalBookCode: String,
+        bookDisplayName: String,
+        nextMeditation: String,
+        nextQuestion: String,
+        now: Instant,
+    ) {
+        check(status != DailyWordStatus.PUBLISHED) { "게시된 오늘의 말씀은 수동 초안으로 교체할 수 없습니다." }
+        verseId = citation.verseId
+        bibleVersion = citation.version
+        bookCode = canonicalBookCode
+        bookName = bookDisplayName
+        chapter = citation.chapter
+        verse = citation.verse
+        verseText = citation.text
+        meditation = nextMeditation.trim()
+        actionQuestion = nextQuestion.trim()
+        published = false
+        status = DailyWordStatus.DRAFT
+        source = DailyWordSource.MANUAL
+        contentRevision += 1
+        model = null
+        promptVersion = null
+        retrievalStrategy = null
+        embeddingTokens = 0
+        promptTokens = 0
+        completionTokens = 0
+        estimatedCostUsd = BigDecimal.ZERO
+        generatedAt = now
+        reviewedBy = null
+        reviewedAt = null
+        publishedAt = null
+        rejectionReason = null
+        updatedAt = now
+    }
+
     /** 검증된 초안만 게시하고 기존 published 플래그도 함께 유지합니다. */
     fun publish(adminId: UUID, now: Instant) {
         check(status == DailyWordStatus.DRAFT) { "초안 상태의 오늘의 말씀만 게시할 수 있습니다." }
@@ -185,6 +223,18 @@ class DailyWordGenerationJobEntity(
         if (status != DailyWordGenerationJobStatus.PROCESSING || leaseToken != token) return
         status = if (retry) DailyWordGenerationJobStatus.PENDING else DailyWordGenerationJobStatus.FAILED
         errorMessage = message.take(1000)
+        leaseToken = null
+        leaseUntil = null
+        updatedAt = now
+    }
+
+    /** 수동 복구가 시작되면 아직 실행 중인 AI 작업을 명시적으로 종료합니다. */
+    fun cancel(message: String, now: Instant) {
+        check(status == DailyWordGenerationJobStatus.PENDING || status == DailyWordGenerationJobStatus.PROCESSING) {
+            "활성 생성 작업만 취소할 수 있습니다."
+        }
+        status = DailyWordGenerationJobStatus.CANCELLED
+        errorMessage = message.take(1_000)
         leaseToken = null
         leaseUntil = null
         updatedAt = now

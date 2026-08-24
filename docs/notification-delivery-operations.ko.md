@@ -12,6 +12,8 @@
 PENDING -> PROCESSING -> SENT
                     -> RETRY_WAIT -> PROCESSING
                     -> DEAD
+
+SENT -- 앱 ACK --> RECEIVED_BY_APP -- 사용자 탭 --> OPENED
 ```
 
 - `PENDING`: 아직 한 번도 외부 전송을 시도하지 않은 작업입니다.
@@ -19,6 +21,8 @@ PENDING -> PROCESSING -> SENT
 - `RETRY_WAIT`: 일시 오류가 발생해 `next_attempt_at`까지 대기합니다.
 - `SENT`: 해당 기기 전송이 성공했습니다.
 - `DEAD`: 영구 오류이거나 최대 시도 횟수를 소진했습니다.
+- `RECEIVED_BY_APP`: 별도 status가 아니라 `received_at` 최초 시각입니다. 앱 프로세스가 payload를 관측했다는 뜻입니다.
+- `OPENED`: 별도 status가 아니라 `opened_at` 최초 시각입니다. 이 단계가 기록되면 `received_at`도 함께 보장합니다.
 
 `PROCESSING`의 `lease_until`이 지나면 다른 서버가 새 `lease_token`으로 다시 선점합니다. 완료 처리 시 token 일치를 검사하므로, 늦게 끝난 이전 작업자는 새 작업자의 결과를 덮어쓸 수 없습니다.
 
@@ -45,6 +49,8 @@ PENDING -> PROCESSING -> SENT
 
 - DB 예약, 기기별 성공 상태, lease fencing은 중복 선점과 부분 실패 재전송을 방지합니다.
 - FCM 전송 성공 직후 `SENT` 저장 전에 서버가 종료되면 lease 복구 과정에서 같은 기기에 다시 보낼 수 있습니다. 외부 FCM API에 idempotency key가 없으므로 시스템의 전달 보장은 exactly-once가 아니라 at-least-once입니다.
+- 모바일 ACK는 `deliveryId`, 로그인 사용자와 설치 `deviceId`가 모두 일치할 때만 반영합니다. 중복 또는 역순 ACK는 최초 시각을 유지합니다.
+- iOS에서 앱이 종료된 채 화면에 표시만 된 알림은 앱 코드가 실행되지 않으므로 `RECEIVED_BY_APP`을 보장할 수 없습니다. `OPENED`와 혼동해 실제 전달률로 표시하지 않습니다.
 - 푸시 payload에는 개인 묵상이나 상담 내용을 넣지 않고 오늘의 말씀 식별 정보만 넣습니다.
 
 ## 운영 모니터링

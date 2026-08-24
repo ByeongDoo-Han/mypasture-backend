@@ -52,6 +52,9 @@ interface PushSender {
     suspend fun send(token: String, title: String, body: String, data: Map<String, String>)
 }
 
+/** 앱이 서버에 알릴 수 있는 delivery 단계입니다. OPENED는 RECEIVED도 포함하는 단조 전이입니다. */
+enum class NotificationDeliveryEvent { RECEIVED_BY_APP, OPENED }
+
 /** 기기 등록, 알림 설정, 발송 작업 예약과 coroutine 기반 병렬 전송을 조율합니다. */
 @Service
 class NotificationService(
@@ -308,6 +311,7 @@ class NotificationDeliveryCoordinator(
                 title = "오늘의 말씀",
                 body = delivery.dailyWord.bookName + " " + delivery.dailyWord.chapter + ":" + delivery.dailyWord.verse,
                 data = buildMap {
+                    put("deliveryId", delivery.id.toString())
                     notificationId?.let { put("notificationId", it.toString()) }
                     putAll(mapOf(
                     "type" to "DAILY_WORD",
@@ -388,3 +392,30 @@ class NotificationDeliveryCoordinator(
         private const val MAX_ERROR_MESSAGE_LENGTH = 500
     }
 }
+
+/** 인증 사용자와 설치 ID를 확인한 뒤 앱 수신 및 푸시 열기 시각을 멱등하게 기록합니다. */
+@Service
+class NotificationDeliveryAcknowledgementService(
+    private val deliveryRepository: NotificationDeliveryRepository,
+    private val clock: Clock = Clock.systemUTC(),
+) {
+    @Transactional
+    fun acknowledge(userId: UUID, deliveryId: UUID, deviceId: String, event: NotificationDeliveryEvent) {
+        val delivery = deliveryRepository.findLockedById(deliveryId)
+            ?.takeIf { it.userId == userId && it.device.userId == userId && it.device.deviceId == deviceId.trim() }
+            ?: throw NotificationDeliveryNotFoundException()
+        val now = Instant.now(clock)
+        var changed = false
+        if (delivery.receivedAt == null) {
+            delivery.receivedAt = now
+            changed = true
+        }
+        if (event == NotificationDeliveryEvent.OPENED && delivery.openedAt == null) {
+            delivery.openedAt = now
+            changed = true
+        }
+        if (changed) delivery.updatedAt = now
+    }
+}
+
+class NotificationDeliveryNotFoundException : RuntimeException("알림 전송 내역을 찾을 수 없습니다.")

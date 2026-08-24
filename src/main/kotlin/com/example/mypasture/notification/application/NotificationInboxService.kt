@@ -148,9 +148,14 @@ class NotificationOperationsService(
         val deliveryCounts = if (wordIds.isEmpty()) emptyMap() else deliveryRepository.summarizeByDailyWordIds(wordIds)
             .groupBy { it.dailyWordId }
             .mapValues { (_, values) -> values.associate { it.status to it.total } }
+        val lifecycleCounts = if (wordIds.isEmpty()) emptyMap() else deliveryRepository
+            .summarizeLifecycleByDailyWordIds(wordIds)
+            .associateBy { it.dailyWordId }
         val readCounts = if (broadcasts.isEmpty) emptyMap() else receiptRepository.countByBroadcastIds(broadcasts.content.map { it.id })
             .associate { it.broadcastId to it.total }
         val statusCounts = deliveryRepository.summarizeByCreatedAt(start, end).associate { it.status to it.total }
+        val lifecycle = deliveryRepository.summarizeLifecycleByCreatedAt(start, end)
+        val readInApp = receiptRepository.countByBroadcast_PublishedAtGreaterThanEqualAndBroadcast_PublishedAtLessThan(start, end)
 
         return NotificationOperations(
             from = start,
@@ -164,10 +169,15 @@ class NotificationOperationsService(
                 retryWait = statusCounts[DeliveryStatus.RETRY_WAIT] ?: 0,
                 sentToProvider = statusCounts[DeliveryStatus.SENT] ?: 0,
                 dead = statusCounts[DeliveryStatus.DEAD] ?: 0,
-                opened = receiptRepository.countByBroadcast_PublishedAtGreaterThanEqualAndBroadcast_PublishedAtLessThan(start, end),
+                receivedByApp = lifecycle.receivedByApp,
+                openedFromPush = lifecycle.openedFromPush,
+                readInApp = readInApp,
+                opened = readInApp,
             ),
             broadcasts = broadcasts.content.map { broadcast ->
                 val counts = broadcast.dailyWord?.id?.let(deliveryCounts::get).orEmpty()
+                val lifecycleForBroadcast = broadcast.dailyWord?.id?.let(lifecycleCounts::get)
+                val broadcastReadInApp = readCounts[broadcast.id] ?: 0
                 NotificationBroadcastOperation(
                     id = broadcast.id,
                     type = broadcast.type,
@@ -179,7 +189,10 @@ class NotificationOperationsService(
                     deviceDeliveries = counts.values.sum(),
                     sentToProvider = counts[DeliveryStatus.SENT] ?: 0,
                     dead = counts[DeliveryStatus.DEAD] ?: 0,
-                    opened = readCounts[broadcast.id] ?: 0,
+                    receivedByApp = lifecycleForBroadcast?.receivedByApp ?: 0,
+                    openedFromPush = lifecycleForBroadcast?.openedFromPush ?: 0,
+                    readInApp = broadcastReadInApp,
+                    opened = broadcastReadInApp,
                 )
             },
             page = broadcasts.number,
@@ -227,6 +240,10 @@ data class NotificationOperationsSummary(
     val retryWait: Long,
     val sentToProvider: Long,
     val dead: Long,
+    val receivedByApp: Long,
+    val openedFromPush: Long,
+    val readInApp: Long,
+    /** 이전 관리자 클라이언트 호환용이며 readInApp과 같습니다. */
     val opened: Long,
 )
 data class NotificationBroadcastOperation(
@@ -240,6 +257,10 @@ data class NotificationBroadcastOperation(
     val deviceDeliveries: Long,
     val sentToProvider: Long,
     val dead: Long,
+    val receivedByApp: Long,
+    val openedFromPush: Long,
+    val readInApp: Long,
+    /** 이전 관리자 클라이언트 호환용이며 readInApp과 같습니다. */
     val opened: Long,
 )
 data class NotificationOperations(

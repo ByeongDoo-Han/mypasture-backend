@@ -112,6 +112,30 @@ interface NotificationDeliveryRepository : JpaRepository<NotificationDeliveryEnt
         """,
     )
     fun summarizeByDailyWordIds(dailyWordIds: Collection<UUID>): List<NotificationDailyWordDeliveryCount>
+
+    @Query(
+        """
+        select count(delivery) as total,
+               coalesce(sum(case when delivery.receivedAt is not null then 1 else 0 end), 0) as receivedByApp,
+               coalesce(sum(case when delivery.openedAt is not null then 1 else 0 end), 0) as openedFromPush
+        from NotificationDeliveryEntity delivery
+        where delivery.createdAt >= :from and delivery.createdAt < :to
+        """,
+    )
+    fun summarizeLifecycleByCreatedAt(from: Instant, to: Instant): NotificationDeliveryLifecycleCount
+
+    @Query(
+        """
+        select delivery.dailyWord.id as dailyWordId,
+               count(delivery) as total,
+               coalesce(sum(case when delivery.receivedAt is not null then 1 else 0 end), 0) as receivedByApp,
+               coalesce(sum(case when delivery.openedAt is not null then 1 else 0 end), 0) as openedFromPush
+        from NotificationDeliveryEntity delivery
+        where delivery.dailyWord.id in :dailyWordIds
+        group by delivery.dailyWord.id
+        """,
+    )
+    fun summarizeLifecycleByDailyWordIds(dailyWordIds: Collection<UUID>): List<NotificationDailyWordLifecycleCount>
 }
 
 /** 공통 알림을 cursor 순서로 조회하고 관리자 기간 필터를 제공합니다. */
@@ -227,5 +251,12 @@ interface NotificationReadWatermarkRepository : JpaRepository<NotificationReadWa
 
 interface NotificationDeliveryStatusCount { val status: DeliveryStatus; val total: Long }
 interface NotificationDailyWordDeliveryCount { val dailyWordId: UUID; val status: DeliveryStatus; val total: Long }
+interface NotificationDeliveryLifecycleCount { val total: Long; val receivedByApp: Long; val openedFromPush: Long }
+interface NotificationDailyWordLifecycleCount {
+    val dailyWordId: UUID
+    val total: Long
+    val receivedByApp: Long
+    val openedFromPush: Long
+}
 interface NotificationBroadcastReadCount { val broadcastId: UUID; val total: Long }
 interface NotificationDailyWordBroadcastId { val dailyWordId: UUID; val broadcastId: UUID }

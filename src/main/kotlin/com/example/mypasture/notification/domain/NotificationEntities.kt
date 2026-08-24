@@ -125,6 +125,10 @@ class NotificationDeliveryEntity(
     var errorMessage: String? = null,
     @Column(name = "sent_at")
     var sentAt: Instant? = null,
+    @Column(name = "received_at")
+    var receivedAt: Instant? = null,
+    @Column(name = "opened_at")
+    var openedAt: Instant? = null,
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
     @Column(name = "updated_at", nullable = false)

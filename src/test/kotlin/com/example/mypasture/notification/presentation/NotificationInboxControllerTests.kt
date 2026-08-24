@@ -140,6 +140,48 @@ class NotificationInboxControllerTests(
     }
 
     @Test
+    fun `delivery acknowledgement is owned by user and device and remains idempotent`() {
+        val member = user()
+        val otherMember = user()
+        val broadcast = createBroadcasts(1).single()
+        val device = deviceRepository.save(
+            NotificationDeviceEntity(
+                userId = member.id,
+                deviceId = "device-${UUID.randomUUID()}",
+                fcmToken = "token-${UUID.randomUUID()}-long-enough",
+                platform = DevicePlatform.ANDROID,
+            ),
+        )
+        val delivery = deliveryRepository.saveAndFlush(
+            NotificationDeliveryEntity(
+                userId = member.id,
+                dailyWord = broadcast.dailyWord!!,
+                device = device,
+                status = DeliveryStatus.SENT,
+                attemptCount = 1,
+                nextAttemptAt = broadcast.publishedAt,
+                sentAt = broadcast.publishedAt,
+                createdAt = broadcast.publishedAt,
+                updatedAt = broadcast.publishedAt,
+            ),
+        )
+
+        acknowledge(member, delivery.id, device.deviceId, "RECEIVED_BY_APP").andExpect { status { isNoContent() } }
+        var stored = deliveryRepository.findById(delivery.id).orElseThrow()
+        val firstReceivedAt = requireNotNull(stored.receivedAt)
+        assertEquals(null, stored.openedAt)
+
+        acknowledge(member, delivery.id, device.deviceId, "OPENED").andExpect { status { isNoContent() } }
+        acknowledge(member, delivery.id, device.deviceId, "OPENED").andExpect { status { isNoContent() } }
+        stored = deliveryRepository.findById(delivery.id).orElseThrow()
+        assertEquals(firstReceivedAt, stored.receivedAt)
+        requireNotNull(stored.openedAt)
+
+        acknowledge(otherMember, delivery.id, device.deviceId, "OPENED").andExpect { status { isNotFound() } }
+        acknowledge(member, delivery.id, "another-device", "OPENED").andExpect { status { isNotFound() } }
+    }
+
+    @Test
     fun `admin operations distinguish provider acceptance from app opens and reject ordinary users`() {
         val admin = user(UserRole.ADMIN)
         val member = user()
@@ -175,8 +217,14 @@ class NotificationInboxControllerTests(
             status { isOk() }
             jsonPath("$.summary.broadcasts") { value(1) }
             jsonPath("$.summary.sentToProvider") { value(1) }
+            jsonPath("$.summary.receivedByApp") { value(0) }
+            jsonPath("$.summary.openedFromPush") { value(0) }
+            jsonPath("$.summary.readInApp") { value(1) }
             jsonPath("$.summary.opened") { value(1) }
             jsonPath("$.broadcasts[0].sentToProvider") { value(1) }
+            jsonPath("$.broadcasts[0].receivedByApp") { value(0) }
+            jsonPath("$.broadcasts[0].openedFromPush") { value(0) }
+            jsonPath("$.broadcasts[0].readInApp") { value(1) }
             jsonPath("$.broadcasts[0].opened") { value(1) }
         }
         mockMvc.get("/api/v1/admin/notifications/operations") { header("Authorization", "Bearer ${token(member)}") }
@@ -225,6 +273,13 @@ class NotificationInboxControllerTests(
     )
 
     private fun token(user: UserEntity) = jwtTokenProvider.issueAccessToken(user).accessToken
+
+    private fun acknowledge(user: UserEntity, deliveryId: UUID, deviceId: String, event: String) =
+        mockMvc.post("/api/v1/notifications/deliveries/$deliveryId/ack") {
+            header("Authorization", "Bearer ${token(user)}")
+            contentType = org.springframework.http.MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(mapOf("deviceId" to deviceId, "event" to event))
+        }
 
     companion object {
         private val BASE_WORD_DATE = LocalDate.of(2031, 1, 1)

@@ -43,7 +43,13 @@ import java.util.UUID
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-@TestPropertySource(properties = ["app.bible.kor1910-html-path=src/test/resources/bible/kor_html", "app.bible.import-enabled=true"])
+@TestPropertySource(
+    properties = [
+        "spring.datasource.url=jdbc:h2:mem:notification-inbox;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+        "app.bible.kor1910-html-path=src/test/resources/bible/kor_html",
+        "app.bible.import-enabled=true",
+    ],
+)
 class NotificationInboxControllerTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val objectMapper: ObjectMapper,

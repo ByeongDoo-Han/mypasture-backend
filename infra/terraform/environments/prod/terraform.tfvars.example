@@ -1,0 +1,18 @@
+project_id           = "mypasture-prod"
+container_image      = "asia-northeast3-docker.pkg.dev/mypasture-prod/mypasture-prod-backend/api:COMMIT_SHA"
+deploy_runtime       = false
+api_domain           = "api.mypasture.app"
+cors_allowed_origins = "https://mypasture.app,https://admin.mypasture.app"
+smtp_host            = "smtp.example.com"
+mail_from            = "no-reply@mypasture.app"
+alert_email          = "operations@example.com"
+billing_account_id   = "000000-000000-000000"
+
+firebase_enabled    = true
+firebase_project_id = "my-pasture"
+
+google_oauth_web_client_ids     = ""
+google_oauth_ios_client_ids     = ""
+google_oauth_android_client_ids = ""
+apple_oauth_client_ids          = "com.mypasture.app"
+kakao_app_ids                   = ""

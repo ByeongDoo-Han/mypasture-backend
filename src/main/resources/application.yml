@@ -8,6 +8,11 @@ spring:
     properties:
       hibernate:
         format_sql: false
+  lifecycle:
+    timeout-per-shutdown-phase: 9s
+
+server:
+  shutdown: graceful
 
 management:
   endpoints:
@@ -20,6 +25,8 @@ management:
         enabled: true
 
 app:
+  worker:
+    enabled: ${APP_WORKER_ENABLED:false}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}
   security:

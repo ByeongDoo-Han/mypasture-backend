@@ -24,7 +24,6 @@ import kotlinx.coroutines.withContext
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
-import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -162,7 +161,6 @@ class NotificationService(
      * 새 오늘의 말씀 발송을 예약한 뒤, 재시도 대기 및 lease 만료 작업까지 함께 처리합니다.
      * 설정은 페이지로 읽고 실제 외부 호출은 짧은 DB 트랜잭션 밖에서 수행합니다.
      */
-    @Scheduled(cron = "0 * * * * *")
     suspend fun dispatchDueDailyWords() = withContext(Dispatchers.IO) {
         val now = Instant.now(clock)
         reserveDueDeliveries(now)

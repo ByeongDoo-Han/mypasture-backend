@@ -1,5 +1,7 @@
 # 서버 환경 설정
 
+GCP Terraform 기반 staging/production 구축은 [GCP Terraform 배포 가이드](gcp-terraform-deployment.ko.md)를 참고하세요.
+
 서버 환경은 `local`과 `prod` 두 가지 Spring Profile로 관리합니다.
 
 ## Local

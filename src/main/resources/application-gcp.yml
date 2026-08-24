@@ -1,0 +1,15 @@
+spring:
+  config:
+    activate:
+      on-profile: gcp
+  ssl:
+    bundle:
+      pem:
+        redis:
+          truststore:
+            certificate: ${REDIS_CA_CERT_PATH:file:/var/run/secrets/redis/server-ca.pem}
+  data:
+    redis:
+      ssl:
+        enabled: true
+        bundle: redis

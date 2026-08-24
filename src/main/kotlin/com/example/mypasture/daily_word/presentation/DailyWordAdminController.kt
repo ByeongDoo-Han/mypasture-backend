@@ -3,8 +3,11 @@ package com.example.mypasture.daily_word.presentation
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.daily_word.application.DailyWordService
 import com.example.mypasture.daily_word.application.DailyWordOperationsSummary
+import com.example.mypasture.daily_word.application.DailyWordIncidentService
 import com.example.mypasture.daily_word.domain.DailyWordEntity
 import com.example.mypasture.daily_word.domain.DailyWordGenerationJobEntity
+import com.example.mypasture.daily_word.domain.DailyWordIncidentEntity
+import com.example.mypasture.daily_word.domain.DailyWordIncidentStatus
 import com.example.mypasture.daily_word.domain.DailyWordStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RequestMapping
@@ -16,7 +19,10 @@ import java.util.UUID
 /** 관리자 오늘의 말씀 HTTP 요청을 생성·검수 application service에 전달합니다. */
 @RestController
 @RequestMapping("/api/v1/admin/daily-words")
-class DailyWordAdminController(private val service: DailyWordService) : DailyWordAdminApi {
+class DailyWordAdminController(
+    private val service: DailyWordService,
+    private val incidentService: DailyWordIncidentService,
+) : DailyWordAdminApi {
     override fun list(from: LocalDate?, to: LocalDate?, status: DailyWordStatus?): List<DailyWordAdminResponse> {
         val end = to ?: LocalDate.now(SEOUL).plusDays(14)
         val start = from ?: end.minusDays(30)
@@ -31,6 +37,29 @@ class DailyWordAdminController(private val service: DailyWordService) : DailyWor
         val end = to ?: today.plusDays(1)
         return service.operationsSummary(start, end).toResponse()
     }
+
+    override fun incidents(status: DailyWordIncidentStatus?) = incidentService.list(status).map { it.toResponse() }
+
+    override fun createManualDraft(principal: JwtPrincipal, date: LocalDate, request: CreateManualDailyWordRequest) =
+        service.createManualDraft(
+            date,
+            principal.userId,
+            request.operationId,
+            request.version,
+            request.bookCode,
+            request.chapter,
+            request.verse,
+            request.meditation,
+            request.actionQuestion,
+            request.replaceExisting,
+            request.reason,
+        ).toAdminResponse()
+
+    override fun acknowledgeIncident(principal: JwtPrincipal, id: UUID, request: ReviewDailyWordRequest) =
+        incidentService.acknowledge(id, principal.userId, request.operationId, request.reason).toResponse()
+
+    override fun resolveIncident(principal: JwtPrincipal, id: UUID, request: ReviewDailyWordRequest) =
+        incidentService.resolve(id, principal.userId, request.operationId, request.reason).toResponse()
 
     override suspend fun generate(principal: JwtPrincipal, date: LocalDate, request: GenerateDailyWordRequest) =
         ResponseEntity.accepted().body(
@@ -60,6 +89,24 @@ private fun DailyWordGenerationJobEntity.toResponse() = DailyWordGenerationJobRe
     id, wordDate, status, attemptCount, errorMessage, dailyWordId, createdAt, updatedAt,
 )
 
+private fun DailyWordIncidentEntity.toResponse() = DailyWordIncidentResponse(
+    id,
+    wordDate,
+    type,
+    severity,
+    status,
+    message,
+    latestJobId,
+    occurrenceCount,
+    firstDetectedAt,
+    lastDetectedAt,
+    acknowledgedBy,
+    acknowledgedAt,
+    resolvedBy,
+    resolvedAt,
+    resolutionNote,
+)
+
 private fun DailyWordOperationsSummary.toResponse() = DailyWordOperationsSummaryResponse(
     from = from,
     to = to,
@@ -78,6 +125,7 @@ private fun DailyWordOperationsSummary.toResponse() = DailyWordOperationsSummary
         jobs.processing,
         jobs.completed,
         jobs.failed,
+        jobs.cancelled,
         jobs.oldestActiveCreatedAt,
     ),
     usage = DailyWordUsageSummaryResponse(

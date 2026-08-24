@@ -1,6 +1,7 @@
 package com.example.mypasture.auth.infrastructure
 
 import com.example.mypasture.user.domain.UserEntity
+import com.example.mypasture.user.domain.UserRole
 import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
@@ -17,6 +18,8 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
     fun findByEmailAndDeletedAtIsNull(email: String): UserEntity?
 
     fun findByIdAndDeletedAtIsNull(id: UUID): UserEntity?
+
+    fun findAllByRoleAndDeletedAtIsNull(role: UserRole): List<UserEntity>
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select user from UserEntity user where user.email = :email and user.deletedAt is null")

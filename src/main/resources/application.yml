@@ -70,6 +70,18 @@ app:
     max-attempts: ${DAILY_WORD_MAX_ATTEMPTS:3}
     prompt-version: ${DAILY_WORD_PROMPT_VERSION:daily-word-v1}
     max-output-tokens: ${DAILY_WORD_MAX_OUTPUT_TOKENS:500}
+    incident-detection-enabled: ${DAILY_WORD_INCIDENT_DETECTION_ENABLED:false}
+    incident-detection-cron: ${DAILY_WORD_INCIDENT_DETECTION_CRON:0 */10 * * * *}
+    incident-warning-time: ${DAILY_WORD_INCIDENT_WARNING_TIME:20:00}
+    incident-critical-time: ${DAILY_WORD_INCIDENT_CRITICAL_TIME:22:00}
+    incident-stalled-threshold: ${DAILY_WORD_INCIDENT_STALLED_THRESHOLD:10m}
+    incident-email-delivery: ${DAILY_WORD_INCIDENT_EMAIL_DELIVERY:log}
+    incident-email-from: ${DAILY_WORD_INCIDENT_EMAIL_FROM:no-reply@mypasture.app}
+    incident-email-poll-delay-ms: ${DAILY_WORD_INCIDENT_EMAIL_POLL_DELAY_MS:30000}
+    incident-email-lease-duration: ${DAILY_WORD_INCIDENT_EMAIL_LEASE_DURATION:2m}
+    incident-email-retry-delay: ${DAILY_WORD_INCIDENT_EMAIL_RETRY_DELAY:5m}
+    incident-email-max-attempts: ${DAILY_WORD_INCIDENT_EMAIL_MAX_ATTEMPTS:5}
+    incident-email-batch-size: ${DAILY_WORD_INCIDENT_EMAIL_BATCH_SIZE:20}
   quiet-time:
     qr:
       default-meeting-duration-minutes: ${QUIET_TIME_DEFAULT_MEETING_DURATION_MINUTES:120}

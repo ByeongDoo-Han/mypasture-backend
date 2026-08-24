@@ -4,6 +4,9 @@ import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.daily_word.domain.DailyWordGenerationJobStatus
 import com.example.mypasture.daily_word.domain.DailyWordSource
 import com.example.mypasture.daily_word.domain.DailyWordStatus
+import com.example.mypasture.daily_word.domain.DailyWordIncidentSeverity
+import com.example.mypasture.daily_word.domain.DailyWordIncidentStatus
+import com.example.mypasture.daily_word.domain.DailyWordIncidentType
 import com.example.mypasture.daily_word.application.DailyWordReadinessStatus
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
@@ -34,6 +37,30 @@ interface DailyWordAdminApi {
         @RequestParam from: LocalDate?,
         @RequestParam to: LocalDate?,
     ): DailyWordOperationsSummaryResponse
+
+    @GetMapping("/incidents")
+    fun incidents(@RequestParam status: DailyWordIncidentStatus?): List<DailyWordIncidentResponse>
+
+    @PostMapping("/{date}/manual-drafts")
+    fun createManualDraft(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable date: LocalDate,
+        @Valid @RequestBody request: CreateManualDailyWordRequest,
+    ): DailyWordAdminResponse
+
+    @PostMapping("/incidents/{id}/acknowledge")
+    fun acknowledgeIncident(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: ReviewDailyWordRequest,
+    ): DailyWordIncidentResponse
+
+    @PostMapping("/incidents/{id}/resolve")
+    fun resolveIncident(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: ReviewDailyWordRequest,
+    ): DailyWordIncidentResponse
 
     @PostMapping("/{date}/generation-jobs")
     suspend fun generate(
@@ -76,6 +103,18 @@ data class UpdateDailyWordRequest(
 
 data class ReviewDailyWordRequest(val operationId: UUID, @field:Size(min = 5, max = 500) val reason: String)
 
+data class CreateManualDailyWordRequest(
+    val operationId: UUID,
+    @field:Size(min = 1, max = 20) val version: String,
+    @field:Size(min = 2, max = 20) val bookCode: String,
+    @field:Min(1) val chapter: Int,
+    @field:Min(1) val verse: Int,
+    @field:Size(min = 30, max = 1_000) val meditation: String,
+    @field:Size(min = 10, max = 300) val actionQuestion: String,
+    val replaceExisting: Boolean = false,
+    @field:Size(min = 5, max = 500) val reason: String,
+)
+
 data class DailyWordAdminResponse(
     val id: UUID,
     val date: LocalDate,
@@ -117,6 +156,25 @@ data class DailyWordGenerationJobResponse(
     val updatedAt: Instant,
 )
 
+/** 게시 누락 또는 생성 장애와 관리자 대응 상태를 반환합니다. */
+data class DailyWordIncidentResponse(
+    val id: UUID,
+    val date: LocalDate,
+    val type: DailyWordIncidentType,
+    val severity: DailyWordIncidentSeverity,
+    val status: DailyWordIncidentStatus,
+    val message: String,
+    val latestJobId: UUID?,
+    val occurrenceCount: Int,
+    val firstDetectedAt: Instant,
+    val lastDetectedAt: Instant,
+    val acknowledgedBy: UUID?,
+    val acknowledgedAt: Instant?,
+    val resolvedBy: UUID?,
+    val resolvedAt: Instant?,
+    val resolutionNote: String?,
+)
+
 /** 관리자 대시보드가 사용하는 게시 준비, 작업 건전성과 비용 집계 응답입니다. */
 data class DailyWordOperationsSummaryResponse(
     val from: LocalDate,
@@ -147,6 +205,7 @@ data class DailyWordJobSummaryResponse(
     val processing: Long,
     val completed: Long,
     val failed: Long,
+    val cancelled: Long,
     val oldestActiveCreatedAt: Instant?,
 )
 

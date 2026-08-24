@@ -77,3 +77,51 @@ Content-Type: application/json
   "operationId": "{{$uuid}}",
   "reason": "묵상 문구가 검수 기준을 충족하지 못했습니다"
 }
+
+### 10. 운영 사건 조회
+GET {{baseUrl}}/api/v1/admin/daily-words/incidents
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+> {%
+  if (response.body.length > 0) {
+    client.global.set("dailyWordIncidentId", response.body[0].id);
+  }
+%}
+
+### 11. 실제 성경 절로 수동 복구 초안 생성
+POST {{baseUrl}}/api/v1/admin/daily-words/{{dailyWordDate}}/manual-drafts
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "operationId": "{{$uuid}}",
+  "version": "KOR1910",
+  "bookCode": "GEN",
+  "chapter": 1,
+  "verse": 1,
+  "meditation": "하나님이 시작하신 창조의 질서를 묵상하며 오늘의 선택을 말씀 앞에서 천천히 돌아봅니다.",
+  "actionQuestion": "오늘 하나님의 선하심을 따라 실천할 한 가지는 무엇인가요?",
+  "replaceExisting": false,
+  "reason": "자동 생성 장애에 대비한 수동 초안입니다"
+}
+
+### 12. 운영 사건 확인
+POST {{baseUrl}}/api/v1/admin/daily-words/incidents/{{dailyWordIncidentId}}/acknowledge
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "operationId": "{{$uuid}}",
+  "reason": "운영 상태와 수동 복구 필요 여부를 확인했습니다"
+}
+
+### 13. 운영 사건 해결
+POST {{baseUrl}}/api/v1/admin/daily-words/incidents/{{dailyWordIncidentId}}/resolve
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "operationId": "{{$uuid}}",
+  "reason": "수동 초안을 검수하여 게시했고 사용자 노출을 확인했습니다"
+}

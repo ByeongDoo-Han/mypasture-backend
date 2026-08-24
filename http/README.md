@@ -19,3 +19,7 @@ Google/Apple 토큰의 `aud`는 서버 `.env.local`에 등록한 Client ID 중 �
 ## QT 실시간 답변
 
 `quiet-time-live-answers.http`를 단독 실행할 때는 로그인 응답의 My Pasture `accessToken`과 생성된 `quietTimeSessionId`를 `http-client.private.env.json`에 입력합니다. 스트림 요청을 먼저 열어 둔 뒤 답변 PUT 요청을 실행하면 `answer-updated` 이벤트를 확인할 수 있습니다.
+
+## 알림센터
+
+`notifications.http`를 실행하기 전에 private 환경 파일의 `accessToken`과 `adminAccessToken`을 실제 My Pasture JWT로 설정합니다. 오늘의 말씀 게시 후 목록 조회를 먼저 실행하면 첫 항목 ID가 `notificationId` 전역 변수에 저장되어 이어지는 읽음 요청에 사용됩니다. 목록이 비어 있으면 게시된 오늘의 말씀을 먼저 준비해야 합니다.

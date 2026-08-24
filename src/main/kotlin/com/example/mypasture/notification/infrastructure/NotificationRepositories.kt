@@ -4,6 +4,10 @@ import com.example.mypasture.notification.domain.DailyWordNotificationSettingEnt
 import com.example.mypasture.notification.domain.DeliveryStatus
 import com.example.mypasture.notification.domain.NotificationDeliveryEntity
 import com.example.mypasture.notification.domain.NotificationDeviceEntity
+import com.example.mypasture.notification.domain.NotificationBroadcastEntity
+import com.example.mypasture.notification.domain.NotificationReadReceiptEntity
+import com.example.mypasture.notification.domain.NotificationReadWatermarkEntity
+import com.example.mypasture.notification.domain.NotificationType
 import jakarta.persistence.LockModeType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -88,4 +92,140 @@ interface NotificationDeliveryRepository : JpaRepository<NotificationDeliveryEnt
         now: Instant,
         pageable: Pageable,
     ): List<NotificationDeliveryEntity>
+
+    @Query(
+        """
+        select delivery.status as status, count(delivery) as total
+        from NotificationDeliveryEntity delivery
+        where delivery.createdAt >= :from and delivery.createdAt < :to
+        group by delivery.status
+        """,
+    )
+    fun summarizeByCreatedAt(from: Instant, to: Instant): List<NotificationDeliveryStatusCount>
+
+    @Query(
+        """
+        select delivery.dailyWord.id as dailyWordId, delivery.status as status, count(delivery) as total
+        from NotificationDeliveryEntity delivery
+        where delivery.dailyWord.id in :dailyWordIds
+        group by delivery.dailyWord.id, delivery.status
+        """,
+    )
+    fun summarizeByDailyWordIds(dailyWordIds: Collection<UUID>): List<NotificationDailyWordDeliveryCount>
 }
+
+/** 공통 알림을 cursor 순서로 조회하고 관리자 기간 필터를 제공합니다. */
+interface NotificationBroadcastRepository : JpaRepository<NotificationBroadcastEntity, UUID> {
+    fun existsByEventKey(eventKey: String): Boolean
+
+    @Query(
+        """
+        select broadcast.dailyWord.id as dailyWordId, broadcast.id as broadcastId
+        from NotificationBroadcastEntity broadcast
+        where broadcast.dailyWord.id in :dailyWordIds
+        """,
+    )
+    fun findIdsByDailyWordIds(dailyWordIds: Collection<UUID>): List<NotificationDailyWordBroadcastId>
+
+    @Query(
+        """
+        select broadcast from NotificationBroadcastEntity broadcast
+        join fetch broadcast.dailyWord
+        where broadcast.publishedAt <= :now
+          and broadcast.expiresAt > :now
+          and broadcast.publishedAt >= :visibleFrom
+        order by broadcast.publishedAt desc, broadcast.id desc
+        """,
+    )
+    fun findVisibleFirstPage(now: Instant, visibleFrom: Instant, pageable: Pageable): List<NotificationBroadcastEntity>
+
+    @Query(
+        """
+        select broadcast from NotificationBroadcastEntity broadcast
+        join fetch broadcast.dailyWord
+        where broadcast.publishedAt <= :now
+          and broadcast.expiresAt > :now
+          and broadcast.publishedAt >= :visibleFrom
+          and (broadcast.publishedAt < :cursorAt or (broadcast.publishedAt = :cursorAt and broadcast.id < :cursorId))
+        order by broadcast.publishedAt desc, broadcast.id desc
+        """,
+    )
+    fun findVisibleAfter(
+        now: Instant,
+        visibleFrom: Instant,
+        cursorAt: Instant,
+        cursorId: UUID,
+        pageable: Pageable,
+    ): List<NotificationBroadcastEntity>
+
+    @Query(
+        """
+        select broadcast from NotificationBroadcastEntity broadcast
+        join fetch broadcast.dailyWord
+        where broadcast.id = :id and broadcast.publishedAt <= :now and broadcast.expiresAt > :now
+        """,
+    )
+    fun findVisibleById(id: UUID, now: Instant): NotificationBroadcastEntity?
+
+    @Query(
+        """
+        select count(broadcast) from NotificationBroadcastEntity broadcast
+        where broadcast.publishedAt <= :now
+          and broadcast.expiresAt > :now
+          and broadcast.publishedAt >= :visibleFrom
+          and broadcast.publishedAt > :watermark
+          and not exists (
+            select receipt.id from NotificationReadReceiptEntity receipt
+            where receipt.broadcast.id = broadcast.id and receipt.userId = :userId
+          )
+        """,
+    )
+    fun countUnread(userId: UUID, now: Instant, visibleFrom: Instant, watermark: Instant): Long
+
+    @Query(
+        value = """
+        select broadcast from NotificationBroadcastEntity broadcast
+        join fetch broadcast.dailyWord
+        where (:type is null or broadcast.type = :type)
+          and broadcast.publishedAt >= :from and broadcast.publishedAt < :to
+        order by broadcast.publishedAt desc, broadcast.id desc
+        """,
+        countQuery = """
+        select count(broadcast) from NotificationBroadcastEntity broadcast
+        where (:type is null or broadcast.type = :type)
+          and broadcast.publishedAt >= :from and broadcast.publishedAt < :to
+        """,
+    )
+    fun findForAdmin(type: NotificationType?, from: Instant, to: Instant, pageable: Pageable): Page<NotificationBroadcastEntity>
+
+    fun countByPublishedAtGreaterThanEqualAndPublishedAtLessThan(from: Instant, to: Instant): Long
+}
+
+/** 단건 읽음과 관리자 열람 집계를 저장합니다. */
+interface NotificationReadReceiptRepository : JpaRepository<NotificationReadReceiptEntity, UUID> {
+    fun findByBroadcast_IdAndUserId(broadcastId: UUID, userId: UUID): NotificationReadReceiptEntity?
+    fun findAllByUserIdAndBroadcast_IdIn(userId: UUID, broadcastIds: Collection<UUID>): List<NotificationReadReceiptEntity>
+    fun countByBroadcast_PublishedAtGreaterThanEqualAndBroadcast_PublishedAtLessThan(from: Instant, to: Instant): Long
+
+    @Query(
+        """
+        select receipt.broadcast.id as broadcastId, count(receipt) as total
+        from NotificationReadReceiptEntity receipt
+        where receipt.broadcast.id in :broadcastIds
+        group by receipt.broadcast.id
+        """,
+    )
+    fun countByBroadcastIds(broadcastIds: Collection<UUID>): List<NotificationBroadcastReadCount>
+}
+
+/** 사용자별 전체 읽음 watermark를 직렬화해 갱신합니다. */
+interface NotificationReadWatermarkRepository : JpaRepository<NotificationReadWatermarkEntity, UUID> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select watermark from NotificationReadWatermarkEntity watermark where watermark.userId = :userId")
+    fun findByUserIdForUpdate(userId: UUID): NotificationReadWatermarkEntity?
+}
+
+interface NotificationDeliveryStatusCount { val status: DeliveryStatus; val total: Long }
+interface NotificationDailyWordDeliveryCount { val dailyWordId: UUID; val status: DeliveryStatus; val total: Long }
+interface NotificationBroadcastReadCount { val broadcastId: UUID; val total: Long }
+interface NotificationDailyWordBroadcastId { val dailyWordId: UUID; val broadcastId: UUID }

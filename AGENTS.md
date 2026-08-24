@@ -59,6 +59,9 @@ git diff --check
 ## GitHub 작업 흐름
 
 - 기능 구현 전 GitHub Issue를 만들고 최신 기본 브랜치(`main`, 없으면 `master`)에서 작업을 시작합니다.
+- Issue 본문은 `.github/ISSUE_TEMPLATE/feature.md` 구조를 따르는 GitHub Flavored Markdown으로 작성합니다.
+- 작업 범위, 완료 조건과 검증 계획은 `- [ ]` 체크박스로 작성하고 실제 줄바꿈을 유지합니다.
+- GitHub CLI에서는 본문을 Markdown 파일로 준비해 `gh issue create --body-file <file>`을 사용합니다. 백틱이 포함된 본문을 셸의 `--body` 인자로 직접 전달하지 않습니다.
 - 브랜치 이름은 `feat/<domain>-<issue-number>-<feature-slug>` 형식을 사용합니다.
 - 커밋은 `feat(<domain>): <summary> (#<issue-number>)` 형식을 기본으로 합니다.
 - PR의 base는 기본 브랜치(`main`, 없으면 `master`)이며 본문에 `Closes #<issue-number>`를 포함합니다.

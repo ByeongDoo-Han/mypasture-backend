@@ -2,6 +2,7 @@ package com.example.mypasture.notification.application
 
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.daily_word.application.DailyWordService
+import com.example.mypasture.daily_word.application.DailyWordPublishedPort
 import com.example.mypasture.daily_word.infrastructure.DailyWordRepository
 import com.example.mypasture.bible.infrastructure.BibleBookEntityRepository
 import com.example.mypasture.bible.infrastructure.BibleVerseEntityRepository
@@ -11,6 +12,7 @@ import com.example.mypasture.notification.domain.NotificationDeviceEntity
 import com.example.mypasture.notification.infrastructure.NotificationDeliveryRepository
 import com.example.mypasture.notification.infrastructure.NotificationDeviceRepository
 import com.example.mypasture.notification.infrastructure.DailyWordNotificationSettingRepository
+import com.example.mypasture.notification.infrastructure.NotificationBroadcastRepository
 import com.example.mypasture.user.domain.UserEntity
 import com.example.mypasture.testing.DailyWordFixtures
 import kotlinx.coroutines.runBlocking
@@ -73,7 +75,9 @@ class NotificationDispatchTests(
     @Autowired private val deviceRepository: NotificationDeviceRepository,
     @Autowired private val settingRepository: DailyWordNotificationSettingRepository,
     @Autowired private val dailyWordService: DailyWordService,
+    @Autowired private val dailyWordPublishedPort: DailyWordPublishedPort,
     @Autowired private val dailyWordRepository: DailyWordRepository,
+    @Autowired private val broadcastRepository: NotificationBroadcastRepository,
     @Autowired private val bibleBookRepository: BibleBookEntityRepository,
     @Autowired private val bibleVerseRepository: BibleVerseEntityRepository,
     @Autowired private val clock: MutableClock,
@@ -86,8 +90,10 @@ class NotificationDispatchTests(
         deliveryRepository.deleteAllInBatch()
         settingRepository.deleteAllInBatch()
         deviceRepository.deleteAllInBatch()
+        broadcastRepository.deleteAllInBatch()
         dailyWordRepository.deleteAllInBatch()
-        DailyWordFixtures.published(LOCAL_DATE, dailyWordRepository, bibleBookRepository, bibleVerseRepository)
+        val word = DailyWordFixtures.published(LOCAL_DATE, dailyWordRepository, bibleBookRepository, bibleVerseRepository)
+        dailyWordPublishedPort.record(word, requireNotNull(word.publishedAt))
         clock.reset(INITIAL_NOW)
     }
 
@@ -112,6 +118,8 @@ class NotificationDispatchTests(
         notificationService.dispatchDueDailyWords()
 
         verify(pushSender, times(1)).send(anyString(), anyString(), anyString(), anyMap())
+        val pushData = mockingDetails(pushSender).invocations.single().arguments[3] as Map<*, *>
+        assertEquals(broadcastRepository.findAll().single().id.toString(), pushData["notificationId"])
         val delivery = deliveriesFor(registration.user).single()
         assertEquals(DeliveryStatus.SENT, delivery.status)
         assertEquals(1, delivery.attemptCount)
@@ -133,6 +141,7 @@ class NotificationDispatchTests(
     @Test
     fun `unpublished day does not reserve or send notifications`() = runTest {
         val registration = registerDueDevices(1)
+        broadcastRepository.deleteAllInBatch()
         dailyWordRepository.deleteAllInBatch()
 
         notificationService.dispatchDueDailyWords()

@@ -12,6 +12,7 @@ import com.example.mypasture.daily_word.domain.DailyWordStatus
 import com.example.mypasture.daily_word.domain.GeneratedDailyWord
 import com.example.mypasture.daily_word.infrastructure.DailyWordGenerationJobRepository
 import com.example.mypasture.daily_word.infrastructure.DailyWordRepository
+import com.example.mypasture.notification.infrastructure.NotificationBroadcastRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
@@ -38,6 +39,7 @@ class DailyWordPipelineTests(
     @Autowired private val service: DailyWordService,
     @Autowired private val repository: DailyWordRepository,
     @Autowired private val jobRepository: DailyWordGenerationJobRepository,
+    @Autowired private val notificationBroadcastRepository: NotificationBroadcastRepository,
     @Autowired private val bookRepository: BibleBookEntityRepository,
     @Autowired private val verseRepository: BibleVerseEntityRepository,
 ) {
@@ -45,6 +47,7 @@ class DailyWordPipelineTests(
 
     @BeforeEach
     fun cleanUp() {
+        notificationBroadcastRepository.deleteAllInBatch()
         jobRepository.deleteAllInBatch()
         repository.deleteAllInBatch()
     }

@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.context.TestPropertySource
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch
@@ -52,6 +53,7 @@ class AiControllerStreamingTests(
             content = """{"question":"창세기 말씀을 설명해주세요"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
         initial.getAsyncResult(5_000)
+        awaitStreamContent(initial, "event:done")
 
         mockMvc.perform(asyncDispatch(initial))
             .andExpect(status().isOk)
@@ -86,6 +88,7 @@ class AiControllerStreamingTests(
             content = """{"question":"zxqvnoresulttoken"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
         initial.getAsyncResult(5_000)
+        awaitStreamContent(initial, "AI_GROUNDING_NOT_FOUND")
 
         mockMvc.perform(asyncDispatch(initial))
             .andExpect(status().isOk)
@@ -104,5 +107,15 @@ class AiControllerStreamingTests(
             content = """{"email":"$email","password":"$password"}"""
         }.andReturn()
         return objectMapper.readTree(login.response.contentAsString).path("token").asText()
+    }
+
+    /** SseEmitter 반환과 실제 마지막 event 기록 사이의 race를 제거합니다. */
+    private fun awaitStreamContent(result: MvcResult, marker: String) {
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (System.nanoTime() < deadline) {
+            if (result.response.contentAsString.contains(marker)) return
+            Thread.sleep(10)
+        }
+        error("SSE response did not contain '$marker' within 5 seconds")
     }
 }

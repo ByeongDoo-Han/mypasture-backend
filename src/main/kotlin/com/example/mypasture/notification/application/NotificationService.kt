@@ -12,6 +12,7 @@ import com.example.mypasture.notification.domain.NotificationDeviceEntity
 import com.example.mypasture.notification.infrastructure.DailyWordNotificationSettingRepository
 import com.example.mypasture.notification.infrastructure.NotificationDeliveryRepository
 import com.example.mypasture.notification.infrastructure.NotificationDeviceRepository
+import com.example.mypasture.notification.infrastructure.NotificationBroadcastRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -262,6 +263,7 @@ data class PushDeliveryClaim(
 @Service
 class NotificationDeliveryCoordinator(
     private val deliveryRepository: NotificationDeliveryRepository,
+    private val broadcastRepository: NotificationBroadcastRepository,
     private val properties: NotificationDeliveryProperties,
 ) {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -289,8 +291,11 @@ class NotificationDeliveryCoordinator(
             now = now,
             pageable = PageRequest.of(0, properties.dispatchBatchSize),
         )
+        val notificationIds = broadcastRepository.findIdsByDailyWordIds(deliveries.map { it.dailyWord.id }.distinct())
+            .associate { it.dailyWordId to it.broadcastId }
         return deliveries.map { delivery ->
             val leaseToken = UUID.randomUUID()
+            val notificationId = notificationIds[delivery.dailyWord.id]
             delivery.status = DeliveryStatus.PROCESSING
             delivery.attemptCount += 1
             delivery.leaseToken = leaseToken
@@ -302,7 +307,9 @@ class NotificationDeliveryCoordinator(
                 fcmToken = delivery.device.fcmToken,
                 title = "오늘의 말씀",
                 body = delivery.dailyWord.bookName + " " + delivery.dailyWord.chapter + ":" + delivery.dailyWord.verse,
-                data = mapOf(
+                data = buildMap {
+                    notificationId?.let { put("notificationId", it.toString()) }
+                    putAll(mapOf(
                     "type" to "DAILY_WORD",
                     "route" to "today-word",
                     "dailyWordId" to delivery.dailyWord.id.toString(),
@@ -312,7 +319,8 @@ class NotificationDeliveryCoordinator(
                     "bookName" to delivery.dailyWord.bookName,
                     "chapter" to delivery.dailyWord.chapter.toString(),
                     "verse" to delivery.dailyWord.verse.toString(),
-                ),
+                    ))
+                },
             )
         }
     }

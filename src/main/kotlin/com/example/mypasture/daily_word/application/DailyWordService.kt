@@ -85,6 +85,7 @@ class DailyWordService(
     private val bookRepository: BibleBookEntityRepository,
     private val verseRepository: BibleVerseEntityRepository,
     private val auditRepository: AdminAuditLogRepository,
+    private val publishedPort: DailyWordPublishedPort,
     private val clock: Clock = Clock.systemUTC(),
 ) {
     fun getPublished(date: LocalDate = LocalDate.now(SEOUL)): DailyWordEntity =
@@ -318,7 +319,9 @@ class DailyWordService(
         existingWord(operationId, AdminAuditAction.DAILY_WORD_PUBLISHED, fingerprint)?.let { return it }
         val word = repository.findByIdForUpdate(id) ?: throw DailyWordNotFoundException("오늘의 말씀을 찾을 수 없습니다.")
         verifyStoredVerse(word)
-        word.publish(adminId, Instant.now(clock))
+        val publishedAt = Instant.now(clock)
+        word.publish(adminId, publishedAt)
+        publishedPort.record(word, publishedAt)
         audit(operationId, adminId, AdminAuditAction.DAILY_WORD_PUBLISHED, word.id, normalizedReason, fingerprint, "date=${word.wordDate};revision=${word.contentRevision}")
         return word
     }

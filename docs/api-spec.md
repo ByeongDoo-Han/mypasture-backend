@@ -1361,13 +1361,47 @@ PUT /api/v1/notifications/settings/daily-word
 
 ### 12.4 Notification Center
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
 ```http
-GET /api/v1/notifications
-PATCH /api/v1/notifications/{notificationId}/read
-PATCH /api/v1/notifications/read-all
+GET  /api/v1/notifications?cursor={cursor}&limit=20
+GET  /api/v1/notifications/unread-count
+POST /api/v1/notifications/{notificationId}/read
+POST /api/v1/notifications/read-all
 ```
+
+목록은 `(publishedAt, id)` 기반 opaque cursor를 사용합니다. `limit`은 1~50이며 계정 생성 이후 게시되고 아직 만료되지 않은 알림만 반환합니다.
+
+Response `200`:
+
+```json
+{
+  "items": [
+    {
+      "id": "notification-uuid",
+      "type": "DAILY_WORD",
+      "title": "오늘의 말씀",
+      "body": "시편 23편 1절",
+      "destination": {
+        "type": "TODAY_WORD",
+        "dailyWordId": "daily-word-uuid",
+        "date": "2026-08-24",
+        "version": "KOR1910",
+        "bookCode": "PSA",
+        "bookName": "시편",
+        "chapter": 23,
+        "verse": 1
+      },
+      "read": false,
+      "publishedAt": "2026-08-24T00:00:00Z"
+    }
+  ],
+  "nextCursor": null,
+  "hasNext": false
+}
+```
+
+서버는 임의 URL을 반환하지 않고 `destination.type` allow-list만 제공합니다. 미읽음 API와 전체 읽음 응답은 `{ "unreadCount": 0 }` 형식입니다. 존재하지 않거나 다른 사용자가 볼 수 없는 알림은 `404 NOTIFICATION_NOT_FOUND`, 잘못된 cursor는 `400 INVALID_NOTIFICATION_REQUEST`를 반환합니다.
 
 ## 13. File API
 
@@ -1445,7 +1479,17 @@ POST /api/v1/admin/daily-words/incident-email-deliveries/{deliveryId}/requeue
 
 이메일 outbox 조회는 기본 7일, 최대 31일과 페이지 크기 최대 100으로 제한합니다. 수신자는 마스킹하고 외부 오류의 이메일·인증 문자열을 제거합니다. `DEAD`, `RETRY_WAIT` delivery만 수동 재처리할 수 있으며 `operationId`와 5~500자 사유를 감사 로그에 저장합니다.
 
-### 14.3 Challenge Management
+### 14.3 Notification Operations
+
+Status: `IMPLEMENTED`
+
+```http
+GET /api/v1/admin/notifications/operations?type=DAILY_WORD&from={instant}&to={instant}&page=0&size=20
+```
+
+기본 조회 기간은 7일, 최대 31일이고 페이지 크기는 1~100입니다. 공통 알림 수, 기기별 작업 수, `PENDING`, `PROCESSING`, `RETRY_WAIT`, `SENT`, `DEAD`와 인앱 열람 수를 반환합니다. 여기서 `SENT`는 FCM provider가 요청을 접수한 상태이며 실제 기기 도착을 의미하지 않습니다. 사용자 식별자, FCM token과 외부 오류 원문은 반환하지 않습니다.
+
+### 14.4 Challenge Management
 
 Status: `PLANNED`
 
@@ -1456,7 +1500,7 @@ PATCH  /api/v1/admin/challenges/{challengeId}
 DELETE /api/v1/admin/challenges/{challengeId}
 ```
 
-### 14.4 Reward Management
+### 14.5 Reward Management
 
 Status: `PLANNED`
 

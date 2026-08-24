@@ -1,0 +1,51 @@
+locals {
+  required_secret_env = merge(
+    {
+      DATABASE_PASSWORD              = "database-password"
+      JWT_SECRET                     = "jwt-secret"
+      OPENAI_API_KEY                 = "openai-api-key"
+      AI_PRIVACY_HASH_SECRET         = "ai-privacy-hash-secret"
+      SMTP_USERNAME                  = "smtp-username"
+      SMTP_PASSWORD                  = "smtp-password"
+      EMAIL_VERIFICATION_HMAC_SECRET = "email-verification-hmac-secret"
+    },
+    var.redis_auth_enabled ? { REDIS_PASSWORD = "redis-password" } : {},
+  )
+
+  migration_secret_env = merge(local.required_secret_env, {
+    DATABASE_PASSWORD = "migration-database-password"
+  })
+
+  secret_ids = setunion(
+    toset(values(local.migration_secret_env)),
+    toset(["redis-ca-certificate"]),
+    var.firebase_enabled ? toset(["firebase-service-account"]) : toset([]),
+  )
+}
+
+resource "google_secret_manager_secret_version" "redis_ca" {
+  secret      = google_secret_manager_secret.runtime["redis-ca-certificate"].id
+  secret_data = google_redis_instance.main.server_ca_certs[0].cert
+}
+
+resource "google_secret_manager_secret" "runtime" {
+  for_each = local.secret_ids
+
+  project   = var.project_id
+  secret_id = "${local.resource_prefix}-${each.value}"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+resource "google_secret_manager_secret_iam_member" "runtime" {
+  for_each = google_secret_manager_secret.runtime
+
+  project   = var.project_id
+  secret_id = each.value.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime.email}"
+}

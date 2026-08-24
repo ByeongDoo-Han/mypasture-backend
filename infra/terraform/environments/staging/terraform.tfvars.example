@@ -1,0 +1,17 @@
+project_id           = "mypasture-staging"
+container_image      = "asia-northeast3-docker.pkg.dev/mypasture-staging/mypasture-staging-backend/api:COMMIT_SHA"
+deploy_runtime       = false
+cors_allowed_origins = "https://staging.mypasture.app"
+smtp_host            = "smtp.example.com"
+mail_from            = "no-reply@staging.mypasture.app"
+alert_email          = "operations@example.com"
+billing_account_id   = ""
+
+firebase_enabled    = false
+firebase_project_id = ""
+
+google_oauth_web_client_ids     = ""
+google_oauth_ios_client_ids     = ""
+google_oauth_android_client_ids = ""
+apple_oauth_client_ids          = ""
+kakao_app_ids                   = ""

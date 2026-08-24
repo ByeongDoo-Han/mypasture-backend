@@ -43,3 +43,13 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### Terraform ###
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log

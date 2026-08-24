@@ -119,6 +119,7 @@ class DisabledDailyWordIncidentEmailSender : DailyWordIncidentEmailSender {
 
 /** outbox를 짧게 선점한 뒤 외부 SMTP 호출을 트랜잭션 밖에서 실행하고 재시도합니다. */
 @Component
+@ConditionalOnProperty(prefix = "app.worker", name = ["enabled"], havingValue = "true")
 class DailyWordIncidentEmailWorker(
     private val repository: DailyWordIncidentEmailOutboxRepository,
     private val sender: DailyWordIncidentEmailSender,

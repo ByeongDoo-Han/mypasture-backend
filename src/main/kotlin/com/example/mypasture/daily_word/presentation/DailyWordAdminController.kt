@@ -4,15 +4,20 @@ import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.daily_word.application.DailyWordService
 import com.example.mypasture.daily_word.application.DailyWordOperationsSummary
 import com.example.mypasture.daily_word.application.DailyWordIncidentService
+import com.example.mypasture.daily_word.application.DailyWordIncidentEmailOperationsService
+import com.example.mypasture.daily_word.application.DailyWordIncidentEmailOperations
 import com.example.mypasture.daily_word.domain.DailyWordEntity
 import com.example.mypasture.daily_word.domain.DailyWordGenerationJobEntity
 import com.example.mypasture.daily_word.domain.DailyWordIncidentEntity
 import com.example.mypasture.daily_word.domain.DailyWordIncidentStatus
+import com.example.mypasture.daily_word.domain.DailyWordIncidentEmailOutboxEntity
+import com.example.mypasture.daily_word.domain.DailyWordIncidentEmailStatus
 import com.example.mypasture.daily_word.domain.DailyWordStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.time.LocalDate
+import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
 
@@ -22,6 +27,7 @@ import java.util.UUID
 class DailyWordAdminController(
     private val service: DailyWordService,
     private val incidentService: DailyWordIncidentService,
+    private val incidentEmailService: DailyWordIncidentEmailOperationsService,
 ) : DailyWordAdminApi {
     override fun list(from: LocalDate?, to: LocalDate?, status: DailyWordStatus?): List<DailyWordAdminResponse> {
         val end = to ?: LocalDate.now(SEOUL).plusDays(14)
@@ -39,6 +45,18 @@ class DailyWordAdminController(
     }
 
     override fun incidents(status: DailyWordIncidentStatus?) = incidentService.list(status).map { it.toResponse() }
+
+    override fun incidentEmailDeliveries(
+        status: DailyWordIncidentEmailStatus?,
+        incidentId: UUID?,
+        from: Instant?,
+        to: Instant?,
+        page: Int,
+        size: Int,
+    ) = incidentEmailService.list(status, incidentId, from, to, page, size).toResponse()
+
+    override fun requeueIncidentEmail(principal: JwtPrincipal, id: UUID, request: ReviewDailyWordRequest) =
+        incidentEmailService.requeue(id, principal.userId, request.operationId, request.reason).toResponse()
 
     override fun createManualDraft(principal: JwtPrincipal, date: LocalDate, request: CreateManualDailyWordRequest) =
         service.createManualDraft(
@@ -106,6 +124,48 @@ private fun DailyWordIncidentEntity.toResponse() = DailyWordIncidentResponse(
     resolvedAt,
     resolutionNote,
 )
+
+private fun DailyWordIncidentEmailOperations.toResponse() = DailyWordIncidentEmailOperationsResponse(
+    from,
+    to,
+    generatedAt,
+    DailyWordIncidentEmailSummaryResponse(summary.pending, summary.processing, summary.retryWait, summary.sent, summary.dead),
+    deliveries.map { it.toResponse() },
+    page,
+    size,
+    totalElements,
+    totalPages,
+    hasNext,
+)
+
+private fun DailyWordIncidentEmailOutboxEntity.toResponse() = DailyWordIncidentEmailDeliveryResponse(
+    id = id,
+    incidentId = incident.id,
+    incidentDate = incident.wordDate,
+    incidentType = incident.type,
+    incidentSeverity = incident.severity,
+    notificationVersion = notificationVersion,
+    maskedRecipient = maskEmail(recipientEmail),
+    status = status,
+    attemptCount = attemptCount,
+    nextAttemptAt = nextAttemptAt,
+    errorSummary = errorMessage?.let(::sanitizeErrorForAdmin),
+    sentAt = sentAt,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    requeueAllowed = status == DailyWordIncidentEmailStatus.DEAD || status == DailyWordIncidentEmailStatus.RETRY_WAIT,
+)
+
+private fun maskEmail(value: String): String {
+    val local = value.substringBefore('@')
+    val domain = value.substringAfter('@', "hidden")
+    return "${local.take(2).ifBlank { "*" }}***@$domain"
+}
+
+private fun sanitizeErrorForAdmin(value: String): String = value
+    .replace(Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), "[email]")
+    .replace(Regex("(?i)(bearer|token|api[-_ ]?key|password)\\s*[:=]?\\s*[^\\s,;]+"), "$1=[redacted]")
+    .take(300)
 
 private fun DailyWordOperationsSummary.toResponse() = DailyWordOperationsSummaryResponse(
     from = from,

@@ -1426,6 +1426,7 @@ GET  /api/v1/admin/daily-words?from={date}&to={date}&status={status}
 GET  /api/v1/admin/daily-words/generation-jobs
 GET  /api/v1/admin/daily-words/operations-summary?from={date}&to={date}
 GET  /api/v1/admin/daily-words/incidents?status={status}
+GET  /api/v1/admin/daily-words/incident-email-deliveries?status={status}&incidentId={uuid}&from={instant}&to={instant}&page={page}&size={size}
 POST /api/v1/admin/daily-words/{date}/generation-jobs
 POST /api/v1/admin/daily-words/{date}/manual-drafts
 PUT  /api/v1/admin/daily-words/{dailyWordId}
@@ -1433,6 +1434,7 @@ POST /api/v1/admin/daily-words/{dailyWordId}/publish
 POST /api/v1/admin/daily-words/{dailyWordId}/reject
 POST /api/v1/admin/daily-words/incidents/{incidentId}/acknowledge
 POST /api/v1/admin/daily-words/incidents/{incidentId}/resolve
+POST /api/v1/admin/daily-words/incident-email-deliveries/{deliveryId}/requeue
 ```
 
 모든 변경 요청은 `operationId`와 5자 이상의 `reason`을 받습니다. 생성 작업은 날짜별 활성 작업 유일 제약과 lease로 중복 실행을 막고, 게시 시 `verse_id`와 성경 원문을 다시 검증합니다. 수동 초안은 실제 DB 성경 절만 선택하며 활성 AI 작업을 취소하고 늦은 AI 결과의 덮어쓰기를 거부합니다.
@@ -1440,6 +1442,8 @@ POST /api/v1/admin/daily-words/incidents/{incidentId}/resolve
 운영 요약은 최대 93일 범위에서 오늘·내일 게시 준비 상태, 콘텐츠 및 생성 작업 상태, 게시가 필요한 날짜, AI 토큰과 예상 비용 합계를 반환합니다. 생성 작업은 행 전체가 아니라 DB 상태 집계로 계산합니다.
 
 게시 누락, 생성 최종 실패, 생성 지연은 날짜·유형별 운영 사건으로 자동 감지됩니다. 같은 심각도의 반복 감지는 이메일 outbox를 중복 생성하지 않고, 재발 또는 심각도 상승 때만 새 알림 버전을 예약합니다.
+
+이메일 outbox 조회는 기본 7일, 최대 31일과 페이지 크기 최대 100으로 제한합니다. 수신자는 마스킹하고 외부 오류의 이메일·인증 문자열을 제거합니다. `DEAD`, `RETRY_WAIT` delivery만 수동 재처리할 수 있으며 `operationId`와 5~500자 사유를 감사 로그에 저장합니다.
 
 ### 14.3 Challenge Management
 

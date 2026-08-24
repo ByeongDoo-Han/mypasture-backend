@@ -7,6 +7,7 @@ import com.example.mypasture.daily_word.domain.DailyWordIncidentStatus
 import com.example.mypasture.daily_word.domain.DailyWordIncidentType
 import jakarta.persistence.LockModeType
 import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Page
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
@@ -64,4 +65,57 @@ interface DailyWordIncidentEmailOutboxRepository : JpaRepository<DailyWordIncide
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select delivery from DailyWordIncidentEmailOutboxEntity delivery where delivery.id = :id")
     fun findByIdForUpdate(id: UUID): DailyWordIncidentEmailOutboxEntity?
+
+    @Query(
+        """
+        select delivery from DailyWordIncidentEmailOutboxEntity delivery
+        join fetch delivery.incident
+        where delivery.id = :id
+        """,
+    )
+    fun findByIdWithIncident(id: UUID): DailyWordIncidentEmailOutboxEntity?
+
+    @Query(
+        value = """
+        select delivery from DailyWordIncidentEmailOutboxEntity delivery
+        join fetch delivery.incident incident
+        where (:status is null or delivery.status = :status)
+          and (:incidentId is null or incident.id = :incidentId)
+          and delivery.createdAt >= :from
+          and delivery.createdAt < :to
+        order by delivery.createdAt desc
+        """,
+        countQuery = """
+        select count(delivery) from DailyWordIncidentEmailOutboxEntity delivery
+        where (:status is null or delivery.status = :status)
+          and (:incidentId is null or delivery.incident.id = :incidentId)
+          and delivery.createdAt >= :from
+          and delivery.createdAt < :to
+        """,
+    )
+    fun findForAdmin(
+        status: DailyWordIncidentEmailStatus?,
+        incidentId: UUID?,
+        from: Instant,
+        to: Instant,
+        pageable: Pageable,
+    ): Page<DailyWordIncidentEmailOutboxEntity>
+
+    @Query(
+        """
+        select delivery.status as status, count(delivery) as total
+        from DailyWordIncidentEmailOutboxEntity delivery
+        where (:incidentId is null or delivery.incident.id = :incidentId)
+          and delivery.createdAt >= :from
+          and delivery.createdAt < :to
+        group by delivery.status
+        """,
+    )
+    fun summarizeForAdmin(incidentId: UUID?, from: Instant, to: Instant): List<DailyWordIncidentEmailStatusCount>
+}
+
+/** 이메일 delivery 상태별 집계 쿼리 결과입니다. */
+interface DailyWordIncidentEmailStatusCount {
+    val status: DailyWordIncidentEmailStatus
+    val total: Long
 }

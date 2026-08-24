@@ -141,6 +141,19 @@ class DailyWordIncidentEmailOutboxEntity(
         return true
     }
 
+    /** 운영자가 실패 원인을 조치한 뒤 실패 delivery 한 건을 즉시 재시도 가능 상태로 돌립니다. */
+    fun requeue(now: Instant) {
+        check(status == DailyWordIncidentEmailStatus.DEAD || status == DailyWordIncidentEmailStatus.RETRY_WAIT) {
+            "최종 실패 또는 재시도 대기 중인 이메일만 수동 재처리할 수 있습니다."
+        }
+        status = DailyWordIncidentEmailStatus.PENDING
+        nextAttemptAt = now
+        leaseToken = null
+        leaseUntil = null
+        sentAt = null
+        updatedAt = now
+    }
+
     private fun clearLease(now: Instant) {
         leaseToken = null
         leaseUntil = null

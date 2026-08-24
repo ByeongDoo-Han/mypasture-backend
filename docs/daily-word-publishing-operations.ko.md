@@ -94,3 +94,17 @@ DAILY_WORD_INCIDENT_EMAIL_MAX_ATTEMPTS=5
 6. 검수 목록에서 원문을 다시 확인해 게시한 뒤 사건이 자동 해결되는지 확인합니다.
 
 게시된 콘텐츠는 수동 초안으로 교체할 수 없습니다. 기존 미게시 콘텐츠 교체는 관리자 화면에서 명시적으로 선택해야 하며, 모든 요청은 `operationId`, 관리자 ID, 사유와 요청 지문을 감사 로그에 남깁니다.
+
+## 이메일 outbox 운영
+
+`GET /api/v1/admin/daily-words/incident-email-deliveries`는 기본 최근 7일, 최대 31일 범위에서 이메일 delivery를 페이지로 조회합니다. `status`, `incidentId`, `from`, `to`, `page`, `size`를 필터로 사용할 수 있습니다.
+
+- `PENDING`: worker가 곧 선점할 작업
+- `PROCESSING`: worker가 lease를 가진 작업이며 관리자 재처리 금지
+- `RETRY_WAIT`: 일시 실패 후 자동 재시도 대기, 원인 조치 후 수동 재처리 가능
+- `SENT`: 발송 완료, 재처리 금지
+- `DEAD`: 최대 자동 시도 후 최종 실패, 원인 조치 후 수동 재처리 가능
+
+응답은 전체 이메일 대신 마스킹된 수신자만 제공합니다. 외부 provider 오류에 포함된 이메일, token, API key, password 형태는 저장 전 제거하고 API에서도 다시 제거합니다.
+
+`POST /api/v1/admin/daily-words/incident-email-deliveries/{deliveryId}/requeue`는 `DEAD` 또는 `RETRY_WAIT`만 즉시 `PENDING`으로 전환합니다. 기존 `attemptCount`를 초기화하지 않으므로 실패 이력은 유지됩니다. 같은 `operationId`와 요청 내용 재전송은 멱등하게 처리하며, 다른 요청에 ID를 재사용하면 충돌을 반환합니다. SMTP 자격증명이나 provider 장애를 해결하지 않은 채 반복 재처리하지 않습니다.

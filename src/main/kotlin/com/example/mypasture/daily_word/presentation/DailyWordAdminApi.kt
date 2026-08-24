@@ -7,6 +7,7 @@ import com.example.mypasture.daily_word.domain.DailyWordStatus
 import com.example.mypasture.daily_word.domain.DailyWordIncidentSeverity
 import com.example.mypasture.daily_word.domain.DailyWordIncidentStatus
 import com.example.mypasture.daily_word.domain.DailyWordIncidentType
+import com.example.mypasture.daily_word.domain.DailyWordIncidentEmailStatus
 import com.example.mypasture.daily_word.application.DailyWordReadinessStatus
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.format.annotation.DateTimeFormat
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -40,6 +42,23 @@ interface DailyWordAdminApi {
 
     @GetMapping("/incidents")
     fun incidents(@RequestParam status: DailyWordIncidentStatus?): List<DailyWordIncidentResponse>
+
+    @GetMapping("/incident-email-deliveries")
+    fun incidentEmailDeliveries(
+        @RequestParam status: DailyWordIncidentEmailStatus?,
+        @RequestParam incidentId: UUID?,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) from: Instant?,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) to: Instant?,
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "20") size: Int,
+    ): DailyWordIncidentEmailOperationsResponse
+
+    @PostMapping("/incident-email-deliveries/{id}/requeue")
+    fun requeueIncidentEmail(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: ReviewDailyWordRequest,
+    ): DailyWordIncidentEmailDeliveryResponse
 
     @PostMapping("/{date}/manual-drafts")
     fun createManualDraft(
@@ -173,6 +192,48 @@ data class DailyWordIncidentResponse(
     val resolvedBy: UUID?,
     val resolvedAt: Instant?,
     val resolutionNote: String?,
+)
+
+/** 이메일 outbox 페이지, 상태 집계와 필터 범위를 반환합니다. */
+data class DailyWordIncidentEmailOperationsResponse(
+    val from: Instant,
+    val to: Instant,
+    val generatedAt: Instant,
+    val summary: DailyWordIncidentEmailSummaryResponse,
+    val deliveries: List<DailyWordIncidentEmailDeliveryResponse>,
+    val page: Int,
+    val size: Int,
+    val totalElements: Long,
+    val totalPages: Int,
+    val hasNext: Boolean,
+)
+
+/** 이메일 outbox 상태별 건수입니다. */
+data class DailyWordIncidentEmailSummaryResponse(
+    val pending: Long,
+    val processing: Long,
+    val retryWait: Long,
+    val sent: Long,
+    val dead: Long,
+)
+
+/** 수신자와 외부 오류를 제한적으로 노출하는 관리자용 이메일 delivery 응답입니다. */
+data class DailyWordIncidentEmailDeliveryResponse(
+    val id: UUID,
+    val incidentId: UUID,
+    val incidentDate: LocalDate,
+    val incidentType: DailyWordIncidentType,
+    val incidentSeverity: DailyWordIncidentSeverity,
+    val notificationVersion: Int,
+    val maskedRecipient: String,
+    val status: DailyWordIncidentEmailStatus,
+    val attemptCount: Int,
+    val nextAttemptAt: Instant,
+    val errorSummary: String?,
+    val sentAt: Instant?,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+    val requeueAllowed: Boolean,
 )
 
 /** 관리자 대시보드가 사용하는 게시 준비, 작업 건전성과 비용 집계 응답입니다. */

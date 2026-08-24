@@ -8,6 +8,7 @@ import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.bible.infrastructure.BibleBookEntityRepository
 import com.example.mypasture.bible.infrastructure.BibleVerseEntityRepository
 import com.example.mypasture.daily_word.application.DailyWordIncidentService
+import com.example.mypasture.daily_word.application.DailyWordIncidentEmailOperationsService
 import com.example.mypasture.daily_word.application.DailyWordManualOverrideException
 import com.example.mypasture.daily_word.application.DailyWordService
 import com.example.mypasture.daily_word.domain.DailyWordEntity
@@ -15,6 +16,9 @@ import com.example.mypasture.daily_word.domain.DailyWordGenerationJobStatus
 import com.example.mypasture.daily_word.domain.DailyWordIncidentSeverity
 import com.example.mypasture.daily_word.domain.DailyWordIncidentStatus
 import com.example.mypasture.daily_word.domain.DailyWordIncidentType
+import com.example.mypasture.daily_word.domain.DailyWordIncidentEntity
+import com.example.mypasture.daily_word.domain.DailyWordIncidentEmailOutboxEntity
+import com.example.mypasture.daily_word.domain.DailyWordIncidentEmailStatus
 import com.example.mypasture.daily_word.domain.DailyWordSource
 import com.example.mypasture.daily_word.domain.DailyWordStatus
 import com.example.mypasture.daily_word.domain.GeneratedDailyWord
@@ -30,7 +34,12 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.test.context.TestPropertySource
+import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.get
+import com.example.mypasture.auth.infrastructure.JwtTokenProvider
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -39,6 +48,7 @@ import java.util.UUID
 
 /** 오늘의 말씀 자동 장애 감지와 수동 복구의 멱등성·경쟁 조건을 검증합니다. */
 @SpringBootTest
+@AutoConfigureMockMvc
 @TestPropertySource(
     properties = [
         "app.bible.kor1910-html-path=src/test/resources/bible/kor_html",
@@ -50,6 +60,7 @@ import java.util.UUID
 class DailyWordRecoveryTests(
     @Autowired private val dailyWordService: DailyWordService,
     @Autowired private val incidentService: DailyWordIncidentService,
+    @Autowired private val incidentEmailService: DailyWordIncidentEmailOperationsService,
     @Autowired private val wordRepository: DailyWordRepository,
     @Autowired private val jobRepository: DailyWordGenerationJobRepository,
     @Autowired private val incidentRepository: DailyWordIncidentRepository,
@@ -58,6 +69,8 @@ class DailyWordRecoveryTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val bookRepository: BibleBookEntityRepository,
     @Autowired private val verseRepository: BibleVerseEntityRepository,
+    @Autowired private val jwtTokenProvider: JwtTokenProvider,
+    @Autowired private val mockMvc: MockMvc,
 ) {
     private lateinit var admin: UserEntity
 
@@ -138,6 +151,99 @@ class DailyWordRecoveryTests(
         wordRepository.saveAndFlush(publishedWord(targetDate, sourceCitation()))
         incidentService.scan(criticalAt.plusSeconds(60))
         assertEquals(DailyWordIncidentStatus.RESOLVED, incidentRepository.findById(incident.id).orElseThrow().status)
+    }
+
+    @Test
+    fun `admin email operations mask recipients filter pages and summarize all statuses`() {
+        val incident = incident()
+        val dead = delivery(incident, "secret.owner@example.com", DailyWordIncidentEmailStatus.DEAD)
+        delivery(incident, "sent.owner@example.com", DailyWordIncidentEmailStatus.SENT)
+        val token = jwtTokenProvider.issueAccessToken(admin).accessToken
+
+        val result = mockMvc.get("/api/v1/admin/daily-words/incident-email-deliveries") {
+            header("Authorization", "Bearer $token")
+            param("status", "DEAD")
+            param("page", "0")
+            param("size", "10")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.summary.dead") { value(1) }
+            jsonPath("$.summary.sent") { value(1) }
+            jsonPath("$.totalElements") { value(1) }
+            jsonPath("$.deliveries[0].id") { value(dead.id.toString()) }
+            jsonPath("$.deliveries[0].maskedRecipient") { value("se***@example.com") }
+            jsonPath("$.deliveries[0].errorSummary") { value("SMTP failed for [email] token=[redacted]") }
+            jsonPath("$.deliveries[0].requeueAllowed") { value(true) }
+        }.andReturn()
+
+        check(!result.response.contentAsString.contains("secret.owner@example.com"))
+        check(!result.response.contentAsString.contains("super-secret"))
+    }
+
+    @Test
+    fun `dead email requeue is idempotent and preserves attempt history`() {
+        val dead = delivery(incident(), "retry.owner@example.com", DailyWordIncidentEmailStatus.DEAD)
+        val operationId = UUID.randomUUID()
+
+        val first = incidentEmailService.requeue(dead.id, admin.id, operationId, "SMTP 설정을 수정한 뒤 다시 발송합니다")
+        val retried = incidentEmailService.requeue(dead.id, admin.id, operationId, "SMTP 설정을 수정한 뒤 다시 발송합니다")
+
+        assertEquals(first.id, retried.id)
+        assertEquals(DailyWordIncidentEmailStatus.PENDING, retried.status)
+        assertEquals(1, retried.attemptCount)
+        assertEquals(1, auditRepository.findAll().count { it.action == AdminAuditAction.DAILY_WORD_INCIDENT_EMAIL_REQUEUED })
+    }
+
+    @Test
+    fun `sent or processing email cannot be manually requeued and ordinary user is forbidden`() {
+        val sent = delivery(incident(), "sent.again@example.com", DailyWordIncidentEmailStatus.SENT)
+        assertThrows(IllegalStateException::class.java) {
+            incidentEmailService.requeue(sent.id, admin.id, UUID.randomUUID(), "이미 성공한 메일 재처리를 거부합니다")
+        }
+
+        mockMvc.get("/api/v1/admin/daily-words/incident-email-deliveries") {
+            with(user("member").roles("USER"))
+        }.andExpect { status { isForbidden() } }
+    }
+
+    private fun incident() = incidentRepository.saveAndFlush(
+        DailyWordIncidentEntity(
+            wordDate = LocalDate.now(SEOUL),
+            type = DailyWordIncidentType.PUBLISHING_MISSING,
+            severity = DailyWordIncidentSeverity.CRITICAL,
+            message = "오늘의 말씀 게시본이 없습니다.",
+            firstDetectedAt = Instant.now(),
+            lastDetectedAt = Instant.now(),
+        ),
+    )
+
+    private fun delivery(
+        incident: DailyWordIncidentEntity,
+        recipient: String,
+        targetStatus: DailyWordIncidentEmailStatus,
+    ): DailyWordIncidentEmailOutboxEntity {
+        val now = Instant.now()
+        val delivery = DailyWordIncidentEmailOutboxEntity(
+            incident = incident,
+            notificationVersion = incident.notificationVersion,
+            recipientUserId = admin.id,
+            recipientEmail = recipient,
+            nextAttemptAt = now,
+            createdAt = now,
+            updatedAt = now,
+        )
+        if (targetStatus != DailyWordIncidentEmailStatus.PENDING) {
+            val token = UUID.randomUUID()
+            delivery.claim(token, now.plusSeconds(60), now)
+            when (targetStatus) {
+                DailyWordIncidentEmailStatus.PROCESSING -> Unit
+                DailyWordIncidentEmailStatus.RETRY_WAIT -> delivery.fail(token, "SMTP temporary failure", now.plusSeconds(300), now)
+                DailyWordIncidentEmailStatus.SENT -> delivery.complete(token, now)
+                DailyWordIncidentEmailStatus.DEAD -> delivery.fail(token, "SMTP failed for $recipient token=super-secret", null, now)
+                DailyWordIncidentEmailStatus.PENDING -> Unit
+            }
+        }
+        return outboxRepository.saveAndFlush(delivery)
     }
 
     private fun createManual(date: LocalDate, operationId: UUID) = dailyWordService.createManualDraft(

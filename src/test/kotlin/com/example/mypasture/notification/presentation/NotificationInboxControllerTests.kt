@@ -184,7 +184,9 @@ class NotificationInboxControllerTests(
     }
 
     private fun createBroadcasts(count: Int) = (1..count).map { offset ->
-        val publishedAt = Instant.now().minusSeconds((count - offset + 1L) * 60)
+        val publishedAt = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
+            .minusSeconds((count - offset + 1L) * 60)
+            .plusNanos(123_456_789)
         val word = word(BASE_WORD_DATE.plusDays(offset.toLong()))
         word.publish(UUID.randomUUID(), publishedAt)
         wordRepository.saveAndFlush(word)

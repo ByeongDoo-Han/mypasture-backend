@@ -19,6 +19,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.Base64
 import java.util.UUID
 
@@ -113,7 +114,7 @@ class NotificationInboxService(
     }
 
     private fun encodeCursor(broadcast: NotificationBroadcastEntity): String = Base64.getUrlEncoder().withoutPadding()
-        .encodeToString("${broadcast.publishedAt}|${broadcast.id}".toByteArray(StandardCharsets.UTF_8))
+        .encodeToString("${broadcast.publishedAt.truncatedTo(ChronoUnit.MICROS)}|${broadcast.id}".toByteArray(StandardCharsets.UTF_8))
 
     private fun decodeCursor(cursor: String): NotificationCursor = try {
         val decoded = String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8)

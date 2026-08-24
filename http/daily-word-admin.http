@@ -125,3 +125,29 @@ Content-Type: application/json
   "operationId": "{{$uuid}}",
   "reason": "수동 초안을 검수하여 게시했고 사용자 노출을 확인했습니다"
 }
+
+### 14. 최근 7일 이메일 outbox 상태와 첫 페이지 조회
+GET {{baseUrl}}/api/v1/admin/daily-words/incident-email-deliveries?page=0&size=20
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+> {%
+  if (response.body.deliveries.length > 0) {
+    client.global.set("dailyWordEmailDeliveryId", response.body.deliveries[0].id);
+  }
+%}
+
+### 15. 최종 실패 delivery만 조회
+GET {{baseUrl}}/api/v1/admin/daily-words/incident-email-deliveries?status=DEAD&page=0&size=20
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+### 16. 원인 조치 후 단건 수동 재처리
+POST {{baseUrl}}/api/v1/admin/daily-words/incident-email-deliveries/{{dailyWordEmailDeliveryId}}/requeue
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "operationId": "{{$uuid}}",
+  "reason": "SMTP 설정을 수정하고 테스트 발송을 확인했습니다"
+}

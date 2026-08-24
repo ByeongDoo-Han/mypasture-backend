@@ -157,7 +157,7 @@ class DailyWordIncidentEmailWorker(
     private fun fail(claim: EmailClaim, message: String) = transactionTemplate.executeWithoutResult {
         val delivery = repository.findByIdForUpdate(claim.id) ?: return@executeWithoutResult
         val retryAt = if (claim.attempt < properties.incidentEmailMaxAttempts) Instant.now(clock).plus(properties.incidentEmailRetryDelay) else null
-        delivery.fail(claim.token, message, retryAt, Instant.now(clock))
+        delivery.fail(claim.token, sanitizeDeliveryError(message), retryAt, Instant.now(clock))
         logger.warn("Daily word incident email failed recipientHash={} attempt={}", sha256(claim.recipient), claim.attempt)
     }
 
@@ -175,3 +175,9 @@ class DailyWordIncidentEmailWorker(
 private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
     .digest(value.toByteArray(StandardCharsets.UTF_8))
     .joinToString("") { "%02x".format(it) }
+
+/** 외부 provider 오류에 포함될 수 있는 이메일과 인증 문자열을 저장 전에 제거합니다. */
+private fun sanitizeDeliveryError(value: String): String = value
+    .replace(Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), "[email]")
+    .replace(Regex("(?i)(bearer|token|api[-_ ]?key|password)\\s*[:=]?\\s*[^\\s,;]+"), "$1=[redacted]")
+    .take(500)

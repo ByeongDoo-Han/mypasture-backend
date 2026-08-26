@@ -147,7 +147,12 @@ docker build --tag "${IMAGE}" .
 docker push "${IMAGE}"
 ```
 
-`container_image`을 이 값으로 바꾸고 `deploy_runtime = true`로 전환한 뒤 plan을 검토하고 apply합니다.
+`container_image`을 이 값으로 바꾸고 첫 단계에서는 migration Job만 생성합니다. API와 worker는 아직 생성하지 않습니다.
+
+```hcl
+deploy_runtime  = true
+deploy_services = false
+```
 
 ```bash
 terraform plan -out=runtime.tfplan
@@ -161,6 +166,19 @@ terraform apply runtime.tfplan
 ```bash
 gcloud run jobs execute mypasture-staging-migration \
   --region=asia-northeast3 --wait
+```
+
+마이그레이션 성공 후에만 API와 worker를 생성합니다. API와 worker에서는 Flyway가 비활성화되고 migration Job에서만 실행됩니다.
+
+```hcl
+deploy_runtime  = true
+deploy_services = true
+```
+
+```bash
+terraform plan -out=services.tfplan
+terraform apply services.tfplan
+
 gcloud run services describe mypasture-staging-worker --region=asia-northeast3
 gcloud run services describe mypasture-staging-api --region=asia-northeast3
 curl --fail https://STAGING_API/actuator/health/readiness

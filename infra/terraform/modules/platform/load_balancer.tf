@@ -1,5 +1,5 @@
 locals {
-  load_balancer_enabled = var.enable_external_load_balancer && var.deploy_runtime
+  load_balancer_enabled = var.enable_external_load_balancer && var.deploy_runtime && var.deploy_services
 }
 
 check "load_balancer_inputs" {

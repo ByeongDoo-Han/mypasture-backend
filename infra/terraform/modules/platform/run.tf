@@ -8,6 +8,7 @@ locals {
   common_environment = merge(
     {
       SPRING_PROFILES_ACTIVE             = "prod,gcp"
+      SPRING_FLYWAY_ENABLED              = "false"
       DATABASE_URL                       = "jdbc:postgresql://${google_sql_database_instance.main.private_ip_address}:5432/${var.database_name}?sslmode=require"
       DATABASE_USERNAME                  = var.database_username
       DB_POOL_MAX_SIZE                   = "10"
@@ -72,6 +73,7 @@ locals {
 
   migration_environment = merge(local.common_environment, {
     APP_MIGRATION_ONLY                    = "true"
+    SPRING_FLYWAY_ENABLED                 = "true"
     DATABASE_USERNAME                     = var.migration_database_username
     APP_WORKER_ENABLED                    = "false"
     DAILY_WORD_GENERATION_ENABLED         = "false"
@@ -84,7 +86,7 @@ locals {
 }
 
 resource "google_cloud_run_v2_service" "api" {
-  count = var.deploy_runtime ? 1 : 0
+  count = var.deploy_runtime && var.deploy_services ? 1 : 0
 
   project             = var.project_id
   name                = "${local.resource_prefix}-api"
@@ -199,7 +201,7 @@ resource "google_cloud_run_v2_service" "api" {
 }
 
 resource "google_cloud_run_v2_service_iam_member" "public_api" {
-  count = var.deploy_runtime ? 1 : 0
+  count = var.deploy_runtime && var.deploy_services ? 1 : 0
 
   project  = var.project_id
   location = var.region
@@ -209,7 +211,7 @@ resource "google_cloud_run_v2_service_iam_member" "public_api" {
 }
 
 resource "google_cloud_run_v2_service" "worker" {
-  count = var.deploy_runtime && var.worker_enabled ? 1 : 0
+  count = var.deploy_runtime && var.deploy_services && var.worker_enabled ? 1 : 0
 
   project             = var.project_id
   name                = "${local.resource_prefix}-worker"

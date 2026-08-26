@@ -42,6 +42,12 @@ variable "deploy_runtime" {
   default     = false
 }
 
+variable "deploy_services" {
+  description = "Create API and worker only after the migration job succeeds."
+  type        = bool
+  default     = false
+}
+
 variable "database_name" {
   description = "Application database name."
   type        = string

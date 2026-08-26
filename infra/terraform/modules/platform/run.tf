@@ -1,4 +1,10 @@
 locals {
+  redis_host = var.redis_backend == "vm" ? google_compute_address.redis[0].address : google_redis_instance.main[0].host
+  redis_port = var.redis_backend == "vm" ? 6379 : google_redis_instance.main[0].port
+  redis_ca_secret_version = var.redis_backend == "vm" ? "latest" : tostring(
+    google_secret_manager_secret_version.redis_ca[0].version
+  )
+
   common_environment = merge(
     {
       SPRING_PROFILES_ACTIVE             = "prod,gcp"
@@ -6,8 +12,8 @@ locals {
       DATABASE_USERNAME                  = var.database_username
       DB_POOL_MAX_SIZE                   = "10"
       DB_POOL_MIN_IDLE                   = "2"
-      REDIS_HOST                         = google_redis_instance.main.host
-      REDIS_PORT                         = tostring(google_redis_instance.main.port)
+      REDIS_HOST                         = local.redis_host
+      REDIS_PORT                         = tostring(local.redis_port)
       REDIS_SSL_ENABLED                  = "true"
       REDIS_CA_CERT_PATH                 = "file:/var/run/secrets/redis/server-ca.pem"
       APP_CORS_ALLOWED_ORIGINS           = var.cors_allowed_origins
@@ -171,7 +177,7 @@ resource "google_cloud_run_v2_service" "api" {
       secret {
         secret = google_secret_manager_secret.runtime["redis-ca-certificate"].secret_id
         items {
-          version = google_secret_manager_secret_version.redis_ca.version
+          version = local.redis_ca_secret_version
           path    = "server-ca.pem"
         }
       }
@@ -300,7 +306,7 @@ resource "google_cloud_run_v2_service" "worker" {
       secret {
         secret = google_secret_manager_secret.runtime["redis-ca-certificate"].secret_id
         items {
-          version = google_secret_manager_secret_version.redis_ca.version
+          version = local.redis_ca_secret_version
           path    = "server-ca.pem"
         }
       }
@@ -396,7 +402,7 @@ resource "google_cloud_run_v2_job" "migration" {
         secret {
           secret = google_secret_manager_secret.runtime["redis-ca-certificate"].secret_id
           items {
-            version = google_secret_manager_secret_version.redis_ca.version
+            version = local.redis_ca_secret_version
             path    = "server-ca.pem"
           }
         }

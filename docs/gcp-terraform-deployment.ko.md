@@ -10,7 +10,7 @@ My Pasture 서버는 같은 불변 Docker 이미지를 세 가지 실행 단위�
 | Cloud Run worker | 알림, 이메일 outbox, 오늘의 말씀, 정리 작업 | 최소/최대 1개 |
 | Cloud Run migration Job | Flyway와 JPA schema 검증 후 종료 | 배포마다 먼저 1회 실행 |
 
-운영 데이터는 Cloud SQL PostgreSQL 17과 pgvector, Memorystore Redis에 저장합니다. 운영 API는 외부 HTTPS Load Balancer와 Cloud Armor를 통과하고 Cloud Run 기본 URL 직접 접근은 차단합니다.
+운영 데이터는 Cloud SQL PostgreSQL 17과 pgvector에 저장합니다. Redis 캐시, rate limit, Pub/Sub은 외부 IP가 없는 Compute Engine VM의 TLS Docker Redis를 사용합니다. 운영 API는 외부 HTTPS Load Balancer와 Cloud Armor를 통과하고 Cloud Run 기본 URL 직접 접근은 차단합니다.
 
 ## 2. 배포 전 준비
 
@@ -58,6 +58,8 @@ terraform init \
 
 `terraform.tfvars.example`을 `terraform.tfvars`로 복사하고 실제 프로젝트 식별자와 공개 설정만 채웁니다. 비밀번호, OpenAI key, Firebase JSON은 넣지 않습니다.
 
+`monthly_budget_amount`와 `budget_currency_code`는 결제 계정의 통화와 일치해야 합니다. 한국 원화 결제 계정 예시는 `150000`, `KRW`이며 50%, 80%, 100% 도달 시 결제 계정 기본 수신자에게 알림을 보냅니다. 예산은 지출을 자동 차단하지 않으므로 별도의 할당량과 서비스 한도도 함께 운영합니다.
+
 첫 apply에서는 다음 값을 유지합니다.
 
 ```hcl
@@ -71,7 +73,7 @@ terraform plan -out=bootstrap.tfplan
 terraform apply bootstrap.tfplan
 ```
 
-이 단계는 VPC, Cloud SQL, Redis, Artifact Registry, secret container, runtime service account를 생성하지만 아직 Cloud Run을 만들지 않습니다.
+이 단계는 VPC, Cloud SQL, Redis VM, Artifact Registry, secret container, runtime service account를 생성하지만 아직 Cloud Run을 만들지 않습니다.
 
 ## 5. DB 계정과 extension 준비
 
@@ -110,15 +112,21 @@ Terraform output의 `secret_ids` 목록을 기준으로 값을 등록합니다. 
 gcloud secrets versions add SECRET_ID --data-file=-
 ```
 
-입력 후 `Ctrl+D`로 종료합니다. 필수 secret은 application/migration DB password, Redis AUTH string, JWT secret, OpenAI API key, AI privacy hash secret, SMTP 계정, email verification HMAC secret입니다. FCM을 켠 경우 Firebase service account JSON도 필요합니다.
+입력 후 `Ctrl+D`로 종료합니다. 필수 secret은 application/migration DB password, Redis password, JWT secret, OpenAI API key, AI privacy hash secret, SMTP 계정, email verification HMAC secret입니다. FCM을 켠 경우 Firebase service account JSON도 필요합니다.
 
-Redis AUTH string은 화면에 출력하지 않고 바로 secret version으로 전달할 수 있습니다.
+Redis VM에는 별도 CA, 서버 인증서, 서버 개인키가 필요합니다. 서버 인증서 SAN에는 Terraform의 `redis_internal_ip`와 VM 이름을 포함합니다. 비밀번호와 개인키는 명령 인자, Terraform 변수, Terraform state에 넣지 않고 Secret Manager version으로 등록합니다.
 
-```bash
-gcloud redis instances get-auth-string mypasture-staging-redis \
-  --region=asia-northeast3 --format='value(authString)' \
-  | gcloud secrets versions add SECRET_ID --data-file=-
+전환 시에는 먼저 다음처럼 두 Redis를 병행 운영합니다.
+
+```hcl
+redis_backend      = "vm"
+provision_redis_vm = true
+retain_memorystore = true
 ```
+
+IAP를 통한 VM 내부 검증에서 Docker 컨테이너 실행, TLS 인증서 검증, AUTH `PING`이 성공하고 애플리케이션 E2E를 통과한 후에만 별도 승인으로 `retain_memorystore = false`를 적용합니다.
+
+VM 방식은 관리형 서비스보다 저렴할 수 있지만 OS/Redis 보안 업데이트, 디스크 스냅샷, 인증서 교체, 장애 복구가 운영자 책임입니다. 현재 구성은 단일 노드이고 AOF가 VM 부팅 디스크에 있으므로 VM 재부팅에는 유지되지만 VM 재생성에는 보존되지 않습니다. Redis를 영속 데이터의 원본으로 사용하지 말고, 운영 전 별도 데이터 디스크 또는 스냅샷 복구 절차를 검증합니다.
 
 Firebase JSON은 파일로 등록한 후 원본 파일의 로컬 보관 정책을 확인합니다.
 
@@ -195,7 +203,8 @@ GitHub의 `staging`, `prod` Environment에 다음 variables를 등록합니다.
 - [ ] Artifact Registry 취약점 검사 결과 검토
 - [ ] secret version과 runtime IAM 최소 권한 확인
 - [ ] Cloud SQL HA, backup, PITR, deletion protection 확인
-- [ ] Redis TLS/AUTH와 private network 연결 확인
+- [ ] Redis VM 외부 IP 없음, TLS/AUTH, private network와 IAP 접근만 허용 확인
+- [ ] Redis AOF, 디스크 스냅샷, 인증서 교체와 VM 재생성 복구 훈련 확인
 - [ ] 관리형 인증서 `ACTIVE`, `run.app` 직접 접근 차단 확인
 - [ ] Cloud Armor와 애플리케이션 rate limit 동시 검증
 - [ ] 5xx 알림, 예산 알림, 로그 민감정보 마스킹 확인

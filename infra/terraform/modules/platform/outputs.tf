@@ -24,8 +24,8 @@ output "database_private_ip" {
 }
 
 output "redis_host" {
-  description = "Private Memorystore endpoint."
-  value       = google_redis_instance.main.host
+  description = "Private Redis endpoint selected by redis_backend."
+  value       = local.redis_host
 }
 
 output "runtime_secret_ids" {

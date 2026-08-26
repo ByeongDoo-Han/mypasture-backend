@@ -13,6 +13,9 @@ module "platform" {
   database_availability_type      = "REGIONAL"
   database_disk_size_gb           = 50
   database_deletion_protection    = true
+  redis_backend                   = var.redis_backend
+  provision_redis_vm              = var.provision_redis_vm
+  retain_memorystore              = var.retain_memorystore
   redis_tier                      = "STANDARD_HA"
   redis_memory_size_gb            = 1
   api_min_instances               = 1
@@ -31,7 +34,8 @@ module "platform" {
   kakao_app_ids                   = var.kakao_app_ids
   alert_email                     = var.alert_email
   billing_account_id              = var.billing_account_id
-  monthly_budget_usd              = 500
+  monthly_budget_amount           = var.monthly_budget_amount
+  budget_currency_code            = var.budget_currency_code
 }
 
 output "deployment" {

@@ -10,6 +10,10 @@ module "platform" {
   database_edition                = "ENTERPRISE"
   database_availability_type      = "ZONAL"
   database_deletion_protection    = false
+  redis_backend                   = var.redis_backend
+  provision_redis_vm              = var.provision_redis_vm
+  retain_memorystore              = var.retain_memorystore
+  redis_container_image           = "mirror.gcr.io/library/redis:7.2-alpine"
   redis_tier                      = "BASIC"
   redis_memory_size_gb            = 1
   api_min_instances               = 0
@@ -28,7 +32,8 @@ module "platform" {
   kakao_app_ids                   = var.kakao_app_ids
   alert_email                     = var.alert_email
   billing_account_id              = var.billing_account_id
-  monthly_budget_usd              = 100
+  monthly_budget_amount           = var.monthly_budget_amount
+  budget_currency_code            = var.budget_currency_code
 }
 
 output "deployment" {

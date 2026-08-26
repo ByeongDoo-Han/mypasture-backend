@@ -20,6 +20,29 @@ variable "deploy_runtime" {
   default     = false
 }
 
+variable "redis_backend" {
+  description = "Redis backend selected for staging migration."
+  type        = string
+  default     = "vm"
+
+  validation {
+    condition     = contains(["vm", "memorystore"], var.redis_backend)
+    error_message = "redis_backend must be vm or memorystore."
+  }
+}
+
+variable "provision_redis_vm" {
+  description = "Create the Redis VM before switching the active backend."
+  type        = bool
+  default     = false
+}
+
+variable "retain_memorystore" {
+  description = "Retain Memorystore until the VM backend passes migration checks."
+  type        = bool
+  default     = false
+}
+
 variable "cors_allowed_origins" {
   description = "Exact staging browser origins."
   type        = string
@@ -57,6 +80,18 @@ variable "billing_account_id" {
   description = "Optional billing account ID."
   type        = string
   default     = ""
+}
+
+variable "monthly_budget_amount" {
+  description = "Monthly budget amount in the billing account currency."
+  type        = number
+  default     = 150000
+}
+
+variable "budget_currency_code" {
+  description = "ISO 4217 currency code matching the billing account currency."
+  type        = string
+  default     = "KRW"
 }
 
 variable "google_oauth_web_client_ids" {

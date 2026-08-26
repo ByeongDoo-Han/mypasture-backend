@@ -98,6 +98,29 @@ variable "redis_tier" {
   type        = string
 }
 
+variable "redis_backend" {
+  description = "Redis runtime backend. Use vm for a private Docker host or memorystore during migration."
+  type        = string
+  default     = "vm"
+
+  validation {
+    condition     = contains(["vm", "memorystore"], var.redis_backend)
+    error_message = "redis_backend must be vm or memorystore."
+  }
+}
+
+variable "provision_redis_vm" {
+  description = "Create the Redis VM alongside Memorystore for a verified migration."
+  type        = bool
+  default     = false
+}
+
+variable "retain_memorystore" {
+  description = "Temporarily retain Memorystore after the active backend switches to the VM."
+  type        = bool
+  default     = false
+}
+
 variable "redis_memory_size_gb" {
   description = "Memorystore capacity in GiB."
   type        = number
@@ -108,6 +131,36 @@ variable "redis_auth_enabled" {
   description = "Enable Redis AUTH. The generated value must be copied to Secret Manager outside Terraform."
   type        = bool
   default     = true
+}
+
+variable "redis_zone" {
+  description = "Compute Engine zone for the Redis VM."
+  type        = string
+  default     = "asia-northeast3-a"
+}
+
+variable "redis_machine_type" {
+  description = "Compute Engine machine type for the Redis VM."
+  type        = string
+  default     = "e2-small"
+}
+
+variable "redis_internal_ip" {
+  description = "Reserved private IPv4 address for the Redis VM."
+  type        = string
+  default     = "10.42.0.10"
+}
+
+variable "redis_container_image" {
+  description = "Redis image pulled by Container-Optimized OS. Pin a digest for production."
+  type        = string
+  default     = "mirror.gcr.io/library/redis@sha256:ccd6aa8d45ff3f033d6fa15b8cc1a50579f65c89f38cf9bb607a954c4f2128ed"
+}
+
+variable "redis_boot_disk_size_gb" {
+  description = "Redis VM boot disk size. AOF data is stored on the stateful partition."
+  type        = number
+  default     = 20
 }
 
 variable "api_min_instances" {
@@ -217,8 +270,14 @@ variable "billing_account_id" {
   default     = ""
 }
 
-variable "monthly_budget_usd" {
-  description = "Monthly budget alert amount in USD."
+variable "monthly_budget_amount" {
+  description = "Monthly budget alert amount in the billing account currency."
   type        = number
   default     = 100
+}
+
+variable "budget_currency_code" {
+  description = "ISO 4217 currency code matching the billing account currency."
+  type        = string
+  default     = "USD"
 }

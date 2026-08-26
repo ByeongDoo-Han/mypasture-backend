@@ -25,6 +25,29 @@ variable "deploy_runtime" {
   default     = false
 }
 
+variable "redis_backend" {
+  description = "Redis backend selected for production."
+  type        = string
+  default     = "vm"
+
+  validation {
+    condition     = contains(["vm", "memorystore"], var.redis_backend)
+    error_message = "redis_backend must be vm or memorystore."
+  }
+}
+
+variable "provision_redis_vm" {
+  description = "Create the Redis VM before switching the active backend."
+  type        = bool
+  default     = false
+}
+
+variable "retain_memorystore" {
+  description = "Retain Memorystore until the VM backend passes migration checks."
+  type        = bool
+  default     = false
+}
+
 variable "cors_allowed_origins" {
   description = "Exact production browser origins."
   type        = string
@@ -59,6 +82,18 @@ variable "alert_email" {
 variable "billing_account_id" {
   description = "Billing account ID used for budget alerts."
   type        = string
+}
+
+variable "monthly_budget_amount" {
+  description = "Monthly budget amount in the billing account currency."
+  type        = number
+  default     = 500000
+}
+
+variable "budget_currency_code" {
+  description = "ISO 4217 currency code matching the billing account currency."
+  type        = string
+  default     = "KRW"
 }
 
 variable "google_oauth_web_client_ids" {

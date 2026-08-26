@@ -59,8 +59,8 @@ resource "google_billing_budget" "monthly" {
 
   amount {
     specified_amount {
-      currency_code = "USD"
-      units         = var.monthly_budget_usd
+      currency_code = var.budget_currency_code
+      units         = var.monthly_budget_amount
     }
   }
 
@@ -74,11 +74,6 @@ resource "google_billing_budget" "monthly" {
 
   threshold_rules {
     threshold_percent = 1.0
-  }
-
-  all_updates_rule {
-    monitoring_notification_channels = google_monitoring_notification_channel.email[*].name
-    disable_default_iam_recipients   = false
   }
 
   depends_on = [google_project_service.required]

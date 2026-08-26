@@ -18,14 +18,16 @@ locals {
 
   secret_ids = setunion(
     toset(values(local.migration_secret_env)),
-    toset(["redis-ca-certificate"]),
+    toset(["redis-ca-certificate", "redis-server-certificate", "redis-server-key"]),
     var.firebase_enabled ? toset(["firebase-service-account"]) : toset([]),
   )
 }
 
 resource "google_secret_manager_secret_version" "redis_ca" {
+  count = local.memorystore_enabled ? 1 : 0
+
   secret      = google_secret_manager_secret.runtime["redis-ca-certificate"].id
-  secret_data = google_redis_instance.main.server_ca_certs[0].cert
+  secret_data = google_redis_instance.main[0].server_ca_certs[0].cert
 }
 
 resource "google_secret_manager_secret" "runtime" {
@@ -42,7 +44,10 @@ resource "google_secret_manager_secret" "runtime" {
 }
 
 resource "google_secret_manager_secret_iam_member" "runtime" {
-  for_each = google_secret_manager_secret.runtime
+  for_each = {
+    for id, secret in google_secret_manager_secret.runtime : id => secret
+    if !contains(["redis-server-certificate", "redis-server-key"], id)
+  }
 
   project   = var.project_id
   secret_id = each.value.secret_id

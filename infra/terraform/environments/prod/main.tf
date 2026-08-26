@@ -6,6 +6,7 @@ module "platform" {
   environment                     = "prod"
   container_image                 = var.container_image
   deploy_runtime                  = var.deploy_runtime
+  deploy_services                 = var.deploy_services
   enable_external_load_balancer   = true
   api_domain                      = var.api_domain
   database_tier                   = "db-custom-2-7680"

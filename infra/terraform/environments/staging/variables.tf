@@ -20,6 +20,12 @@ variable "deploy_runtime" {
   default     = false
 }
 
+variable "deploy_services" {
+  description = "Enable API and worker only after the migration job succeeds."
+  type        = bool
+  default     = false
+}
+
 variable "redis_backend" {
   description = "Redis backend selected for staging migration."
   type        = string

@@ -12,7 +12,7 @@ resource "google_monitoring_notification_channel" "email" {
 }
 
 resource "google_monitoring_alert_policy" "api_errors" {
-  count = var.deploy_runtime ? 1 : 0
+  count = var.deploy_runtime && var.deploy_services ? 1 : 0
 
   project      = var.project_id
   display_name = "${local.resource_prefix} API 5xx rate"

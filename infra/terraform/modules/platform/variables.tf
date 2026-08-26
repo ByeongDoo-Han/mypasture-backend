@@ -42,6 +42,12 @@ variable "deploy_runtime" {
   default     = false
 }
 
+variable "deploy_services" {
+  description = "Create API and worker only after the migration job succeeds."
+  type        = bool
+  default     = false
+}
+
 variable "database_name" {
   description = "Application database name."
   type        = string
@@ -214,6 +220,39 @@ variable "smtp_port" {
 variable "mail_from" {
   description = "Verified sender address."
   type        = string
+}
+
+variable "email_verification_delivery" {
+  description = "Email verification delivery adapter. Use log only outside production."
+  type        = string
+  default     = "smtp"
+
+  validation {
+    condition     = contains(["smtp", "log"], var.email_verification_delivery)
+    error_message = "email_verification_delivery must be smtp or log."
+  }
+}
+
+variable "password_reset_delivery" {
+  description = "Password reset delivery adapter. Use log only outside production."
+  type        = string
+  default     = "smtp"
+
+  validation {
+    condition     = contains(["smtp", "log"], var.password_reset_delivery)
+    error_message = "password_reset_delivery must be smtp or log."
+  }
+}
+
+variable "daily_word_incident_email_delivery" {
+  description = "Daily word incident email adapter."
+  type        = string
+  default     = "smtp"
+
+  validation {
+    condition     = contains(["smtp", "log", "disabled"], var.daily_word_incident_email_delivery)
+    error_message = "daily_word_incident_email_delivery must be smtp, log, or disabled."
+  }
 }
 
 variable "firebase_enabled" {

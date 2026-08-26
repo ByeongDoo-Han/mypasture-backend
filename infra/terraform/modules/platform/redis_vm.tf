@@ -134,6 +134,11 @@ resource "google_compute_instance" "redis" {
     SECRET_PREFIX="${local.resource_prefix}"
     REDIS_IMAGE="${var.redis_container_image}"
     REDIS_ROOT="/mnt/stateful_partition/redis"
+    SERVERLESS_SUBNET_CIDR="${google_compute_subnetwork.serverless.ip_cidr_range}"
+
+    # COS blocks inbound traffic at the host firewall even when the VPC rule allows it.
+    iptables -C INPUT -p tcp -s "$SERVERLESS_SUBNET_CIDR" --dport 6379 -j ACCEPT 2>/dev/null \
+      || iptables -I INPUT 4 -p tcp -s "$SERVERLESS_SUBNET_CIDR" --dport 6379 -j ACCEPT
 
     metadata_token() {
       curl --fail --silent \
@@ -219,6 +224,7 @@ resource "google_compute_instance" "redis" {
       --mount type=bind,source="$REDIS_ROOT/tls",target=/tls,readonly \
       --mount type=bind,source="$REDIS_ROOT/config/redis.conf",target=/usr/local/etc/redis/redis.conf,readonly \
       "$REDIS_IMAGE" redis-server /usr/local/etc/redis/redis.conf
+
   EOT
 
   shielded_instance_config {

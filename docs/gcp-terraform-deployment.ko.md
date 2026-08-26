@@ -114,6 +114,8 @@ gcloud secrets versions add SECRET_ID --data-file=-
 
 입력 후 `Ctrl+D`로 종료합니다. 필수 secret은 application/migration DB password, Redis password, JWT secret, OpenAI API key, AI privacy hash secret, SMTP 계정, email verification HMAC secret입니다. FCM을 켠 경우 Firebase service account JSON도 필요합니다.
 
+실제 SMTP가 준비되지 않은 staging은 이메일 인증과 비밀번호 재설정을 `log`, 오늘의 말씀 장애 메일을 `disabled`로 배포합니다. 이 경우 SMTP username/password version은 필요하지 않으며, production은 기본값인 `smtp`와 검증된 발신자 및 실제 Secret version을 사용해야 합니다. 로그 전달은 인증 코드를 애플리케이션 로그에 남기므로 staging 접근 권한도 운영자에게만 제한합니다.
+
 Redis VM에는 별도 CA, 서버 인증서, 서버 개인키가 필요합니다. 서버 인증서 SAN에는 Terraform의 `redis_internal_ip`와 VM 이름을 포함합니다. 비밀번호와 개인키는 명령 인자, Terraform 변수, Terraform state에 넣지 않고 Secret Manager version으로 등록합니다.
 
 전환 시에는 먼저 다음처럼 두 Redis를 병행 운영합니다.
@@ -145,7 +147,12 @@ docker build --tag "${IMAGE}" .
 docker push "${IMAGE}"
 ```
 
-`container_image`을 이 값으로 바꾸고 `deploy_runtime = true`로 전환한 뒤 plan을 검토하고 apply합니다.
+`container_image`을 이 값으로 바꾸고 첫 단계에서는 migration Job만 생성합니다. API와 worker는 아직 생성하지 않습니다.
+
+```hcl
+deploy_runtime  = true
+deploy_services = false
+```
 
 ```bash
 terraform plan -out=runtime.tfplan
@@ -159,6 +166,19 @@ terraform apply runtime.tfplan
 ```bash
 gcloud run jobs execute mypasture-staging-migration \
   --region=asia-northeast3 --wait
+```
+
+마이그레이션 성공 후에만 API와 worker를 생성합니다. API와 worker에서는 Flyway가 비활성화되고 migration Job에서만 실행됩니다.
+
+```hcl
+deploy_runtime  = true
+deploy_services = true
+```
+
+```bash
+terraform plan -out=services.tfplan
+terraform apply services.tfplan
+
 gcloud run services describe mypasture-staging-worker --region=asia-northeast3
 gcloud run services describe mypasture-staging-api --region=asia-northeast3
 curl --fail https://STAGING_API/actuator/health/readiness

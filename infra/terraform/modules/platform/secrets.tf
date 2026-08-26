@@ -5,10 +5,12 @@ locals {
       JWT_SECRET                     = "jwt-secret"
       OPENAI_API_KEY                 = "openai-api-key"
       AI_PRIVACY_HASH_SECRET         = "ai-privacy-hash-secret"
-      SMTP_USERNAME                  = "smtp-username"
-      SMTP_PASSWORD                  = "smtp-password"
       EMAIL_VERIFICATION_HMAC_SECRET = "email-verification-hmac-secret"
     },
+    local.smtp_enabled ? {
+      SMTP_USERNAME = "smtp-username"
+      SMTP_PASSWORD = "smtp-password"
+    } : {},
     var.redis_auth_enabled ? { REDIS_PASSWORD = "redis-password" } : {},
   )
 
@@ -17,8 +19,15 @@ locals {
   })
 
   secret_ids = setunion(
+    toset(values(local.required_secret_env)),
     toset(values(local.migration_secret_env)),
-    toset(["redis-ca-certificate", "redis-server-certificate", "redis-server-key"]),
+    toset([
+      "redis-ca-certificate",
+      "redis-server-certificate",
+      "redis-server-key",
+      "smtp-username",
+      "smtp-password",
+    ]),
     var.firebase_enabled ? toset(["firebase-service-account"]) : toset([]),
   )
 }

@@ -1,6 +1,7 @@
 project_id           = "mypasture-staging"
 container_image      = "asia-northeast3-docker.pkg.dev/mypasture-staging/mypasture-staging-backend/api:COMMIT_SHA"
 deploy_runtime       = false
+deploy_services      = false
 redis_backend        = "vm"
 provision_redis_vm   = true
 retain_memorystore   = false

@@ -5,6 +5,7 @@ import com.example.mypasture.auth.infrastructure.RestAccessDeniedHandler
 import com.example.mypasture.auth.infrastructure.RestAuthenticationEntryPoint
 import com.example.mypasture.common.error.RequestCorrelationFilter
 import jakarta.servlet.DispatcherType
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpHeaders
@@ -46,6 +47,7 @@ class SecurityConfig {
     }
 
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     fun securityFilterChain(
         http: HttpSecurity,
         jwtAuthenticationFilter: JwtAuthenticationFilter,
@@ -75,7 +77,7 @@ class SecurityConfig {
                     ),
                 ).permitAll()
                 it.requestMatchers(
-                    "/actuator/health",
+                    "/actuator/health/**",
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",

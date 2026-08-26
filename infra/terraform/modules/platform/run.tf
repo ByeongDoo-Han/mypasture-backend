@@ -75,6 +75,7 @@ locals {
     APP_MIGRATION_ONLY                    = "true"
     SPRING_FLYWAY_ENABLED                 = "true"
     DATABASE_USERNAME                     = var.migration_database_username
+    QUIET_TIME_REALTIME_REDIS_ENABLED     = "false"
     APP_WORKER_ENABLED                    = "false"
     DAILY_WORD_GENERATION_ENABLED         = "false"
     DAILY_WORD_INCIDENT_DETECTION_ENABLED = "false"

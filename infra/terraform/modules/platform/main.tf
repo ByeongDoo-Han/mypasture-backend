@@ -1,20 +1,23 @@
 locals {
-  resource_prefix = "mypasture-${var.environment}"
+  resource_prefix     = "mypasture-${var.environment}"
+  memorystore_enabled = var.redis_backend == "memorystore" || var.retain_memorystore
 
-  required_services = toset([
-    "artifactregistry.googleapis.com",
-    "billingbudgets.googleapis.com",
-    "cloudresourcemanager.googleapis.com",
-    "compute.googleapis.com",
-    "iam.googleapis.com",
-    "monitoring.googleapis.com",
-    "redis.googleapis.com",
-    "run.googleapis.com",
-    "secretmanager.googleapis.com",
-    "serviceusage.googleapis.com",
-    "servicenetworking.googleapis.com",
-    "sqladmin.googleapis.com",
-  ])
+  required_services = setunion(
+    toset([
+      "artifactregistry.googleapis.com",
+      "billingbudgets.googleapis.com",
+      "cloudresourcemanager.googleapis.com",
+      "compute.googleapis.com",
+      "iam.googleapis.com",
+      "monitoring.googleapis.com",
+      "run.googleapis.com",
+      "secretmanager.googleapis.com",
+      "serviceusage.googleapis.com",
+      "servicenetworking.googleapis.com",
+      "sqladmin.googleapis.com",
+    ]),
+    local.memorystore_enabled ? toset(["redis.googleapis.com"]) : toset([]),
+  )
 }
 
 data "google_project" "current" {

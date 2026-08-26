@@ -59,6 +59,8 @@ resource "google_sql_database" "application" {
 }
 
 resource "google_redis_instance" "main" {
+  count = local.memorystore_enabled ? 1 : 0
+
   project                 = var.project_id
   name                    = "${local.resource_prefix}-redis"
   display_name            = "My Pasture ${var.environment} Redis"

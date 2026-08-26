@@ -1,11 +1,16 @@
 project_id           = "mypasture-staging"
 container_image      = "asia-northeast3-docker.pkg.dev/mypasture-staging/mypasture-staging-backend/api:COMMIT_SHA"
 deploy_runtime       = false
+redis_backend        = "vm"
+provision_redis_vm   = true
+retain_memorystore   = false
 cors_allowed_origins = "https://staging.mypasture.app"
 smtp_host            = "smtp.example.com"
 mail_from            = "no-reply@staging.mypasture.app"
 alert_email          = "operations@example.com"
 billing_account_id   = ""
+monthly_budget_amount = 150000
+budget_currency_code  = "KRW"
 
 firebase_enabled    = false
 firebase_project_id = ""

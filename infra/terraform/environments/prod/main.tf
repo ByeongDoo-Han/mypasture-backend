@@ -9,6 +9,7 @@ module "platform" {
   enable_external_load_balancer   = true
   api_domain                      = var.api_domain
   database_tier                   = "db-custom-2-7680"
+  database_edition                = "ENTERPRISE"
   database_availability_type      = "REGIONAL"
   database_disk_size_gb           = 50
   database_deletion_protection    = true

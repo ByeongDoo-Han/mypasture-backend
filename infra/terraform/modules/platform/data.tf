@@ -7,6 +7,7 @@ resource "google_sql_database_instance" "main" {
 
   settings {
     tier              = var.database_tier
+    edition           = var.database_edition
     availability_type = var.database_availability_type
     disk_type         = "PD_SSD"
     disk_size         = var.database_disk_size_gb

@@ -1,11 +1,17 @@
 locals {
   resource_prefix     = "mypasture-${var.environment}"
   memorystore_enabled = var.redis_backend == "memorystore" || var.retain_memorystore
+  smtp_enabled = contains([
+    var.email_verification_delivery,
+    var.password_reset_delivery,
+    var.daily_word_incident_email_delivery,
+  ], "smtp")
 
   required_services = setunion(
     toset([
       "artifactregistry.googleapis.com",
       "billingbudgets.googleapis.com",
+      "cloudbuild.googleapis.com",
       "cloudresourcemanager.googleapis.com",
       "compute.googleapis.com",
       "iam.googleapis.com",

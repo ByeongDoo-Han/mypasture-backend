@@ -19,9 +19,9 @@ locals {
       APP_CORS_ALLOWED_ORIGINS           = var.cors_allowed_origins
       KOR1910_HTML_PATH                  = "/tmp/bible-import-disabled"
       BIBLE_IMPORT_ENABLED               = "false"
-      EMAIL_VERIFICATION_DELIVERY        = "smtp"
+      EMAIL_VERIFICATION_DELIVERY        = var.email_verification_delivery
       EMAIL_VERIFICATION_FROM            = var.mail_from
-      PASSWORD_RESET_DELIVERY            = "smtp"
+      PASSWORD_RESET_DELIVERY            = var.password_reset_delivery
       PASSWORD_RESET_URL                 = var.password_reset_url
       PASSWORD_RESET_FROM                = var.mail_from
       SMTP_HOST                          = var.smtp_host
@@ -40,6 +40,10 @@ locals {
       KAKAO_APP_IDS                      = var.kakao_app_ids
     },
     var.redis_auth_enabled ? {} : { REDIS_PASSWORD = "" },
+    local.smtp_enabled ? {} : {
+      SMTP_USERNAME = ""
+      SMTP_PASSWORD = ""
+    },
   )
 
   api_environment = merge(local.common_environment, {
@@ -57,7 +61,7 @@ locals {
     DAILY_WORD_GENERATION_ENABLED         = "true"
     DAILY_WORD_PROVIDER                   = "openai"
     DAILY_WORD_INCIDENT_DETECTION_ENABLED = "true"
-    DAILY_WORD_INCIDENT_EMAIL_DELIVERY    = "smtp"
+    DAILY_WORD_INCIDENT_EMAIL_DELIVERY    = var.daily_word_incident_email_delivery
     DAILY_WORD_INCIDENT_EMAIL_FROM        = var.mail_from
     AI_EMBEDDING_INDEXING_ENABLED         = tostring(var.worker_enable_ai_jobs)
     AI_COMMENTARY_GENERATION_ENABLED      = tostring(var.worker_enable_ai_jobs)

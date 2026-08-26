@@ -7,6 +7,7 @@ module "platform" {
   container_image                 = var.container_image
   deploy_runtime                  = var.deploy_runtime
   database_tier                   = "db-custom-1-3840"
+  database_edition                = "ENTERPRISE"
   database_availability_type      = "ZONAL"
   database_deletion_protection    = false
   redis_tier                      = "BASIC"

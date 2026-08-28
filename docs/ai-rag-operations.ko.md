@@ -24,6 +24,25 @@ AI 목자 요청은 모바일에 저장된 성경이 아니라 서버의 검증�
 전체 절의 index가 준비되기 전에는 일부 데이터만으로 vector 검색하지 않습니다. 로컬은 명시적인 lexical
 fallback을 사용할 수 있지만 운영 기본값은 fallback 비활성화이며 `AI_GROUNDING_NOT_FOUND`를 반환합니다.
 
+## 성경 적재
+
+Docker 이미지에는 `data/kor_html`의 1910 성경 원문이 `/app/data/kor_html`로 포함됩니다. Cloud Run
+`migration` Job은 Flyway 완료 후 원문을 파싱해 다음 기준으로 멱등 적재합니다.
+
+- 성경 66권
+- 전체 1,189장
+- 원문이 있는 1,188장과 30,991절
+- 원본 파일이 없는 베드로전서 5장은 정책에 따라 빈 장(`EMPTY`)으로 저장
+
+같은 원문을 다시 실행하면 장별 checksum을 비교해 변경된 장만 동기화하고 기존 `verseId`를 유지합니다.
+여러 Job이 겹치면 PostgreSQL advisory lock으로 한 실행만 적재합니다. 원문에서 기존 절이 사라져 스크랩이나
+말씀 카드 참조가 깨질 수 있는 변경은 자동 삭제하지 않고 실패시킵니다.
+
+```bash
+gcloud run jobs execute mypasture-staging-migration \
+  --region=asia-northeast3 --wait
+```
+
 ## 최초 index 생성
 
 성경 DB 적재가 끝난 뒤 실제 OpenAI API Key를 설정합니다.
@@ -33,12 +52,25 @@ AI_MOCK_ENABLED=false
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 AI_EMBEDDING_DIMENSIONS=1536
 AI_EMBEDDING_BATCH_SIZE=100
-AI_EMBEDDING_INDEXING_ENABLED=true
+AI_EMBEDDING_BACKFILL_ENABLED=true
+AI_EMBEDDING_BACKFILL_MAX_BATCHES=1000
 AI_RAG_LEXICAL_FALLBACK_ENABLED=false
 ```
 
-`AI_EMBEDDING_INDEXING_ENABLED=true`는 백필을 담당하는 서버 한 대에만 설정합니다. worker는 PostgreSQL
-advisory lock을 획득하고 한 번에 설정된 수만큼 처리하므로 재시작과 중복 실행에 안전합니다.
+운영 최초 백필은 상시 worker가 아니라 비용 발생 시점을 명확히 구분한 Cloud Run Job으로 실행합니다.
+
+```bash
+gcloud run jobs execute mypasture-staging-embedding-backfill \
+  --region=asia-northeast3 --wait
+```
+
+Job은 PostgreSQL advisory lock을 획득하고 `AI_EMBEDDING_BATCH_SIZE`만큼 반복 처리합니다. 각 절의 본문
+hash, embedding 모델과 차원을 기준으로 이미 처리된 행을 건너뛰므로 재실행에 안전합니다. 다만 OpenAI 응답
+직후 DB 저장 전에 프로세스가 종료되면 해당 batch API 비용은 한 번 더 발생할 수 있습니다.
+
+빈 성경 DB, 잠금 충돌, 진행 정체, `AI_EMBEDDING_BACKFILL_MAX_BATCHES` 초과는 성공처럼 보이지 않도록 Job을
+실패시킵니다. 최종 로그에는 처리 절 수, prompt token과 예상 비용 합계를 남깁니다. 1910 성경 전체의 정확한
+비용은 실제 tokenizer 결과로 확정되며 `text-embedding-3-small` 입력 단가와 저장된 token 수로 계산합니다.
 
 관리자 API로 진행률과 수동 단일 batch를 확인할 수 있습니다.
 
@@ -47,7 +79,8 @@ GET  /api/v1/admin/ai/embeddings
 POST /api/v1/admin/ai/embeddings/index-next-batch
 ```
 
-`indexedVerses == totalVerses`, `remainingVerses == 0`이 되면 자동 worker 설정을 다시 `false`로 변경합니다.
+`indexedVerses == totalVerses`, `remainingVerses == 0`이어야 전체 vector 검색이 활성화됩니다. 이후 원문 수정분을
+상시 자동 보충할 필요가 있을 때만 `worker_enable_embedding_indexing=true`를 별도 승인해 켭니다.
 본문이 수정되면 DB trigger가 해당 절 embedding을 삭제하며, 다음 worker batch가 다시 생성합니다.
 
 ## 모델과 차원 변경

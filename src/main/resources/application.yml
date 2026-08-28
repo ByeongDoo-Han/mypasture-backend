@@ -107,6 +107,9 @@ app:
     embedding-batch-size: ${AI_EMBEDDING_BATCH_SIZE:100}
     embedding-indexing-enabled: ${AI_EMBEDDING_INDEXING_ENABLED:false}
     embedding-index-poll-delay-ms: ${AI_EMBEDDING_INDEX_POLL_DELAY_MS:10000}
+    embedding-backfill-enabled: ${AI_EMBEDDING_BACKFILL_ENABLED:false}
+    embedding-backfill-max-batches: ${AI_EMBEDDING_BACKFILL_MAX_BATCHES:1000}
+    embedding-backfill-delay-ms: ${AI_EMBEDDING_BACKFILL_DELAY_MS:100}
     embedding-input-cost-per-million: ${AI_EMBEDDING_INPUT_COST_PER_MILLION:0.02}
     api-key: ${OPENAI_API_KEY:test}
     base-url: ${OPENAI_BASE_URL:https://api.openai.com}

@@ -2,13 +2,14 @@
 
 ## 1. 현재 배포 모델
 
-My Pasture 서버는 같은 불변 Docker 이미지를 세 가지 실행 단위에서 사용합니다.
+My Pasture 서버는 같은 불변 Docker 이미지를 네 가지 실행 단위에서 사용합니다.
 
 | 실행 단위 | 역할 | 확장 정책 |
 |---|---|---|
 | Cloud Run API | REST, AI streaming, QT SSE | 요청량에 따라 자동 확장 |
 | Cloud Run worker | 알림, 이메일 outbox, 오늘의 말씀, 정리 작업 | 최소/최대 1개 |
-| Cloud Run migration Job | Flyway와 JPA schema 검증 후 종료 | 배포마다 먼저 1회 실행 |
+| Cloud Run migration Job | Flyway, JPA schema 검증, 1910 성경 멱등 적재 후 종료 | 배포마다 먼저 1회 실행 |
+| Cloud Run embedding-backfill Job | 전체 성경 절의 pgvector embedding 생성 | 최초 적재 또는 모델 변경 시 명시적으로 실행 |
 
 운영 데이터는 Cloud SQL PostgreSQL 17과 pgvector에 저장합니다. Redis 캐시, rate limit, Pub/Sub은 외부 IP가 없는 Compute Engine VM의 TLS Docker Redis를 사용합니다. 운영 API는 외부 HTTPS Load Balancer와 Cloud Armor를 통과하고 Cloud Run 기본 URL 직접 접근은 차단합니다.
 
@@ -161,14 +162,16 @@ terraform apply runtime.tfplan
 
 운영 환경은 output의 `load_balancer_ip`를 `api.mypasture.app` A record로 연결합니다. DNS 전파 후 Google managed certificate가 `ACTIVE`가 되었는지 확인해야 합니다.
 
-## 8. 최초 migration과 검증
+## 8. 최초 migration, 성경 적재와 검증
 
 ```bash
 gcloud run jobs execute mypasture-staging-migration \
   --region=asia-northeast3 --wait
 ```
 
-마이그레이션 성공 후에만 API와 worker를 생성합니다. API와 worker에서는 Flyway가 비활성화되고 migration Job에서만 실행됩니다.
+마이그레이션 Job은 schema 변경 후 이미지에 포함된 1910 성경을 동기화합니다. 완료 로그에서 `books=66`,
+`chapters=1189`, `verses=30991`, `empty=1`을 확인합니다. 마이그레이션 성공 후에만 API와 worker를 생성합니다.
+API와 worker에서는 Flyway와 성경 import가 비활성화됩니다.
 
 ```hcl
 deploy_runtime  = true
@@ -183,6 +186,18 @@ gcloud run services describe mypasture-staging-worker --region=asia-northeast3
 gcloud run services describe mypasture-staging-api --region=asia-northeast3
 curl --fail https://STAGING_API/actuator/health/readiness
 ```
+
+OpenAI embedding 비용을 승인한 뒤 전용 Job을 한 번 실행합니다. migration Job과 달리 이 단계는 일반 배포마다
+자동 실행하지 않습니다.
+
+```bash
+gcloud run jobs execute mypasture-staging-embedding-backfill \
+  --region=asia-northeast3 --wait
+```
+
+관리자 API `GET /api/v1/admin/ai/embeddings`에서 `indexedVerses == totalVerses`와
+`remainingVerses == 0`을 확인한 다음 자유 질문 RAG를 검증합니다. Job은 동일 모델·차원·본문 hash가 이미
+저장된 절을 건너뛰며, 로그에 embedding token과 예상 비용 합계를 남깁니다.
 
 로그인, JWT 갱신, 이메일, FCM 실제 기기, AI RAG streaming, QT 참여와 SSE를 순서대로 검증합니다.
 
@@ -229,6 +244,8 @@ GitHub의 `staging`, `prod` Environment에 다음 variables를 등록합니다.
 - [ ] Cloud Armor와 애플리케이션 rate limit 동시 검증
 - [ ] 5xx 알림, 예산 알림, 로그 민감정보 마스킹 확인
 - [ ] 실제 기기 FCM/APNs와 SMTP 전달 확인
+- [ ] 성경 66권, 1,189장, 30,991절 적재 및 빈 베드로전서 5장 정책 확인
+- [ ] embedding Job 완료, 전체 index 수와 token 및 예상 비용 확인
 - [ ] AI 비용 제한, timeout, streaming 재연결 확인
 - [ ] 부하 테스트에서 DB connection과 Cloud Run max instance 한도 확인
 - [ ] rollback 및 DB restore 훈련 완료

@@ -35,7 +35,7 @@ class RuntimeRoleIsolationTests(
 
     @Test
     fun `migration role disables the web server`() {
-        assertThat(createMypastureApplication(migrationOnly = true).webApplicationType)
+        assertThat(createMypastureApplication(batchOnly = true).webApplicationType)
             .isEqualTo(WebApplicationType.NONE)
     }
 

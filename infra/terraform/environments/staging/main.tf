@@ -46,6 +46,7 @@ output "deployment" {
     artifact_registry = module.platform.artifact_registry_repository
     api_url           = module.platform.api_url
     migration_job     = module.platform.migration_job_name
+    embedding_job     = module.platform.embedding_backfill_job_name
     secret_ids        = module.platform.runtime_secret_ids
   }
 }

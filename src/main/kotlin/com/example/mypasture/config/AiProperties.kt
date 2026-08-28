@@ -15,6 +15,7 @@ data class AiProperties(
     val embeddingBackfillEnabled: Boolean = false,
     val embeddingBackfillMaxBatches: Int = 1_000,
     val embeddingBackfillDelayMs: Long = 100,
+    val embeddingResponseMaxBytes: Int = 16 * 1024 * 1024,
     val embeddingInputCostPerMillion: BigDecimal,
     val apiKey: String,
     val baseUrl: String,

@@ -52,6 +52,7 @@ AI_MOCK_ENABLED=false
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 AI_EMBEDDING_DIMENSIONS=1536
 AI_EMBEDDING_BATCH_SIZE=100
+AI_EMBEDDING_RESPONSE_MAX_BYTES=16777216
 AI_EMBEDDING_BACKFILL_ENABLED=true
 AI_EMBEDDING_BACKFILL_MAX_BATCHES=1000
 AI_RAG_LEXICAL_FALLBACK_ENABLED=false
@@ -67,6 +68,10 @@ gcloud run jobs execute mypasture-staging-embedding-backfill \
 Job은 PostgreSQL advisory lock을 획득하고 `AI_EMBEDDING_BATCH_SIZE`만큼 반복 처리합니다. 각 절의 본문
 hash, embedding 모델과 차원을 기준으로 이미 처리된 행을 건너뛰므로 재실행에 안전합니다. 다만 OpenAI 응답
 직후 DB 저장 전에 프로세스가 종료되면 해당 batch API 비용은 한 번 더 발생할 수 있습니다.
+
+1,536차원 vector 여러 개를 담은 JSON은 Spring WebClient 기본 256KB를 넘으므로 embedding 전용 client만
+`AI_EMBEDDING_RESPONSE_MAX_BYTES`를 적용합니다. 기본값은 16MB이고 허용 범위는 256KB~64MB입니다.
+전역 WebClient buffer를 높이지 않아 다른 외부 API가 큰 응답으로 서버 메모리를 점유하는 범위를 넓히지 않습니다.
 
 빈 성경 DB, 잠금 충돌, 진행 정체, `AI_EMBEDDING_BACKFILL_MAX_BATCHES` 초과는 성공처럼 보이지 않도록 Job을
 실패시킵니다. 최종 로그에는 처리 절 수, prompt token과 예상 비용 합계를 남깁니다. 1910 성경 전체의 정확한

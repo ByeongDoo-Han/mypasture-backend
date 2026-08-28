@@ -39,6 +39,7 @@ locals {
       GOOGLE_OAUTH_ANDROID_CLIENT_IDS    = var.google_oauth_android_client_ids
       APPLE_OAUTH_CLIENT_IDS             = var.apple_oauth_client_ids
       KAKAO_APP_IDS                      = var.kakao_app_ids
+      AI_EMBEDDING_BACKFILL_ENABLED      = "false"
     },
     var.redis_auth_enabled ? {} : { REDIS_PASSWORD = "" },
     local.smtp_enabled ? {} : {
@@ -64,8 +65,8 @@ locals {
     DAILY_WORD_INCIDENT_DETECTION_ENABLED = "true"
     DAILY_WORD_INCIDENT_EMAIL_DELIVERY    = var.daily_word_incident_email_delivery
     DAILY_WORD_INCIDENT_EMAIL_FROM        = var.mail_from
-    AI_EMBEDDING_INDEXING_ENABLED         = tostring(var.worker_enable_ai_jobs)
-    AI_COMMENTARY_GENERATION_ENABLED      = tostring(var.worker_enable_ai_jobs)
+    AI_EMBEDDING_INDEXING_ENABLED         = tostring(var.worker_enable_embedding_indexing)
+    AI_COMMENTARY_GENERATION_ENABLED      = tostring(var.worker_enable_commentary_generation)
     FIREBASE_ENABLED                      = tostring(var.firebase_enabled)
     FIREBASE_PROJECT_ID                   = var.firebase_project_id
     FIREBASE_CREDENTIALS_PATH             = "/var/run/secrets/firebase/firebase-service-account.json"
@@ -75,12 +76,29 @@ locals {
     APP_MIGRATION_ONLY                    = "true"
     SPRING_FLYWAY_ENABLED                 = "true"
     DATABASE_USERNAME                     = var.migration_database_username
+    KOR1910_HTML_PATH                     = "/app/data/kor_html"
+    BIBLE_IMPORT_ENABLED                  = "true"
     QUIET_TIME_REALTIME_REDIS_ENABLED     = "false"
     APP_WORKER_ENABLED                    = "false"
     DAILY_WORD_GENERATION_ENABLED         = "false"
     DAILY_WORD_INCIDENT_DETECTION_ENABLED = "false"
     DAILY_WORD_INCIDENT_EMAIL_DELIVERY    = "disabled"
     AI_EMBEDDING_INDEXING_ENABLED         = "false"
+    AI_COMMENTARY_GENERATION_ENABLED      = "false"
+    FIREBASE_ENABLED                      = "false"
+  })
+
+  embedding_backfill_environment = merge(local.common_environment, {
+    APP_EMBEDDING_BACKFILL_ONLY           = "true"
+    SPRING_FLYWAY_ENABLED                 = "false"
+    BIBLE_IMPORT_ENABLED                  = "false"
+    QUIET_TIME_REALTIME_REDIS_ENABLED     = "false"
+    APP_WORKER_ENABLED                    = "false"
+    DAILY_WORD_GENERATION_ENABLED         = "false"
+    DAILY_WORD_INCIDENT_DETECTION_ENABLED = "false"
+    DAILY_WORD_INCIDENT_EMAIL_DELIVERY    = "disabled"
+    AI_EMBEDDING_INDEXING_ENABLED         = "false"
+    AI_EMBEDDING_BACKFILL_ENABLED         = "true"
     AI_COMMENTARY_GENERATION_ENABLED      = "false"
     FIREBASE_ENABLED                      = "false"
   })
@@ -356,7 +374,7 @@ resource "google_cloud_run_v2_job" "migration" {
     template {
       service_account = google_service_account.runtime.email
       max_retries     = 1
-      timeout         = "900s"
+      timeout         = "1800s"
 
       vpc_access {
         egress = "PRIVATE_RANGES_ONLY"
@@ -403,6 +421,88 @@ resource "google_cloud_run_v2_job" "migration" {
         }
       }
 
+
+      volumes {
+        name = "redis-ca-certificate"
+        secret {
+          secret = google_secret_manager_secret.runtime["redis-ca-certificate"].secret_id
+          items {
+            version = local.redis_ca_secret_version
+            path    = "server-ca.pem"
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    google_project_service.required,
+    google_secret_manager_secret_iam_member.runtime,
+  ]
+
+  lifecycle {
+    ignore_changes = [template[0].template[0].containers[0].image]
+  }
+}
+
+resource "google_cloud_run_v2_job" "embedding_backfill" {
+  count = var.deploy_runtime ? 1 : 0
+
+  project             = var.project_id
+  name                = "${local.resource_prefix}-embedding-backfill"
+  location            = var.region
+  deletion_protection = var.environment == "prod"
+
+  template {
+    template {
+      service_account = google_service_account.runtime.email
+      max_retries     = 1
+      timeout         = "3600s"
+
+      vpc_access {
+        egress = "PRIVATE_RANGES_ONLY"
+        network_interfaces {
+          network    = google_compute_network.main.id
+          subnetwork = google_compute_subnetwork.serverless.id
+        }
+      }
+
+      containers {
+        image = var.container_image
+
+        resources {
+          limits = {
+            cpu    = "1"
+            memory = "1Gi"
+          }
+        }
+
+        dynamic "env" {
+          for_each = local.embedding_backfill_environment
+          content {
+            name  = env.key
+            value = env.value
+          }
+        }
+
+        dynamic "env" {
+          for_each = local.required_secret_env
+          content {
+            name = env.key
+            value_source {
+              secret_key_ref {
+                secret  = google_secret_manager_secret.runtime[env.value].secret_id
+                version = "latest"
+              }
+            }
+          }
+        }
+
+        volume_mounts {
+          name       = "redis-ca-certificate"
+          mount_path = "/var/run/secrets/redis"
+        }
+      }
 
       volumes {
         name = "redis-ca-certificate"

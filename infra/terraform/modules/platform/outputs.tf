@@ -18,6 +18,11 @@ output "migration_job_name" {
   value       = try(google_cloud_run_v2_job.migration[0].name, "")
 }
 
+output "embedding_backfill_job_name" {
+  description = "One-off Cloud Run job that completes the Bible pgvector index."
+  value       = try(google_cloud_run_v2_job.embedding_backfill[0].name, "")
+}
+
 output "database_private_ip" {
   description = "Cloud SQL private IP used by the runtime."
   value       = google_sql_database_instance.main.private_ip_address

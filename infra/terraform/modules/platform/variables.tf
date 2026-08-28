@@ -185,8 +185,14 @@ variable "worker_enabled" {
   default     = true
 }
 
-variable "worker_enable_ai_jobs" {
-  description = "Enable paid AI indexing/commentary workers after an explicit operational decision."
+variable "worker_enable_embedding_indexing" {
+  description = "Enable continuous paid embedding indexing in the singleton worker. Initial backfill uses a separate job."
+  type        = bool
+  default     = false
+}
+
+variable "worker_enable_commentary_generation" {
+  description = "Enable paid chapter commentary generation in the singleton worker."
   type        = bool
   default     = false
 }

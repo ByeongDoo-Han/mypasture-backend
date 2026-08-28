@@ -26,6 +26,12 @@ import reactor.netty.http.client.HttpClient
 class OpenAiTextEmbeddingAdapter(
     private val properties: AiProperties,
 ) : TextEmbeddingPort {
+    init {
+        require(properties.embeddingResponseMaxBytes in MIN_RESPONSE_BYTES..MAX_RESPONSE_BYTES) {
+            "AI_EMBEDDING_RESPONSE_MAX_BYTES must be between $MIN_RESPONSE_BYTES and $MAX_RESPONSE_BYTES."
+        }
+    }
+
     private val client = WebClient.builder()
         .baseUrl(properties.baseUrl)
         .clientConnector(
@@ -35,6 +41,9 @@ class OpenAiTextEmbeddingAdapter(
                     .responseTimeout(Duration.ofMillis(properties.timeoutMs)),
             ),
         )
+        .codecs { codecs ->
+            codecs.defaultCodecs().maxInMemorySize(properties.embeddingResponseMaxBytes)
+        }
         .build()
 
     override suspend fun embed(inputs: List<String>): TextEmbeddingBatch {
@@ -104,6 +113,8 @@ class OpenAiTextEmbeddingAdapter(
     companion object {
         private const val MAX_ATTEMPTS = 3
         private const val RETRY_DELAY_MS = 400L
+        private const val MIN_RESPONSE_BYTES = 256 * 1024
+        private const val MAX_RESPONSE_BYTES = 64 * 1024 * 1024
     }
 }
 

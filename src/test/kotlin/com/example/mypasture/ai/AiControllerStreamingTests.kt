@@ -1,7 +1,9 @@
 package com.example.mypasture.ai
 
+import com.example.mypasture.config.AiStreamingCoroutineRunner
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.hamcrest.Matchers.containsString
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -16,6 +18,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.async
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.util.UUID
+import kotlin.test.assertTrue
 
 /** JWT 인증된 AI SSE 요청이 ASYNC 재-dispatch 뒤에도 정상 완료되는지 검증합니다. */
 @SpringBootTest
@@ -31,7 +34,17 @@ import java.util.UUID
 class AiControllerStreamingTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val objectMapper: ObjectMapper,
+    @Autowired private val streamingRunner: AiStreamingCoroutineRunner,
 ) {
+    @AfterEach
+    fun awaitStreamingCompletion() {
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (System.nanoTime() < deadline && !streamingRunner.isIdle()) {
+            Thread.sleep(10)
+        }
+        assertTrue(streamingRunner.isIdle(), "AI streaming coroutine did not finish within 5 seconds")
+    }
+
     @Test
     fun `authenticated stream completes with delta citations usage and done events`() {
         val email = "ai-sse-${UUID.randomUUID()}@example.com"

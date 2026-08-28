@@ -16,7 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger
 /** SSE 연결 수를 제한하면서 외부 AI 대기 중 실행 thread를 재사용하는 coroutine runner입니다. */
 @Component
 class AiStreamingCoroutineRunner(properties: AiProperties) {
-    private val permits = Semaphore(properties.streamMaxPoolSize + properties.streamQueueCapacity)
+    private val capacity = properties.streamMaxPoolSize + properties.streamQueueCapacity
+    private val permits = Semaphore(capacity)
     private val dispatcher: ExecutorCoroutineDispatcher = Executors
         .newFixedThreadPool(properties.streamMaxPoolSize, NamedThreadFactory())
         .asCoroutineDispatcher()
@@ -33,6 +34,9 @@ class AiStreamingCoroutineRunner(properties: AiProperties) {
         }
         return true
     }
+
+    /** 스트리밍 통합 테스트와 운영 진단에서 실행 중인 작업이 모두 끝났는지 확인합니다. */
+    internal fun isIdle(): Boolean = permits.availablePermits() == capacity
 
     @PreDestroy
     fun shutdown() {

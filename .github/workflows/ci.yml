@@ -59,6 +59,7 @@ jobs:
       matrix:
         root:
           - bootstrap/state
+          - bootstrap/github-actions
           - environments/staging
           - environments/prod
 

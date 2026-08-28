@@ -1,0 +1,17 @@
+identity_project_id         = "my-pasture-infra"
+github_repository          = "ByeongDoo-Han/mypasture-backend"
+github_repository_id       = "123456789"
+github_repository_owner_id = "12345678"
+
+deployments = {
+  staging = {
+    project_id                    = "mypasture-staging"
+    artifact_repository_id        = "mypasture-staging-backend"
+    runtime_service_account_email = "mypasture-staging-runtime@mypasture-staging.iam.gserviceaccount.com"
+  }
+  prod = {
+    project_id                    = "mypasture-prod"
+    artifact_repository_id        = "mypasture-prod-backend"
+    runtime_service_account_email = "mypasture-prod-runtime@mypasture-prod.iam.gserviceaccount.com"
+  }
+}

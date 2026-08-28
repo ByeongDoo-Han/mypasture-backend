@@ -203,13 +203,33 @@ gcloud run jobs execute mypasture-staging-embedding-backfill \
 
 ## 9. GitHub Actions 배포
 
-Google service account JSON key는 저장하지 않습니다. GitHub OIDC를 신뢰하는 Workload Identity Federation provider와 GitHub Environment 승인 정책을 사용합니다.
+Google service account JSON key는 저장하지 않습니다. `bootstrap/github-actions` Terraform root가 GitHub
+OIDC를 신뢰하는 Workload Identity Federation provider와 환경별 배포 service account를 생성합니다.
+repository 이름과 함께 GitHub의 변경 불가능한 repository ID, owner ID, `refs/heads/main`을 검증하므로
+repository 이름이 다른 계정에서 재사용되어도 배포 권한을 얻을 수 없습니다.
 
 배포 service account의 기본 권한은 다음 범위로 제한합니다.
 
 - `roles/artifactregistry.writer`
-- `roles/run.admin`
+- `roles/run.developer`
 - runtime service account에 대한 `roles/iam.serviceAccountUser`
+
+플랫폼 Terraform에서 Artifact Registry와 runtime service account를 먼저 만든 뒤 OIDC bootstrap을 적용합니다.
+
+```bash
+cd infra/terraform/bootstrap/github-actions
+cp terraform.tfvars.example terraform.tfvars
+
+gh api repos/ByeongDoo-Han/mypasture-backend --jq '.id'
+gh api users/ByeongDoo-Han --jq '.id'
+
+terraform init \
+  -backend-config="bucket=YOUR_STATE_BUCKET" \
+  -backend-config="prefix=mypasture/bootstrap/github-actions"
+terraform plan -out=github-actions.tfplan
+terraform apply github-actions.tfplan
+terraform output github_environment_variables
+```
 
 GitHub의 `staging`, `prod` Environment에 다음 variables를 등록합니다.
 
@@ -222,7 +242,20 @@ GitHub의 `staging`, `prod` Environment에 다음 variables를 등록합니다.
 | `GCP_DEPLOY_SERVICE_ACCOUNT` | 배포 service account email |
 | `API_HEALTH_URL` | 배포 후 검사할 HTTPS API 주소 |
 
-`Deploy Server to GCP` workflow는 이미지를 push하고 migration Job 성공을 확인한 뒤 worker, API 순으로 배포합니다. `prod` GitHub Environment에는 required reviewer를 설정합니다.
+`Deploy Server to GCP` workflow는 `Server CI`가 `main` push를 성공 처리한 경우 staging에 자동 배포합니다.
+production은 `main`에서 수동 실행하며 `prod` GitHub Environment에는 required reviewer를 설정합니다.
+
+워크플로는 Linux amd64 이미지를 commit SHA로 build하고 digest로 고정한 뒤 다음 순서를 지킵니다.
+
+1. 현재 API, worker, migration, embedding Job 이미지를 기록합니다.
+2. migration Job 이미지를 갱신하고 성공할 때까지 기다립니다.
+3. 유료 embedding backfill은 실행하지 않고 Job 이미지만 갱신합니다.
+4. worker와 API를 순서대로 배포합니다.
+5. readiness, 성경 번역본, 66권 목록을 smoke test합니다.
+6. 배포 단계가 실패하면 기록한 이미지로 API, worker와 두 Job을 복구합니다.
+
+DB migration은 자동 롤백되지 않습니다. Flyway 변경은 반드시 이전·신규 애플리케이션이 함께 사용할 수 있는
+expand/contract 방식으로 작성해야 합니다. migration 자체가 실패하면 API와 worker는 갱신되지 않습니다.
 
 ## 10. 롤백과 DB 변경 정책
 

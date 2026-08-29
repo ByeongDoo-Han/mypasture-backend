@@ -29,6 +29,9 @@ interface QuietTimeApi {
     @GetMapping("/offline/{offlineCode}")
     fun offlineSession(@PathVariable offlineCode: String): QuietTimeSessionResponse
 
+    @PostMapping("/join-codes/resolve")
+    fun resolveJoinCode(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: ResolveQuietTimeJoinCodeRequest): QuietTimeSessionResponse
+
     @PostMapping("/offline/{offlineCode}/join")
     fun joinOfflineSession(@PathVariable offlineCode: String, @AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: JoinQuietTimeSessionRequest): JoinQuietTimeSessionResponse
 

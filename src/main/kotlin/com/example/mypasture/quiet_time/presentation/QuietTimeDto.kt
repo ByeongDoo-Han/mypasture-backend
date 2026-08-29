@@ -39,6 +39,12 @@ data class ReissueQuietTimeQrRequest(
     val joinStartsAt: Instant? = null,
 )
 
+/** 사람이 읽을 수 있는 6자리 코드로 QT 초대 정보를 찾는 요청입니다. */
+data class ResolveQuietTimeJoinCodeRequest(
+    @field:NotBlank
+    @field:Size(max = 20)
+    val joinCode: String,
+)
 
 /** QR 스캔 후 오프라인 큐티 세션 참여 요청 DTO입니다. */
 data class JoinQuietTimeSessionRequest(
@@ -103,6 +109,7 @@ data class QuietTimeSessionResponse(
     val meetingStartsAt: Instant,
     val meetingEndsAt: Instant,
     val offlineCode: String,
+    val joinCode: String,
     val inviteUrl: String,
     val joinStartsAt: Instant,
     val expiresAt: Instant,
@@ -174,6 +181,7 @@ fun QuietTimeSessionQrView.toResponse(): QuietTimeSessionResponse =
         meetingStartsAt = session.meetingStartsAt,
         meetingEndsAt = session.meetingEndsAt,
         offlineCode = invitation.offlineCode,
+        joinCode = invitation.joinCode,
         inviteUrl = invitation.inviteUrl,
         joinStartsAt = invitation.joinStartsAt,
         expiresAt = invitation.expiresAt,

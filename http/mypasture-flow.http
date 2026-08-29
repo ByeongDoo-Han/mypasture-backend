@@ -368,12 +368,31 @@ Content-Type: application/json
 client.test("Offline quiet time session has frontend invite URL", function () {
   client.assert(response.status === 200, "Expected HTTP 200");
   client.assert(!!response.body.offlineCode, "Expected offline code");
+  client.assert(/^[A-HJ-NP-Z2-9]{6}$/.test(response.body.joinCode), "Expected six character join code");
   client.assert(response.body.inviteUrl.includes(response.body.offlineCode), "Invite URL should contain offline code");
   client.assert(response.body.qrStatus === "OPEN", "Expected open QR");
   client.assert(!!response.body.expiresAt, "Expected QR expiry");
 });
 client.global.set("quietTimeSessionId", response.body.id);
 client.global.set("offlineCode", response.body.offlineCode);
+client.global.set("joinCode", response.body.joinCode);
+%}
+
+### 14-1. Resolve offline session with the short join code
+POST {{baseUrl}}/api/v1/quiet-time/join-codes/resolve
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "joinCode": "{{joinCode}}"
+}
+
+> {%
+client.test("Short join code resolves the same session", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.offlineCode === client.global.get("offlineCode"), "Expected same offline code");
+  client.assert(response.body.joinCode === client.global.get("joinCode"), "Expected same join code");
+});
 %}
 
 ### 15. Simulate QR scan and load offline session

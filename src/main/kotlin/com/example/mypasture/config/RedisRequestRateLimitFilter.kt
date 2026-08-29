@@ -15,7 +15,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
-/** Redis 원자 연산으로 인증 brute force와 AI 과다 호출을 제한하는 보안 필터입니다. */
+/** Redis 원자 연산으로 인증 brute force, 짧은 참여 코드 추측, AI 과다 호출을 제한합니다. */
 @Component
 class RedisRequestRateLimitFilter(
     private val redis: StringRedisTemplate,
@@ -26,7 +26,7 @@ class RedisRequestRateLimitFilter(
 
     override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, filterChain: FilterChain) {
         val policy = policyFor(request) ?: return filterChain.doFilter(request, response)
-        val identity = if (policy.scope == "ai") authenticatedUserId() ?: clientAddress(request) else clientAddress(request)
+        val identity = if (policy.authenticatedScope) authenticatedUserId() ?: clientAddress(request) else clientAddress(request)
         val bucket = System.currentTimeMillis() / (properties.windowSeconds * 1_000)
         val key = "rate:${policy.scope}:${digest(identity)}:$bucket"
 
@@ -51,7 +51,9 @@ class RedisRequestRateLimitFilter(
         request.requestURI.startsWith("/api/v1/auth/") && request.method == HttpMethod.POST.name() ->
             Policy("auth", properties.authRequestsPerWindow)
         request.requestURI.startsWith("/api/v1/ai/") ->
-            Policy("ai", properties.aiRequestsPerWindow)
+            Policy("ai", properties.aiRequestsPerWindow, authenticatedScope = true)
+        request.requestURI == "/api/v1/quiet-time/join-codes/resolve" && request.method == HttpMethod.POST.name() ->
+            Policy("quiet-time-code", properties.quietTimeJoinCodeRequestsPerWindow, authenticatedScope = true)
         else -> null
     }
 
@@ -79,7 +81,7 @@ class RedisRequestRateLimitFilter(
         response.writer.write("{\"code\":\"$code\",\"message\":\"$message\"}")
     }
 
-    private data class Policy(val scope: String, val limit: Long)
+    private data class Policy(val scope: String, val limit: Long, val authenticatedScope: Boolean = false)
 
     companion object {
         private val rateLimitLogger = LoggerFactory.getLogger(RedisRequestRateLimitFilter::class.java)

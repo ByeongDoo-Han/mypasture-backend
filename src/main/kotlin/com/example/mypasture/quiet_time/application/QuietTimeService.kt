@@ -220,6 +220,16 @@ class QuietTimeService(
         return QuietTimeSessionQrView(invitation.session, invitation, invitation.statusAt(Instant.now(clock)))
     }
 
+    /** 인증 사용자가 입력한 짧은 참여 코드를 QR 초대 정보로 해석합니다. */
+    @Transactional(readOnly = true)
+    fun resolveJoinCode(joinCode: String): QuietTimeSessionQrView {
+        val normalizedCode = normalizeJoinCode(joinCode)
+        require(normalizedCode.matches(JOIN_CODE_PATTERN)) { "Join code must contain six allowed characters." }
+        val invitation = qrInvitationRepository.findByJoinCode(normalizedCode)
+            ?: throw QuietTimeNotFoundException("Quiet time join code was not found")
+        return QuietTimeSessionQrView(invitation.session, invitation, invitation.statusAt(Instant.now(clock)))
+    }
+
     @Transactional
     fun joinOfflineSession(
         offlineCode: String,
@@ -317,11 +327,13 @@ class QuietTimeService(
         now: Instant,
     ): QuietTimeQrInvitationEntity {
         val offlineCode = generateOfflineCode()
+        val joinCode = generateJoinCode()
         val inviteUrl = "${qrProperties.inviteBaseUrl.trimEnd('/')}/$offlineCode"
         return qrInvitationRepository.save(
             QuietTimeQrInvitationEntity(
                 session = session,
                 offlineCode = offlineCode,
+                joinCode = joinCode,
                 inviteUrl = inviteUrl,
                 joinStartsAt = joinStartsAt,
                 expiresAt = expiresAt,
@@ -362,6 +374,8 @@ class QuietTimeService(
 
     private fun normalizeOfflineCode(offlineCode: String): String = offlineCode.trim().uppercase()
 
+    private fun normalizeJoinCode(joinCode: String): String = joinCode.trim().uppercase()
+
     private fun throwQrStatus(status: QuietTimeQrStatus): Nothing =
         when (status) {
             QuietTimeQrStatus.SCHEDULED -> throw QuietTimeQrNotOpenException()
@@ -387,6 +401,13 @@ class QuietTimeService(
         while (true) {
             val code = randomCode(10)
             if (!qrInvitationRepository.existsByOfflineCode(code)) return code
+        }
+    }
+
+    private fun generateJoinCode(): String {
+        while (true) {
+            val code = randomCode(JOIN_CODE_LENGTH)
+            if (!qrInvitationRepository.existsByJoinCode(code)) return code
         }
     }
 
@@ -456,6 +477,8 @@ class QuietTimeService(
 
     companion object {
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        private const val JOIN_CODE_LENGTH = 6
+        private val JOIN_CODE_PATTERN = Regex("^[A-HJ-NP-Z2-9]{$JOIN_CODE_LENGTH}$")
     }
 }
 

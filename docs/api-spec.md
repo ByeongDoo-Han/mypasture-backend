@@ -1065,15 +1065,18 @@ QT 세션은 고정 목장 소속 `PASTURE`와 목장 없이 생성자에게 귀
 - POST /api/v1/quiet-time/pastures/{pastureId}/sessions
 - POST /api/v1/quiet-time/sessions/standalone
 
-응답에는 `scope`, nullable `pasture`, `hostDisplayName`, offlineCode, inviteUrl, joinStartsAt, expiresAt, qrStatus가 포함됩니다. expiresAt은 기본적으로 모임 종료 30분 후이며 QR 이미지는 프론트에서 inviteUrl을 기반으로 생성합니다.
+응답에는 `scope`, nullable `pasture`, `hostDisplayName`, `offlineCode`, `joinCode`, `inviteUrl`, `joinStartsAt`, `expiresAt`, `qrStatus`가 포함됩니다. `offlineCode`는 QR 링크용 10자리 토큰이고 `joinCode`는 사람이 입력하는 6자리 코드입니다. `expiresAt`은 기본적으로 모임 종료 30분 후이며 QR 이미지는 프론트에서 `inviteUrl`을 기반으로 생성합니다.
 
 - GET /api/v1/quiet-time/offline/{offlineCode}
+- POST /api/v1/quiet-time/join-codes/resolve
 - POST /api/v1/quiet-time/offline/{offlineCode}/join
 - POST /api/v1/quiet-time/sessions/{sessionId}/qr/reissue
 - DELETE /api/v1/quiet-time/sessions/{sessionId}/qr
 - POST /api/v1/quiet-time/sessions/{sessionId}/close
 
 QR 상태는 SCHEDULED, OPEN, EXPIRED, REVOKED, CLOSED입니다.
+
+`POST /api/v1/quiet-time/join-codes/resolve`는 JWT가 필요하며 `{"joinCode":"ABC234"}`를 받아 기존 `QuietTimeSessionResponse`를 반환합니다. 서버는 앞뒤 공백과 소문자를 정규화하고 사용자별 Redis rate limit으로 코드 추측을 제한합니다.
 
 상세 정책: [큐티 모임 QR 만료 및 폐기 정책](quiet-time-qr-policy.ko.md)
 

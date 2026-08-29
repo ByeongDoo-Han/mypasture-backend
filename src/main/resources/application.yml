@@ -37,6 +37,7 @@ app:
       window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
       auth-requests-per-window: ${AUTH_RATE_LIMIT_PER_WINDOW:20}
       ai-requests-per-window: ${AI_RATE_LIMIT_PER_WINDOW:15}
+      quiet-time-join-code-requests-per-window: ${QUIET_TIME_JOIN_CODE_RATE_LIMIT_PER_WINDOW:12}
   auth:
     email-verification:
       required: ${EMAIL_VERIFICATION_REQUIRED:true}

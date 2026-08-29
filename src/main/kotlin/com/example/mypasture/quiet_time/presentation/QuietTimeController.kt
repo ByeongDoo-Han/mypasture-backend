@@ -70,6 +70,11 @@ class QuietTimeController(
     override fun offlineSession(offlineCode: String): QuietTimeSessionResponse =
         quietTimeService.getOfflineSession(offlineCode).toResponse()
 
+    override fun resolveJoinCode(
+        principal: JwtPrincipal,
+        request: ResolveQuietTimeJoinCodeRequest,
+    ): QuietTimeSessionResponse = quietTimeService.resolveJoinCode(request.joinCode).toResponse()
+
     override fun joinOfflineSession(
         offlineCode: String,
         principal: JwtPrincipal,

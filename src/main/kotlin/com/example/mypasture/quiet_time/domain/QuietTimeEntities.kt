@@ -128,6 +128,8 @@ class QuietTimeQrInvitationEntity(
     @ManyToOne(fetch = FetchType.LAZY)
     val session: QuietTimeSessionEntity,
     val offlineCode: String,
+    @Column(length = 6)
+    val joinCode: String,
     val inviteUrl: String,
     val joinStartsAt: Instant,
     val expiresAt: Instant,

@@ -49,12 +49,14 @@ class QuietTimeControllerTests(
     fun `pasture session creates expiring invite url for frontend qr`() {
         val session = createSession(createPasture())
         val offlineCode = session["offlineCode"].asText()
+        val joinCode = session["joinCode"].asText()
         val meetingEndsAt = Instant.parse(session["meetingEndsAt"].asText())
         val expiresAt = Instant.parse(session["expiresAt"].asText())
 
         check(ChronoUnit.MINUTES.between(meetingEndsAt, expiresAt) == 30L)
         check(session["scope"].asText() == "PASTURE")
         check(!session["pasture"].isNull)
+        check(joinCode.matches(Regex("^[A-HJ-NP-Z2-9]{6}$")))
 
         mockMvc.get("/api/v1/quiet-time/offline/$offlineCode")
             .andExpect {
@@ -66,6 +68,39 @@ class QuietTimeControllerTests(
                 jsonPath("$.expiresAt") { exists() }
             }
 
+    }
+
+    @Test
+    fun `authenticated member resolves a normalized six character join code`() {
+        val session = createSession(createPasture())
+        val joinCode = session["joinCode"].asText()
+
+        mockMvc.post("/api/v1/quiet-time/join-codes/resolve") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"joinCode":"$joinCode"}"""
+        }.andExpect {
+            status { isUnauthorized() }
+        }
+
+        mockMvc.post("/api/v1/quiet-time/join-codes/resolve") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"joinCode":"  ${joinCode.lowercase()}  "}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.joinCode") { value(joinCode) }
+            jsonPath("$.offlineCode") { value(session["offlineCode"].asText()) }
+            jsonPath("$.qrStatus") { value("OPEN") }
+        }
+
+        mockMvc.post("/api/v1/quiet-time/join-codes/resolve") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"joinCode":"IO01"}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("INVALID_QUIET_TIME_REQUEST") }
+        }
     }
 
     @Test
@@ -202,6 +237,7 @@ class QuietTimeControllerTests(
         val original = createSession(createPasture())
         val sessionId = original["id"].asText()
         val oldCode = original["offlineCode"].asText()
+        val oldJoinCode = original["joinCode"].asText()
 
         val result = mockMvc.post("/api/v1/quiet-time/sessions/$sessionId/qr/reissue") {
             header("Authorization", "Bearer ${leaderToken()}")
@@ -212,7 +248,18 @@ class QuietTimeControllerTests(
             jsonPath("$.qrStatus") { value("OPEN") }
         }.andReturn()
         val newCode = objectMapper.readTree(result.response.contentAsString)["offlineCode"].asText()
+        val newJoinCode = objectMapper.readTree(result.response.contentAsString)["joinCode"].asText()
         check(oldCode != newCode)
+        check(oldJoinCode != newJoinCode)
+
+        mockMvc.post("/api/v1/quiet-time/join-codes/resolve") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"joinCode":"$oldJoinCode"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.qrStatus") { value("REVOKED") }
+        }
 
         mockMvc.get("/api/v1/quiet-time/offline/$oldCode")
             .andExpect {
@@ -372,6 +419,7 @@ class QuietTimeControllerTests(
         }.andExpect {
             status { isOk() }
             jsonPath("$.offlineCode") { exists() }
+            jsonPath("$.joinCode") { exists() }
             jsonPath("$.expiresAt") { exists() }
         }.andReturn()
         return objectMapper.readTree(result.response.contentAsString)

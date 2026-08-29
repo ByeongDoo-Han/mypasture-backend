@@ -4,6 +4,17 @@ GCP Terraform 기반 staging/production 구축은 [GCP Terraform 배포 가이�
 
 서버 환경은 `local`과 `prod` 두 가지 Spring Profile로 관리합니다.
 
+6자리 현장 QT 참여 코드는 로그인 사용자만 해석할 수 있으며, 운영에서는 Redis rate limit을 활성화합니다.
+
+```dotenv
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_FAIL_CLOSED=true
+RATE_LIMIT_TRUST_FORWARDED_HEADERS=true
+QUIET_TIME_JOIN_CODE_RATE_LIMIT_PER_WINDOW=12
+```
+
+`QUIET_TIME_JOIN_CODE_RATE_LIMIT_PER_WINDOW`은 `RATE_LIMIT_WINDOW_SECONDS` 동안 인증 사용자 한 명이 시도할 수 있는 코드 해석 횟수입니다. Nginx 또는 로드 밸런서 뒤에서 운영할 때만 신뢰 가능한 프록시 구성과 함께 `RATE_LIMIT_TRUST_FORWARDED_HEADERS=true`를 사용합니다.
+
 ## Local
 
 ### 1. 환경 변수 준비

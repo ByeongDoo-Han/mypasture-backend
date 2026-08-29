@@ -93,6 +93,8 @@ interface QuietTimeSessionRepository : JpaRepository<QuietTimeSessionEntity, UUI
 interface QuietTimeQrInvitationRepository : JpaRepository<QuietTimeQrInvitationEntity, UUID> {
     fun findByOfflineCode(offlineCode: String): QuietTimeQrInvitationEntity?
 
+    fun findByJoinCode(joinCode: String): QuietTimeQrInvitationEntity?
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(
         """
@@ -107,6 +109,8 @@ interface QuietTimeQrInvitationRepository : JpaRepository<QuietTimeQrInvitationE
     fun findByOfflineCodeForUpdate(@Param("offlineCode") offlineCode: String): QuietTimeQrInvitationEntity?
 
     fun existsByOfflineCode(offlineCode: String): Boolean
+
+    fun existsByJoinCode(joinCode: String): Boolean
 
     @Query(
         """

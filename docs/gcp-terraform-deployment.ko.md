@@ -162,6 +162,43 @@ terraform apply runtime.tfplan
 
 운영 환경은 output의 `load_balancer_ip`를 `api.mypasture.app` A record로 연결합니다. DNS 전파 후 Google managed certificate가 `ACTIVE`가 되었는지 확인해야 합니다.
 
+### API 사용자 도메인 연결
+
+staging에서 외부 Load Balancer를 검증할 때도 환경 입력으로 기능을 명시적으로 켭니다.
+
+```hcl
+enable_external_load_balancer = true
+api_domain                    = "api.mypasture.app"
+```
+
+적용 후 Terraform output에서 고정 IP를 확인합니다.
+
+```bash
+terraform output -json | jq -r '.deployment.value.load_balancer_ip'
+```
+
+Cloudflare DNS에는 다음 A record를 생성합니다.
+
+| Type | Name | IPv4 address | Proxy status | TTL |
+|---|---|---|---|---|
+| `A` | `api` | Terraform output의 `load_balancer_ip` | `DNS only` | `Auto` |
+
+Google 관리형 인증서는 공개 DNS가 Load Balancer 고정 IP를 직접 반환해야 검증할 수 있으므로 인증서가
+`ACTIVE`가 될 때까지 Cloudflare Proxy를 켜지 않습니다. API는 GCP Load Balancer와 Cloud Armor를
+보안 경계로 사용하므로 활성화 후에도 기본 정책은 `DNS only`입니다.
+
+```bash
+gcloud compute ssl-certificates describe mypasture-staging-api \
+  --project=my-pasture --global \
+  --format='yaml(managed.status,managed.domainStatus,expireTime)'
+
+curl --fail --silent --show-error \
+  https://api.mypasture.app/actuator/health/readiness | jq -e '.status == "UP"'
+```
+
+Serverless NEG를 사용하는 global Backend Service에는 `timeout_sec`를 지정하지 않습니다. 요청 제한은
+Cloud Run 서비스의 timeout과 애플리케이션의 streaming/timeout 정책에서 관리합니다.
+
 ## 8. 최초 migration, 성경 적재와 검증
 
 ```bash

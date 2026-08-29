@@ -77,7 +77,6 @@ resource "google_compute_backend_service" "api" {
   name                  = "${local.resource_prefix}-api"
   protocol              = "HTTP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
-  timeout_sec           = 3600
   security_policy       = google_compute_security_policy.api[0].id
 
   backend {

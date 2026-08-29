@@ -7,6 +7,8 @@ module "platform" {
   container_image                    = var.container_image
   deploy_runtime                     = var.deploy_runtime
   deploy_services                    = var.deploy_services
+  enable_external_load_balancer      = var.enable_external_load_balancer
+  api_domain                         = var.api_domain
   database_tier                      = "db-custom-1-3840"
   database_edition                   = "ENTERPRISE"
   database_availability_type         = "ZONAL"
@@ -45,6 +47,7 @@ output "deployment" {
   value = {
     artifact_registry = module.platform.artifact_registry_repository
     api_url           = module.platform.api_url
+    load_balancer_ip  = module.platform.load_balancer_ip
     migration_job     = module.platform.migration_job_name
     embedding_job     = module.platform.embedding_backfill_job_name
     secret_ids        = module.platform.runtime_secret_ids

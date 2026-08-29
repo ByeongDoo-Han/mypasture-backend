@@ -14,6 +14,18 @@ variable "container_image" {
   type        = string
 }
 
+variable "enable_external_load_balancer" {
+  description = "Expose the staging API through an external HTTPS load balancer and Cloud Armor."
+  type        = bool
+  default     = false
+}
+
+variable "api_domain" {
+  description = "Staging API hostname used by the Google-managed TLS certificate."
+  type        = string
+  default     = ""
+}
+
 variable "deploy_runtime" {
   description = "Enable only after secret versions and the DB user are ready."
   type        = bool

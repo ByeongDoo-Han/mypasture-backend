@@ -22,6 +22,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
@@ -291,6 +292,60 @@ class AuthControllerTests(
                 status { isUnauthorized() }
                 jsonPath("$.code") { value("UNAUTHORIZED") }
             }
+    }
+
+    @Test
+    fun `update me normalizes display name and keeps current token valid`() {
+        val email = "profile-${java.util.UUID.randomUUID()}@example.com"
+        val token = signupAndLoginWithDisplayName(email, "Profile User")
+
+        mockMvc.patch("/api/v1/auth/me") {
+            header("Authorization", "Bearer $token")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"displayName":"  새   이름  "}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.email") { value(email) }
+            jsonPath("$.displayName") { value("새 이름") }
+        }
+
+        mockMvc.get("/api/v1/auth/me") {
+            header("Authorization", "Bearer $token")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.displayName") { value("새 이름") }
+        }
+    }
+
+    @Test
+    fun `update me validates authentication and display name`() {
+        mockMvc.patch("/api/v1/auth/me") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"displayName":"새 이름"}"""
+        }.andExpect { status { isUnauthorized() } }
+
+        val token = signupAndLoginWithDisplayName("profile-validation-${java.util.UUID.randomUUID()}@example.com", "Profile User")
+        mockMvc.patch("/api/v1/auth/me") {
+            header("Authorization", "Bearer $token")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"displayName":"${"가".repeat(41)}"}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("INVALID_REQUEST") }
+        }
+    }
+
+    private fun signupAndLoginWithDisplayName(email: String, displayName: String): String {
+        val password = "password123!"
+        mockMvc.post("/api/v1/auth/signup") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"$password","displayName":"$displayName"}"""
+        }.andExpect { status { isCreated() } }
+        val login = mockMvc.post("/api/v1/auth/login") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"$password"}"""
+        }.andExpect { status { isOk() } }.andReturn()
+        return com.fasterxml.jackson.databind.ObjectMapper().readTree(login.response.contentAsString)["token"].asText()
     }
 
     @Test

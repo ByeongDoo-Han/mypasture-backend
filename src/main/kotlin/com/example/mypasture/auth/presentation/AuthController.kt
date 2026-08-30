@@ -12,6 +12,7 @@ import com.example.mypasture.auth.presentation.dto.RefreshAccessTokenRequest
 import com.example.mypasture.auth.presentation.dto.SocialLoginRequest
 import com.example.mypasture.auth.presentation.dto.UserLoginRequest
 import com.example.mypasture.auth.presentation.dto.UserSignupRequest
+import com.example.mypasture.auth.presentation.dto.UpdateMyProfileRequest
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
@@ -49,6 +50,9 @@ class AuthController(
         authService.confirmPasswordReset(request)
 
     override fun me(principal: JwtPrincipal) = authService.me(principal.userId)
+
+    override fun updateMe(principal: JwtPrincipal, request: UpdateMyProfileRequest) =
+        authService.updateProfile(principal.userId, request)
 
     override fun deleteMe(
         principal: JwtPrincipal,

@@ -35,6 +35,13 @@ data class UserDto(
     }
 }
 
+/** 사용자가 직접 변경할 수 있는 공개 프로필 필드만 받는 요청 DTO입니다. */
+data class UpdateMyProfileRequest(
+    @field:NotBlank
+    @field:Size(max = 40)
+    val displayName: String,
+)
+
 /** 이메일 회원가입 요청 DTO입니다. */
 data class UserSignupRequest(
     @field:NotBlank

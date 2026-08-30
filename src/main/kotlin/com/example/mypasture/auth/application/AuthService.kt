@@ -23,6 +23,7 @@ import com.example.mypasture.auth.presentation.dto.UserLoginRequest
 import com.example.mypasture.auth.presentation.dto.UserLoginResponse
 import com.example.mypasture.auth.presentation.dto.UserSignupRequest
 import com.example.mypasture.auth.presentation.dto.UserSignupResponse
+import com.example.mypasture.auth.presentation.dto.UpdateMyProfileRequest
 import com.example.mypasture.config.AuthSecurityProperties
 import com.example.mypasture.config.JwtProperties
 import com.example.mypasture.config.OAuthProperties
@@ -258,6 +259,16 @@ class AuthService(
         return UserDto.from(user)
     }
 
+    /** 연속 공백을 정리한 표시 이름만 변경하고 이메일과 인증 버전은 건드리지 않습니다. */
+    @Transactional
+    fun updateProfile(userId: UUID, request: UpdateMyProfileRequest): UserDto {
+        val normalizedDisplayName = request.displayName.trim().replace(WHITESPACE, " ")
+        if (normalizedDisplayName.length !in 1..MAX_DISPLAY_NAME_LENGTH) throw InvalidDisplayNameException()
+        val user = userRepository.findActiveByIdForUpdate(userId) ?: throw InvalidCredentialsException()
+        user.updateDisplayName(normalizedDisplayName, Instant.now())
+        return UserDto.from(user)
+    }
+
     /** 현재 비밀번호 재확인 후 로그인 수단을 제거하고 사용자 직접 식별 정보를 익명화합니다. */
     @Transactional
     fun deleteAccount(userId: UUID, authenticatedAt: Instant, request: DeleteAccountRequest) {
@@ -364,6 +375,8 @@ class AuthService(
     private fun normalizeEmail(email: String): String = email.trim().lowercase()
 
     companion object {
+        private val WHITESPACE = Regex("\\s+")
+        private const val MAX_DISPLAY_NAME_LENGTH = 40
         private const val RESET_TOKEN_BYTES = 32
         private const val REFRESH_TOKEN_BYTES = 48
         private const val SOCIAL_NONCE_BYTES = 32
@@ -410,3 +423,6 @@ class AccountDeletionConfirmationException : RuntimeException("Account deletion 
 
 /** 회원탈퇴 시 이메일 계정의 현재 비밀번호 재인증에 실패했을 때 발생하는 예외입니다. */
 class AccountDeletionReauthenticationException : RuntimeException("Current password is required or invalid")
+
+/** HTTP 계층 밖에서 호출되더라도 표시 이름 정책 위반을 안정적인 인증 오류로 전달합니다. */
+class InvalidDisplayNameException : RuntimeException("Display name must be between 1 and 40 characters")

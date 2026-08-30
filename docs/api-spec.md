@@ -37,6 +37,8 @@ POST /api/v1/auth/social-login/challenges
 POST /api/v1/auth/refresh
 POST /api/v1/auth/password-reset/requests
 POST /api/v1/auth/password-reset/confirm
+GET  /api/v1/policies/current
+GET  /api/v1/policies/{type}/{version}
 ```
 
 ### Content Type
@@ -187,7 +189,12 @@ Content-Type: application/json
   "email": "user@example.com",
   "password": "password123!",
   "displayName": "홍길동",
-  "verificationToken": "one-time-signup-token"
+  "verificationToken": "one-time-signup-token",
+  "policyConsents": [
+    { "type": "TERMS_OF_SERVICE", "version": "1.0.0", "agreed": true },
+    { "type": "PRIVACY_COLLECTION", "version": "1.0.0", "agreed": true },
+    { "type": "MARKETING_NOTIFICATIONS", "version": "1.0.0", "agreed": false }
+  ]
 }
 ```
 
@@ -209,7 +216,7 @@ Response `201`:
 }
 ```
 
-Errors: `400 EMAIL_VERIFICATION_REQUIRED`, `409 EMAIL_ALREADY_REGISTERED`.
+Errors: `400 EMAIL_VERIFICATION_REQUIRED`, `400 POLICY_CONSENT_REQUIRED`, `409 EMAIL_ALREADY_REGISTERED`.
 
 ### 1.5 Email login
 
@@ -1686,7 +1693,20 @@ POST /api/v1/admin/ai/runtime-config/rollback
 
 롤백은 과거 행을 수정하지 않고 대상 설정을 복제한 새 버전을 생성합니다. 모든 변경은 관리자 ID, 사유, 요청 지문과 함께 감사 로그에 남습니다.
 
-## 15. Implementation Status Summary
+## 15. Policy and Consent API
+
+Status: `IMPLEMENTED`
+
+```http
+GET  /api/v1/policies/current?scope=ACCOUNT
+GET  /api/v1/policies/{type}/{version}
+GET  /api/v1/policies/consent-status?scopes=ACCOUNT,AI
+POST /api/v1/policies/consents
+```
+
+정책 원문과 현재 버전은 공개 조회할 수 있습니다. 동의 상태와 변경은 Bearer JWT가 필요합니다. `REQUIRED` 문서는 현재 버전에 동의해야 해당 기능을 이용할 수 있고, `OPTIONAL` 문서는 설정에서 철회할 수 있습니다. 현재 상태는 `user_policy_consents`, 변경 이력은 추가 전용 `user_policy_consent_events`에 저장합니다.
+
+## 16. Implementation Status Summary
 
 | Domain | API status |
 |---|---|
@@ -1705,7 +1725,7 @@ POST /api/v1/admin/ai/runtime-config/rollback
 | File/R2 | planned |
 | Admin | 인증, 성경 해설·embedding, QT 운영, AI 모델 및 오늘의 말씀 검수·감사 로그 구현 |
 
-## 16. Next API Implementation Order
+## 17. Next API Implementation Order
 
 추천 구현 순서:
 

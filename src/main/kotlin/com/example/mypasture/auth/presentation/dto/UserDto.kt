@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
+import com.example.mypasture.policy.presentation.dto.PolicyConsentInput
 import java.time.Instant
 import java.util.UUID
 
@@ -56,6 +57,9 @@ data class UserSignupRequest(
     val displayName: String,
     @field:Size(max = 1000)
     val verificationToken: String? = null,
+    @field:jakarta.validation.Valid
+    @field:Size(max = 10)
+    val policyConsents: List<PolicyConsentInput> = emptyList(),
 )
 
 /** 회원가입 전에 이메일로 인증번호 발송을 요청하는 DTO입니다. */

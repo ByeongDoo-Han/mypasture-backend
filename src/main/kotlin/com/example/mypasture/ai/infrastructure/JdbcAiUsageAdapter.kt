@@ -8,6 +8,8 @@ import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.auth.infrastructure.UserRepository
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
+import org.springframework.stereotype.Component
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.transaction.annotation.Transactional
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -27,6 +29,7 @@ interface AiUsageLogRepository : JpaRepository<AiUsageLogEntity, UUID> {
     ): Long
 
     fun findAllByUserId(userId: UUID): List<AiUsageLogEntity>
+    fun deleteAllByCreatedAtBefore(cutoff: Instant): Long
 }
 
 /** JPA로 AI 사용량을 저장하고 사용자의 UTC 기준 일일 요청 횟수를 조회합니다. */
@@ -81,5 +84,15 @@ class JdbcAiUsageAdapter(
     companion object {
         // PENDING은 동시 요청 우회를 막고 COMPLETED만 실제 사용량으로 남깁니다. 실패 요청은 재시도할 수 있습니다.
         private val QUOTA_STATUSES = listOf(AiUsageStatus.PENDING, AiUsageStatus.COMPLETED)
+    }
+}
+
+/** 개인정보 처리방침의 1년 보유기간에 맞춰 만료된 AI 사용량·비용 기록을 매일 삭제합니다. */
+@Component
+class AiUsageLogCleanupJob(private val repository: AiUsageLogRepository) {
+    @Scheduled(cron = "0 40 3 * * *")
+    @Transactional
+    fun deleteExpiredUsageLogs() {
+        repository.deleteAllByCreatedAtBefore(Instant.now().minusSeconds(365L * 24 * 60 * 60))
     }
 }

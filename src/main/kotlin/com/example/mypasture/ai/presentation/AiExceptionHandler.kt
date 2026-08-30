@@ -1,6 +1,7 @@
 package com.example.mypasture.ai.presentation
 
 import com.example.mypasture.ai.application.*
+import com.example.mypasture.ai.domain.AiConversationUnavailableException
 import com.example.mypasture.common.error.ErrorCode
 import com.example.mypasture.common.error.toResponse
 import jakarta.servlet.http.HttpServletRequest
@@ -40,6 +41,9 @@ class AiExceptionHandler {
     @ExceptionHandler(AiProviderException::class) @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
     fun provider(exception: AiProviderException, request: HttpServletRequest) =
         AiErrorCode.PROVIDER_UNAVAILABLE.toResponse(request, exception.message ?: AiErrorCode.PROVIDER_UNAVAILABLE.defaultMessage)
+    @ExceptionHandler(AiConversationUnavailableException::class) @ResponseStatus(HttpStatus.NOT_FOUND)
+    fun conversationUnavailable(exception: AiConversationUnavailableException, request: HttpServletRequest) =
+        AiErrorCode.CONVERSATION_UNAVAILABLE.toResponse(request, exception.message ?: AiErrorCode.CONVERSATION_UNAVAILABLE.defaultMessage)
     @ExceptionHandler(BibleEmbeddingIndexUnavailableException::class) @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
     fun embeddingUnavailable(exception: BibleEmbeddingIndexUnavailableException, request: HttpServletRequest) =
         AiErrorCode.EMBEDDING_INDEX_UNAVAILABLE.toResponse(request, exception.message ?: AiErrorCode.EMBEDDING_INDEX_UNAVAILABLE.defaultMessage)
@@ -56,6 +60,7 @@ enum class AiErrorCode(
     EVALUATION_REJECTED("AI_EVALUATION_REJECTED", "AI 답변이 품질 검증을 통과하지 못했습니다."),
     SAFETY_ESCALATION("AI_SAFETY_ESCALATION", "즉시 도움을 요청해 주세요."),
     PROVIDER_UNAVAILABLE("AI_PROVIDER_UNAVAILABLE", "AI service unavailable"),
+    CONVERSATION_UNAVAILABLE("AI_CONVERSATION_UNAVAILABLE", "AI 대화를 찾을 수 없거나 이미 만료되었습니다."),
     EMBEDDING_INDEX_UNAVAILABLE("AI_EMBEDDING_INDEX_UNAVAILABLE", "Embedding index unavailable"),
     STREAM_FAILED("AI_STREAM_FAILED", "AI streaming 요청에 실패했습니다."),
     ADMIN_OPERATION_CONFLICT("AI_ADMIN_OPERATION_CONFLICT", "이미 다른 AI 관리자 작업에 사용된 operationId입니다."),

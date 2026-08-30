@@ -2,6 +2,9 @@ package com.example.mypasture.ai.application
 
 import com.example.mypasture.ai.domain.AiAnswerEvaluation
 import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
+import com.example.mypasture.ai.domain.AiAssistantExperiencePolicy
+import com.example.mypasture.ai.domain.AiConversationContext
+import com.example.mypasture.ai.domain.AiInteractionMode
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.GroundedAnswer
 import org.springframework.stereotype.Service
@@ -21,9 +24,17 @@ class AiAnswerQualityService(
         question: String,
         citations: List<BibleCitation>,
         config: AiRuntimeConfigSnapshot,
+        experiencePolicy: AiAssistantExperiencePolicy = DEFAULT_EXPERIENCE_POLICY,
+        conversationContext: AiConversationContext? = null,
         onReview: () -> Unit = {},
     ): GroundedAnswer {
-        var generated = completionPort.answerWithCitations(question, citations, config)
+        var generated = completionPort.answerWithCitations(
+            question,
+            citations,
+            config,
+            experiencePolicy,
+            conversationContext,
+        )
         if (!config.evaluationEnabled) return generated.withRuntimeMetadata(config)
 
         var evaluationPromptTokens = 0
@@ -33,7 +44,7 @@ class AiAnswerQualityService(
 
         while (true) {
             onReview()
-            val evaluation = evaluationPort.evaluate(question, citations, generated.answer, config)
+            val evaluation = evaluationPort.evaluate(question, citations, generated.reviewableContent(), config)
             evaluationPromptTokens += evaluation.promptTokens
             evaluationCompletionTokens += evaluation.completionTokens
             evaluationCost = evaluationCost.add(evaluation.estimatedCostUsd)
@@ -58,6 +69,8 @@ class AiAnswerQualityService(
                 question = question,
                 citations = citations,
                 config = config,
+                experiencePolicy = experiencePolicy,
+                conversationContext = conversationContext,
                 previousAnswer = previous.answer,
                 revisionInstructions = evaluation.issues.ifEmpty { listOf("모든 평가 항목을 기준 이상으로 개선하세요.") },
             )
@@ -87,6 +100,12 @@ class AiAnswerQualityService(
         evaluationPassed = null,
     )
 
+    private fun GroundedAnswer.reviewableContent(): String = buildString {
+        append(answer)
+        prayer?.let { append("\n추천 기도문: ").append(it.content) }
+        followUpQuestion?.let { append("\n후속 질문: ").append(it.question) }
+    }
+
     private fun GroundedAnswer.withEvaluation(
         config: AiRuntimeConfigSnapshot,
         evaluation: AiAnswerEvaluation,
@@ -112,4 +131,14 @@ class AiAnswerQualityService(
         evaluationIssues = evaluation.issues,
         revisionCount = revisionCount,
     )
+
+    companion object {
+        private val DEFAULT_EXPERIENCE_POLICY = AiAssistantExperiencePolicy(
+            interactionMode = AiInteractionMode.ONE_SHOT,
+            scriptureCount = 3,
+            includePrayer = true,
+            allowFollowUp = false,
+            maxContextTurns = 0,
+        )
+    }
 }

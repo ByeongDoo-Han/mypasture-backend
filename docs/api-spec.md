@@ -723,12 +723,16 @@ Rules:
 - Resolve an explicit book/chapter/verse from the Bible DB before semantic search
 - Store prompt tokens, completion tokens, estimated cost
 - Redis cache should be checked before OpenAI call
+- Response contract: `assistant-response-v2`
+- Free: one-shot answer, verified scripture blocks, and a recommended prayer
+- Premium: the same response contract plus an encrypted, expiring guided conversation and one focused follow-up question
 
 Request:
 
 ```json
 {
-  "question": "불안합니다. 어떤 말씀을 묵상하면 좋을까요?"
+  "question": "불안합니다. 어떤 말씀을 묵상하면 좋을까요?",
+  "conversationId": null
 }
 ```
 
@@ -742,6 +746,7 @@ Response `200`:
       "verseId": 1001,
       "version": "KRV",
       "book": "시편",
+      "bookCode": "PSA",
       "chapter": 23,
       "verse": 1,
       "text": "..."
@@ -754,9 +759,24 @@ Response `200`:
   "embeddingCostUsd": 0.00000036,
   "retrievalStrategy": "PGVECTOR",
   "questionIntent": "PASTORAL_COUNSELING",
-  "cacheHit": false
+  "cacheHit": false,
+  "schemaVersion": "assistant-response-v2",
+  "conversationId": null,
+  "turnId": "uuid",
+  "status": "COMPLETED",
+  "interactionMode": "ONE_SHOT",
+  "blocks": [
+    { "type": "ANSWER", "text": "..." },
+    { "type": "SCRIPTURE", "verseId": 1001, "version": "KOR1910", "bookCode": "PSA", "reference": "시편 23:1", "text": "...", "action": "OPEN_BIBLE" },
+    { "type": "PRAYER", "title": "불안을 맡기는 기도", "content": "..." }
+  ],
+  "nextAction": "COMPLETE"
 }
 ```
+
+프리미엄 응답에는 `conversationId`, `interactionMode=GUIDED_DIALOGUE`, `FOLLOW_UP_QUESTION` block과
+`nextAction=WAIT_USER_INPUT`이 포함됩니다. 다음 요청에 같은 `conversationId`를 보내면 최근 최대 4개 turn을
+문맥으로 사용합니다. 문맥은 AES-GCM으로 암호화하고 30일 뒤 삭제하며, 다른 사용자의 ID는 `404`로 처리합니다.
 
 ### 4.2 Bible Embedding Index Admin
 
@@ -794,6 +814,9 @@ data: {"stage":"GENERATING_ANSWER"}
 event: delta
 data: 근거: [1001] 주님은
 
+event: response
+data: {"schemaVersion":"assistant-response-v2","blocks":[...],"nextAction":"COMPLETE"}
+
 event: citations
 data: [{"verseId":1001,"book":"시편","chapter":23,"verse":1}]
 
@@ -804,16 +827,12 @@ event: done
 data: {"status":"completed"}
 ```
 
-### 4.4 AI Conversations
+### 4.4 Premium Guided Conversations
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
-```http
-GET    /api/v1/ai/conversations
-POST   /api/v1/ai/conversations
-GET    /api/v1/ai/conversations/{conversationId}
-DELETE /api/v1/ai/conversations/{conversationId}
-```
+첫 프리미엄 `/chat` 또는 `/chat/stream` 요청은 대화를 자동 생성합니다. 후속 요청은 응답의
+`conversationId`를 그대로 전달합니다. 대화 목록·장기 보관·내보내기 API는 개인정보 정책 확정 전까지 제공하지 않습니다.
 
 ### 4.5 Daily Meditation AI Batch
 

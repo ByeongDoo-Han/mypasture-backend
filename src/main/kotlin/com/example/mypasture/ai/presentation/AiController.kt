@@ -10,6 +10,9 @@ import com.example.mypasture.ai.application.AskBibleAssistantUseCase
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.ai.domain.AiAssistantStage
+import com.example.mypasture.ai.domain.AI_ASSISTANT_RESPONSE_SCHEMA_VERSION
+import com.example.mypasture.ai.domain.AiAssistantNextAction
+import com.example.mypasture.ai.domain.AiConversationUnavailableException
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.common.error.ApiErrorResponse
 import com.example.mypasture.config.AiProperties
@@ -21,10 +24,46 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.math.BigDecimal
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** AI 목자에게 전달할 최대 300자의 사용자 질문입니다. */
-data class AskAiRequest(@field:Size(min = 1, max = 300) val question: String)
+data class AskAiRequest(
+    @field:Size(min = 1, max = 300) val question: String,
+    val conversationId: UUID? = null,
+)
+
+/** 앱이 타입별 UI로 렌더링하는 AI 응답 block의 공통 contract입니다. */
+sealed interface AiResponseBlockResponse { val type: String }
+
+data class AiAnswerBlockResponse(
+    val text: String,
+    override val type: String = "ANSWER",
+) : AiResponseBlockResponse
+
+data class AiScriptureBlockResponse(
+    val verseId: Long,
+    val version: String,
+    val bookCode: String,
+    val reference: String,
+    val text: String,
+    val action: String = "OPEN_BIBLE",
+    override val type: String = "SCRIPTURE",
+) : AiResponseBlockResponse
+
+data class AiPrayerBlockResponse(
+    val title: String,
+    val content: String,
+    override val type: String = "PRAYER",
+) : AiResponseBlockResponse
+
+data class AiFollowUpBlockResponse(
+    val question: String,
+    val options: List<String>,
+    val allowSkip: Boolean,
+    val skipLabel: String = "새 대화 시작하기",
+    override val type: String = "FOLLOW_UP_QUESTION",
+) : AiResponseBlockResponse
 
 /** 일반 AI 응답의 본문, 근거, 토큰과 비용을 함께 반환합니다. */
 data class AskAiResponse(
@@ -38,6 +77,13 @@ data class AskAiResponse(
     val retrievalStrategy: String,
     val questionIntent: String,
     val cacheHit: Boolean,
+    val schemaVersion: String,
+    val conversationId: UUID?,
+    val turnId: UUID,
+    val status: String,
+    val interactionMode: String,
+    val blocks: List<AiResponseBlockResponse>,
+    val nextAction: String,
 )
 
 /** streaming 완료 시 클라이언트가 사용량과 검색 방식을 확인하는 SSE payload입니다. */
@@ -74,7 +120,12 @@ class AiController(
         }
 
     override suspend fun chat(principal: JwtPrincipal, request: AskAiRequest): AskAiResponse =
-        askBibleAssistant.askAsync(principal.userId, principal.subscriptionTier, request.question).toResponse()
+        askBibleAssistant.askAsync(
+            principal.userId,
+            principal.subscriptionTier,
+            request.question,
+            request.conversationId,
+        ).toResponse()
 
     /** 평가가 켜진 경우 검증된 최종 답변만 delta로 보내고 완료 후 인용과 사용량을 전달합니다. */
     override fun stream(principal: JwtPrincipal, request: AskAiRequest): SseEmitter {
@@ -90,6 +141,7 @@ class AiController(
                         userId = principal.userId,
                         subscriptionTier = principal.subscriptionTier,
                         question = request.question,
+                        conversationId = request.conversationId,
                         onStage = { stage ->
                             if (active.get()) emitter.send(SseEmitter.event().name("status").data(mapOf("stage" to stage.name)))
                         },
@@ -99,6 +151,7 @@ class AiController(
                         },
                     )
                 if (active.get()) {
+                    emitter.send(SseEmitter.event().name("response").data(result.toResponse()))
                     emitter.send(SseEmitter.event().name("citations").data(result.citations))
                     emitter.send(SseEmitter.event().name("usage").data(result.toStreamUsage()))
                     emitter.send(SseEmitter.event().name("done").data(mapOf("status" to "completed")))
@@ -146,22 +199,48 @@ private fun Throwable.toStreamErrorResponse(): ApiErrorResponse =
         is AiAnswerRejectedException -> ApiErrorResponse.of(AiErrorCode.EVALUATION_REJECTED, message = message ?: AiErrorCode.EVALUATION_REJECTED.defaultMessage)
         is AiSafetyException -> ApiErrorResponse.of(AiErrorCode.SAFETY_ESCALATION, message = message ?: AiErrorCode.SAFETY_ESCALATION.defaultMessage)
         is AiProviderException -> ApiErrorResponse.of(AiErrorCode.PROVIDER_UNAVAILABLE, message = message ?: AiErrorCode.PROVIDER_UNAVAILABLE.defaultMessage)
+        is AiConversationUnavailableException -> ApiErrorResponse.of(AiErrorCode.CONVERSATION_UNAVAILABLE, message = message ?: AiErrorCode.CONVERSATION_UNAVAILABLE.defaultMessage)
         else -> ApiErrorResponse.of(AiErrorCode.STREAM_FAILED)
     }
 
-private fun GroundedAnswer.toResponse() =
-    AskAiResponse(
-        answer,
-        citations,
-        promptTokens,
-        completionTokens,
-        embeddingTokens,
-        estimatedCostUsd,
-        embeddingCostUsd,
-        retrievalStrategy.name,
-        questionIntent.name,
-        cacheHit,
+private fun GroundedAnswer.toResponse(): AskAiResponse {
+    val responseBlocks = buildList<AiResponseBlockResponse> {
+        add(AiAnswerBlockResponse(answer))
+        citations.forEach { citation ->
+            add(
+                AiScriptureBlockResponse(
+                    verseId = citation.verseId,
+                    version = citation.version,
+                    bookCode = citation.bookCode,
+                    reference = "${citation.book} ${citation.chapter}:${citation.verse}",
+                    text = citation.text,
+                ),
+            )
+        }
+        prayer?.let { add(AiPrayerBlockResponse(it.title, it.content)) }
+        followUpQuestion?.let { add(AiFollowUpBlockResponse(it.question, it.options, it.allowSkip)) }
+    }
+    val nextAction = if (followUpQuestion == null) AiAssistantNextAction.COMPLETE else AiAssistantNextAction.WAIT_USER_INPUT
+    return AskAiResponse(
+        answer = answer,
+        citations = citations,
+        promptTokens = promptTokens,
+        completionTokens = completionTokens,
+        embeddingTokens = embeddingTokens,
+        estimatedCostUsd = estimatedCostUsd,
+        embeddingCostUsd = embeddingCostUsd,
+        retrievalStrategy = retrievalStrategy.name,
+        questionIntent = questionIntent.name,
+        cacheHit = cacheHit,
+        schemaVersion = AI_ASSISTANT_RESPONSE_SCHEMA_VERSION,
+        conversationId = conversationId,
+        turnId = turnId,
+        status = "COMPLETED",
+        interactionMode = interactionMode.name,
+        blocks = responseBlocks,
+        nextAction = nextAction.name,
     )
+}
 
 private fun GroundedAnswer.toStreamUsage() =
     AiStreamUsageResponse(

@@ -5,6 +5,8 @@ import com.example.mypasture.ai.application.AiAnswerQualityService
 import com.example.mypasture.ai.application.AiAnswerRejectedException
 import com.example.mypasture.ai.application.AiCompletionPort
 import com.example.mypasture.ai.domain.AiAnswerEvaluation
+import com.example.mypasture.ai.domain.AiAssistantExperiencePolicy
+import com.example.mypasture.ai.domain.AiConversationContext
 import com.example.mypasture.ai.domain.AiReasoningEffort
 import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
 import com.example.mypasture.ai.domain.AiUseCase
@@ -83,6 +85,8 @@ class AiAnswerQualityServiceTests {
             question: String,
             citations: List<BibleCitation>,
             config: AiRuntimeConfigSnapshot,
+            experiencePolicy: AiAssistantExperiencePolicy,
+            conversationContext: AiConversationContext?,
             previousAnswer: String?,
             revisionInstructions: List<String>,
         ): GroundedAnswer {

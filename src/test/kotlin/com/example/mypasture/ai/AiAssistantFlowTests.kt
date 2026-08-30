@@ -7,7 +7,9 @@ import com.example.mypasture.ai.application.TextEmbeddingPort
 import com.example.mypasture.ai.domain.RagRetrievalStrategy
 import com.example.mypasture.ai.domain.AiAssistantStage
 import com.example.mypasture.ai.domain.BibleQuestionIntent
+import com.example.mypasture.ai.domain.AiConversationUnavailableException
 import com.example.mypasture.ai.infrastructure.AiUsageLogRepository
+import com.example.mypasture.ai.infrastructure.AiConversationRepository
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.user.domain.SubscriptionTier
 import com.example.mypasture.user.domain.UserEntity
@@ -39,6 +41,7 @@ class AiAssistantFlowTests(
     @Autowired private val usageRepository: AiUsageLogRepository,
     @Autowired private val embeddingPort: TextEmbeddingPort,
     @Autowired private val usagePort: AiUsagePort,
+    @Autowired private val conversationRepository: AiConversationRepository,
 ) {
     @Test
     fun `local assistant returns grounded answer and records usage`() {
@@ -53,6 +56,9 @@ class AiAssistantFlowTests(
         assertEquals(RagRetrievalStrategy.LEXICAL_FALLBACK, answer.retrievalStrategy)
         assertEquals(0, answer.embeddingTokens)
         assertEquals(BigDecimal.ZERO, answer.estimatedCostUsd)
+        assertTrue(answer.prayer != null)
+        assertEquals(null, answer.followUpQuestion)
+        assertEquals(null, answer.conversationId)
         assertEquals(1, usageRepository.countByUserIdAndCreatedAtGreaterThanEqual(user.id, java.time.Instant.EPOCH))
     }
 
@@ -147,6 +153,33 @@ class AiAssistantFlowTests(
         assertEquals(null, premium.limit)
         assertEquals(null, premium.remaining)
         assertTrue(premium.unlimited)
+    }
+
+    @Test
+    fun `premium assistant keeps encrypted bounded conversation context`() {
+        val user = userRepository.save(UserEntity(email = "ai-premium-${UUID.randomUUID()}@example.com", displayName = "AI Premium"))
+
+        val first = useCase.ask(user.id, SubscriptionTier.PREMIUM, "창세기를 설명해주세요")
+        val second = useCase.ask(user.id, SubscriptionTier.PREMIUM, "창세기 1장 1절을 더 설명해주세요", first.conversationId)
+
+        assertTrue(first.conversationId != null)
+        assertEquals(first.conversationId, second.conversationId)
+        assertTrue(first.followUpQuestion != null)
+        assertEquals("GUIDED_DIALOGUE", first.interactionMode.name)
+        val stored = conversationRepository.findById(first.conversationId!!).orElseThrow()
+        assertEquals(2, stored.turnCount)
+        assertTrue(!stored.encryptedContext.contains("창세기"))
+    }
+
+    @Test
+    fun `premium conversation cannot be continued by another user`() {
+        val owner = userRepository.save(UserEntity(email = "ai-owner-${UUID.randomUUID()}@example.com", displayName = "Owner"))
+        val stranger = userRepository.save(UserEntity(email = "ai-stranger-${UUID.randomUUID()}@example.com", displayName = "Stranger"))
+        val first = useCase.ask(owner.id, SubscriptionTier.PREMIUM, "창세기를 설명해주세요")
+
+        assertThrows(AiConversationUnavailableException::class.java) {
+            useCase.ask(stranger.id, SubscriptionTier.PREMIUM, "이어서 설명해주세요", first.conversationId)
+        }
     }
 
     @Test

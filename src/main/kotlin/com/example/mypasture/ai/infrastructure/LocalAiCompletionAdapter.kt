@@ -4,6 +4,10 @@ import com.example.mypasture.ai.application.AiAnswerEvaluationPort
 import com.example.mypasture.ai.application.AiCompletionPort
 import com.example.mypasture.ai.application.AiStreamingCompletionPort
 import com.example.mypasture.ai.domain.AiAnswerEvaluation
+import com.example.mypasture.ai.domain.AiAssistantExperiencePolicy
+import com.example.mypasture.ai.domain.AiConversationContext
+import com.example.mypasture.ai.domain.AiFollowUpQuestion
+import com.example.mypasture.ai.domain.AiRecommendedPrayer
 import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.GroundedAnswer
@@ -19,6 +23,8 @@ class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort, Ai
         question: String,
         citations: List<BibleCitation>,
         config: AiRuntimeConfigSnapshot,
+        experiencePolicy: AiAssistantExperiencePolicy,
+        conversationContext: AiConversationContext?,
         previousAnswer: String?,
         revisionInstructions: List<String>,
     ): GroundedAnswer {
@@ -36,6 +42,17 @@ class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort, Ai
             estimatedCostUsd = BigDecimal.ZERO,
             cacheHit = false,
             generatorModel = config.generatorModel,
+            prayer = AiRecommendedPrayer(
+                title = "말씀을 붙드는 기도",
+                content = "하나님, 오늘 주신 말씀을 제 상황에 비추어 보고 작은 한 걸음을 순종하게 해 주세요. 아멘.",
+            ),
+            followUpQuestion = if (experiencePolicy.allowFollowUp) {
+                AiFollowUpQuestion(
+                    question = "지금 가장 먼저 말씀의 도움을 받고 싶은 상황은 무엇인가요?",
+                    options = listOf("마음의 평안", "관계의 회복", "결정과 방향", "믿음의 성장"),
+                )
+            } else null,
+            interactionMode = experiencePolicy.interactionMode,
         )
     }
 
@@ -44,8 +61,16 @@ class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort, Ai
         question: String,
         citations: List<BibleCitation>,
         config: AiRuntimeConfigSnapshot,
+        experiencePolicy: AiAssistantExperiencePolicy,
+        conversationContext: AiConversationContext?,
         onDelta: suspend (String) -> Unit,
-    ): GroundedAnswer = answerWithCitations(question, citations, config).also { answer ->
+    ): GroundedAnswer = answerWithCitations(
+        question,
+        citations,
+        config,
+        experiencePolicy,
+        conversationContext,
+    ).also { answer ->
         answer.answer.chunked(12).forEach { onDelta(it) }
     }
 

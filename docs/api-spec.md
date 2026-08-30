@@ -318,7 +318,23 @@ Authorization: Bearer <access-token>
 
 Response `200`: current user profile.
 
-### 1.10 Delete account
+### 1.10 Update current user profile
+
+Status: `IMPLEMENTED`
+
+```http
+PATCH /api/v1/auth/me
+Authorization: Bearer <access-token>
+Content-Type: application/json
+
+{
+  "displayName": "새 이름"
+}
+```
+
+Response `200`: 변경된 current user profile. 표시 이름의 앞뒤 및 연속 공백을 정리하며 최대 40자까지 허용한다. 이메일 변경은 재인증, 중복 확인, 이메일 인증 및 소셜 계정 연결 정책이 필요하므로 이 API에서 제공하지 않는다. 프로필 변경만으로 기존 JWT를 폐기하지 않는다.
+
+### 1.11 Delete account
 
 Status: `IMPLEMENTED`
 
@@ -345,7 +361,7 @@ Errors:
 | 401 | `REAUTHENTICATION_FAILED` |
 | 401 | `UNAUTHORIZED` |
 
-### 1.11 Refresh token / logout
+### 1.12 Refresh token / logout
 
 Status: `IMPLEMENTED`
 

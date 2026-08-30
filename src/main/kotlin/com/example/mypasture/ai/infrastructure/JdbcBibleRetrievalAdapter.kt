@@ -104,6 +104,7 @@ class JdbcBibleRetrievalAdapter(
                     chapter = row.getInt("chapter"),
                     verse = row.getInt("verse"),
                     text = row.getString("text"),
+                    bookCode = row.getString("book_code"),
                 )
             },
             PgVectorLiteral.from(vector),
@@ -173,6 +174,7 @@ class JdbcBibleRetrievalAdapter(
             chapter = chapter,
             verse = verse,
             text = text,
+            bookCode = book.code,
         )
 
     companion object {
@@ -184,6 +186,7 @@ class JdbcBibleRetrievalAdapter(
             select
               verse.id as verse_id,
               verse.version,
+              book.code as book_code,
               book.name as book_name,
               verse.chapter,
               verse.verse,

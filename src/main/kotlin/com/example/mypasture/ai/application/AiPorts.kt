@@ -3,6 +3,9 @@ package com.example.mypasture.ai.application
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.AiAnswerEvaluation
 import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
+import com.example.mypasture.ai.domain.AiAssistantExperiencePolicy
+import com.example.mypasture.ai.domain.AiConversationContext
+import com.example.mypasture.ai.domain.AiConversationTurn
 import com.example.mypasture.ai.domain.BibleEmbeddingSource
 import com.example.mypasture.ai.domain.BibleRetrievalResult
 import com.example.mypasture.ai.domain.GroundedAnswer
@@ -44,6 +47,8 @@ interface AiCompletionPort {
         question: String,
         citations: List<BibleCitation>,
         config: AiRuntimeConfigSnapshot,
+        experiencePolicy: AiAssistantExperiencePolicy,
+        conversationContext: AiConversationContext? = null,
         previousAnswer: String? = null,
         revisionInstructions: List<String> = emptyList(),
     ): GroundedAnswer
@@ -55,8 +60,22 @@ interface AiStreamingCompletionPort {
         question: String,
         citations: List<BibleCitation>,
         config: AiRuntimeConfigSnapshot,
+        experiencePolicy: AiAssistantExperiencePolicy,
+        conversationContext: AiConversationContext? = null,
         onDelta: suspend (String) -> Unit,
     ): GroundedAnswer
+}
+
+/** 프리미엄 상담 문맥의 소유권, 만료, 암호화 저장을 application layer와 분리합니다. */
+interface AiConversationPort {
+    fun load(userId: UUID, conversationId: UUID): AiConversationContext
+
+    fun append(
+        userId: UUID,
+        conversationId: UUID?,
+        turn: AiConversationTurn,
+        maxContextTurns: Int,
+    ): UUID
 }
 
 /** 생성 답변을 성경 근거와 비교해 구조화 점수로 검증하는 평가 모델 포트입니다. */

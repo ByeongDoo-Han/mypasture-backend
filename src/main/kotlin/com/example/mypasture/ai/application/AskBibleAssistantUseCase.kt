@@ -3,6 +3,9 @@ package com.example.mypasture.ai.application
 import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.ai.domain.AiAssistantStage
 import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
+import com.example.mypasture.ai.domain.AiAssistantExperiencePolicy
+import com.example.mypasture.ai.domain.AiConversationContext
+import com.example.mypasture.ai.domain.AiConversationTurn
 import com.example.mypasture.ai.domain.BibleRetrievalResult
 import com.example.mypasture.ai.domain.BibleQuestionIntent
 import com.example.mypasture.config.AiProperties
@@ -46,6 +49,8 @@ class AskBibleAssistantUseCase(
     private val cachePort: AiCachePort,
     private val usagePort: AiUsagePort,
     private val runtimeConfigService: AiRuntimeConfigService,
+    private val experiencePolicyResolver: AiAssistantExperiencePolicyResolver,
+    private val conversationPort: AiConversationPort,
 ) {
     /** AI 호출 전에도 모바일이 정확한 남은 횟수를 표시할 수 있게 합니다. */
     fun dailyUsage(userId: UUID, subscriptionTier: SubscriptionTier): AiDailyUsage {
@@ -67,15 +72,17 @@ class AskBibleAssistantUseCase(
         userId: UUID,
         subscriptionTier: SubscriptionTier,
         question: String,
-    ): GroundedAnswer = runBlocking { askAsync(userId, subscriptionTier, question) }
+        conversationId: UUID? = null,
+    ): GroundedAnswer = runBlocking { askAsync(userId, subscriptionTier, question, conversationId) }
 
     /** HTTP 요청 스레드를 점유하지 않고 외부 AI 응답을 기다리는 coroutine 진입점입니다. */
     suspend fun askAsync(
         userId: UUID,
         subscriptionTier: SubscriptionTier,
         question: String,
-    ): GroundedAnswer = execute(userId, subscriptionTier, question) { normalized, citations, config ->
-        qualityService.generate(normalized, citations, config)
+        conversationId: UUID? = null,
+    ): GroundedAnswer = execute(userId, subscriptionTier, question, conversationId) { normalized, citations, config, policy, context ->
+        qualityService.generate(normalized, citations, config, policy, context)
     }
 
     /** RAG 검색이 끝난 뒤 LLM의 답변 조각을 생성 즉시 호출자에게 전달합니다. */
@@ -83,10 +90,11 @@ class AskBibleAssistantUseCase(
         userId: UUID,
         subscriptionTier: SubscriptionTier,
         question: String,
+        conversationId: UUID? = null,
         onStage: (AiAssistantStage) -> Unit = {},
         onDelta: (String) -> Unit,
     ): GroundedAnswer = runBlocking {
-        streamAsync(userId, subscriptionTier, question, onStage) { onDelta(it) }
+        streamAsync(userId, subscriptionTier, question, conversationId, onStage) { onDelta(it) }
     }
 
     /** SSE scope의 취소와 timeout을 외부 AI 호출까지 전달하는 coroutine 스트리밍 진입점입니다. */
@@ -94,23 +102,25 @@ class AskBibleAssistantUseCase(
         userId: UUID,
         subscriptionTier: SubscriptionTier,
         question: String,
+        conversationId: UUID? = null,
         onStage: (AiAssistantStage) -> Unit = {},
         onDelta: suspend (String) -> Unit,
     ): GroundedAnswer = execute(
         userId = userId,
         subscriptionTier = subscriptionTier,
         question = question,
+        conversationId = conversationId,
         onStage = onStage,
         onCacheHit = { onDelta(it.answer) },
-    ) { normalized, citations, config ->
+    ) { normalized, citations, config, policy, context ->
         if (config.evaluationEnabled) {
-            qualityService.generate(normalized, citations, config) {
+            qualityService.generate(normalized, citations, config, policy, context) {
                 onStage(AiAssistantStage.REVIEWING_ANSWER)
             }.also { answer ->
                 answer.answer.chunked(24).forEach { onDelta(it) }
             }
         } else {
-            streamingCompletionPort.answerWithCitations(normalized, citations, config, onDelta)
+            streamingCompletionPort.answerWithCitations(normalized, citations, config, policy, context, onDelta)
         }
     }
 
@@ -118,14 +128,27 @@ class AskBibleAssistantUseCase(
         userId: UUID,
         subscriptionTier: SubscriptionTier,
         question: String,
+        conversationId: UUID?,
         onStage: (AiAssistantStage) -> Unit = {},
         onCacheHit: suspend (GroundedAnswer) -> Unit = {},
-        complete: suspend (String, List<com.example.mypasture.ai.domain.BibleCitation>, AiRuntimeConfigSnapshot) -> GroundedAnswer,
+        complete: suspend (
+            String,
+            List<com.example.mypasture.ai.domain.BibleCitation>,
+            AiRuntimeConfigSnapshot,
+            AiAssistantExperiencePolicy,
+            AiConversationContext?,
+        ) -> GroundedAnswer,
     ): GroundedAnswer = withContext(Dispatchers.IO) {
         // 모든 AI 입력 정책은 여기서 먼저 막습니다. Controller validation만 믿지 말고 use case에서도 한 번 더 방어합니다.
         val normalized = question.trim()
         if (normalized.length > properties.maxInputChars) throw AiInputTooLongException()
         if (CRISIS_KEYWORDS.any { normalized.contains(it, ignoreCase = true) }) throw AiSafetyException()
+
+        val experiencePolicy = experiencePolicyResolver.resolve(subscriptionTier)
+        if (conversationId != null && subscriptionTier != SubscriptionTier.PREMIUM) {
+            throw com.example.mypasture.ai.domain.AiConversationUnavailableException()
+        }
+        val conversationContext = conversationId?.let { conversationPort.load(userId, it) }
 
         val dailyLimit = if (subscriptionTier == SubscriptionTier.FREE) {
             properties.freeDailyLimit.toLong()
@@ -136,13 +159,16 @@ class AskBibleAssistantUseCase(
         val reservationId = usagePort.reserve(userId, normalized, dailyLimit, runtimeConfig) ?: throw AiQuotaExceededException()
         var consumedRetrieval: BibleRetrievalResult? = null
         var consumedIntent = BibleQuestionIntent.BIBLE_QA
+        var consumedCompletion: GroundedAnswer? = null
 
         try {
             onStage(AiAssistantStage.UNDERSTANDING_QUESTION)
 
             // 상담 내용이 다른 사용자에게 재사용되지 않도록 사용자별 HMAC cache를 사용합니다.
-            cachePort.get(userId, normalized, runtimeConfig.cacheScope)?.let { cached ->
+            val cacheScope = "${runtimeConfig.cacheScope}:${experiencePolicy.interactionMode}:$AI_RESPONSE_CACHE_VERSION"
+            if (conversationContext == null) cachePort.get(userId, normalized, cacheScope)?.let { cached ->
                 val cacheHit = cached.copy(
+                    turnId = UUID.randomUUID(),
                     promptTokens = 0,
                     completionTokens = 0,
                     estimatedCostUsd = java.math.BigDecimal.ZERO,
@@ -155,30 +181,49 @@ class AskBibleAssistantUseCase(
                 return@withContext cacheHit
             }
 
-            val understoodQuestion = questionUnderstandingService.understand(normalized)
+            val retrievalQuestion = conversationContext?.retrievalQuestion(normalized) ?: normalized
+            val understoodQuestion = questionUnderstandingService.understand(retrievalQuestion)
             consumedIntent = understoodQuestion.intent
 
             // RAG 강제 지점입니다. AI는 DB 검색 결과가 없으면 답변하지 않아야 합니다.
             onStage(AiAssistantStage.SEARCHING_SCRIPTURE)
-            val retrieval = retrievalPort.searchRelevantVerses(understoodQuestion)
+            val retrieval = retrievalPort.searchRelevantVerses(understoodQuestion, experiencePolicy.scriptureCount)
             consumedRetrieval = retrieval
             if (retrieval.citations.isEmpty()) throw AiGroundingNotFoundException()
 
             // 일반 응답과 streaming 응답 모두 같은 RAG, 비용 기록, cache 정책을 통과합니다.
             onStage(AiAssistantStage.GENERATING_ANSWER)
-            val completion = complete(normalized, retrieval.citations, runtimeConfig)
-            val answer = completion.copy(
+            val completion = complete(normalized, retrieval.citations, runtimeConfig, experiencePolicy, conversationContext)
+            var answer = completion.copy(
                 estimatedCostUsd = completion.estimatedCostUsd.add(retrieval.embeddingCostUsd),
                 embeddingTokens = retrieval.embeddingTokens,
                 embeddingCostUsd = retrieval.embeddingCostUsd,
                 retrievalStrategy = retrieval.strategy,
                 questionIntent = understoodQuestion.intent,
+                interactionMode = experiencePolicy.interactionMode,
             )
+            consumedCompletion = answer
+            if (subscriptionTier == SubscriptionTier.PREMIUM) {
+                val savedConversationId = conversationPort.append(
+                    userId = userId,
+                    conversationId = conversationContext?.conversationId,
+                    turn = AiConversationTurn(
+                        userQuestion = normalized,
+                        assistantAnswer = answer.answer,
+                        followUpQuestion = answer.followUpQuestion?.question,
+                    ),
+                    maxContextTurns = experiencePolicy.maxContextTurns,
+                )
+                answer = answer.copy(conversationId = savedConversationId)
+            }
             usagePort.complete(reservationId, answer)
-            cachePort.put(userId, normalized, runtimeConfig.cacheScope, answer)
+            if (conversationContext == null && subscriptionTier == SubscriptionTier.FREE) {
+                cachePort.put(userId, normalized, cacheScope, answer)
+            }
             return@withContext answer
         } catch (error: RuntimeException) {
-            val consumedAnswer = (error as? AiAnswerRejectedException)?.rejectedAnswer?.let { rejected ->
+            val rejectedAnswer = (error as? AiAnswerRejectedException)?.rejectedAnswer
+            val consumedAnswer = (rejectedAnswer ?: consumedCompletion)?.let { rejected ->
                 val retrieval = consumedRetrieval
                 if (retrieval == null) rejected else rejected.copy(
                     estimatedCostUsd = rejected.estimatedCostUsd.add(retrieval.embeddingCostUsd),
@@ -195,5 +240,6 @@ class AskBibleAssistantUseCase(
 
     companion object {
         private val CRISIS_KEYWORDS = listOf("자살", "죽고 싶", "극단적 선택", "해치고 싶", "살고 싶지")
+        private const val AI_RESPONSE_CACHE_VERSION = "assistant-response-v2"
     }
 }

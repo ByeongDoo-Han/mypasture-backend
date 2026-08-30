@@ -104,12 +104,15 @@ OpenAI Embeddings API는 문자열 배열 입력과 `dimensions` 옵션을 지�
 - 검색 근거가 없거나 LLM citation 검증에 실패하면 답변을 저장하거나 캐싱하지 않습니다.
 - API Key는 서버 Secret Manager에만 두고 모바일 앱과 관리자 프론트에는 전달하지 않습니다.
 - 질문 원문은 usage log에 저장하지 않고 SHA-256 hash만 저장합니다.
+- 프리미엄 연속 대화는 최근 4개 turn만 AES-GCM으로 암호화해 저장하고 마지막 사용 후 30일에 만료합니다.
+- 암호화 키는 `AI_PRIVACY_HASH_SECRET`에서 용도 분리해 파생하므로 운영에서는 32바이트 이상의 별도 난수를 사용합니다.
+- 키를 교체하면 기존 대화는 복호화할 수 없으므로 만료된 대화처럼 새 대화를 시작하게 됩니다.
 
 ## 실시간 응답
 
-`POST /api/v1/ai/chat/stream`은 평가 기능이 꺼진 경우 OpenAI Responses API의 `response.output_text.delta`를
-SSE로 전달합니다. 평가 기능이 켜진 기본 운영 설정에서는 생성 답변 전체를 서버에 보류하고 평가·최대 1회
-수정을 마친 최종본만 작은 delta로 전달합니다. 검증 전 답변은 한번 전송하면 취소할 수 없기 때문입니다.
+`POST /api/v1/ai/chat/stream`은 OpenAI Structured Outputs의 JSON 전체를 서버에 보류합니다. JSON Schema,
+RAG verseId, 성경 인용, 추천 기도문과 선택적 후속 질문을 검증하고, 평가·최대 1회 수정을 마친 최종 답변만
+작은 delta와 `response` event로 전달합니다. 검증 전 JSON이나 답변은 한번 전송하면 취소할 수 없기 때문입니다.
 정상 완료 이벤트 순서는 다음과 같습니다.
 
 ```text
@@ -121,6 +124,9 @@ data: {"stage":"REVIEWING_ANSWER"}
 
 event: delta
 data: 근거: [123] ...
+
+event: response
+data: {"schemaVersion":"assistant-response-v2","blocks":[...],"nextAction":"COMPLETE"}
 
 event: citations
 data: [{"verseId":123,...}]

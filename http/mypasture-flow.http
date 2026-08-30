@@ -133,6 +133,8 @@ Content-Type: application/json
 client.test("AI answer contains verified Bible citations", function () {
   client.assert(response.status === 200, "Expected HTTP 200");
   client.assert(response.body.citations.length > 0, "Expected grounded citations");
+  client.assert(response.body.schemaVersion === "assistant-response-v2", "Expected versioned response contract");
+  client.assert(response.body.blocks.some(function(block) { return block.type === "PRAYER"; }), "Expected prayer block");
   client.assert(!!response.body.retrievalStrategy, "Expected retrieval strategy");
   client.assert(response.body.questionIntent === "BIBLE_EXPLANATION", "Expected explanation intent");
 });
@@ -174,6 +176,7 @@ client.test("AI stream completes with citations and usage", function () {
   client.assert(response.body.indexOf("event:status") >= 0, "Expected question processing status event");
   client.assert(response.body.indexOf("UNDERSTANDING_QUESTION") >= 0, "Expected question understanding stage");
   client.assert(response.body.indexOf("event:delta") >= 0, "Expected delta event");
+  client.assert(response.body.indexOf("event:response") >= 0, "Expected structured response event");
   client.assert(response.body.indexOf("event:citations") >= 0, "Expected citations event");
   client.assert(response.body.indexOf("event:usage") >= 0, "Expected usage event");
   client.assert(response.body.indexOf("event:done") >= 0, "Expected done event");

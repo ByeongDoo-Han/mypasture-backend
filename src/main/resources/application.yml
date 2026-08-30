@@ -25,6 +25,8 @@ management:
         enabled: true
 
 app:
+  policy:
+    enforcement-enabled: ${POLICY_CONSENT_ENFORCED:true}
   worker:
     enabled: ${APP_WORKER_ENABLED:false}
   cors:

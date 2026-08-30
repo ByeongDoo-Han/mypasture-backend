@@ -28,6 +28,7 @@ import com.example.mypasture.config.AuthSecurityProperties
 import com.example.mypasture.config.JwtProperties
 import com.example.mypasture.config.OAuthProperties
 import com.example.mypasture.user.domain.UserEntity
+import com.example.mypasture.policy.application.PolicyConsentService
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -57,11 +58,13 @@ class AuthService(
     private val oauthProperties: OAuthProperties,
     private val eventPublisher: ApplicationEventPublisher,
     private val emailVerificationService: EmailVerificationService,
+    private val policyConsentService: PolicyConsentService,
 ) {
     private val secureRandom = SecureRandom()
 
     @Transactional
     fun signup(request: UserSignupRequest): UserSignupResponse {
+        policyConsentService.validateSignup(request.policyConsents)
         val email = normalizeEmail(request.email)
         if (userRepository.existsByEmailAndDeletedAtIsNull(email) ||
             authAccountRepository.existsByProviderAndProviderUserId(AuthProvider.EMAIL, email)
@@ -86,6 +89,8 @@ class AuthService(
                 passwordHash = passwordEncoder.encode(request.password),
             ),
         )
+
+        policyConsentService.recordSignup(user.id, request.policyConsents)
 
         return UserSignupResponse(UserDto.from(user))
     }

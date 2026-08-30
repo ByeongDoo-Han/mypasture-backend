@@ -79,6 +79,8 @@ tasks.withType<Test> {
 
 tasks.named<Test>("test") {
     systemProperty("app.auth.email-verification.required", "false")
+    // 정책 외 기존 테스트 fixture는 동의 UI 계약을 다루지 않으므로 정책 통합 테스트에서만 다시 활성화합니다.
+    systemProperty("app.policy.enforcement-enabled", "false")
     useJUnitPlatform {
         excludeTags("openai-live")
     }

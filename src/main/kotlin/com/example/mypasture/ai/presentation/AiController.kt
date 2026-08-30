@@ -26,6 +26,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.math.BigDecimal
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
+import com.example.mypasture.policy.application.PolicyConsentService
+import com.example.mypasture.policy.domain.PolicyScope
 
 /** AI 목자에게 전달할 최대 300자의 사용자 질문입니다. */
 data class AskAiRequest(
@@ -113,22 +115,26 @@ class AiController(
     private val askBibleAssistant: AskBibleAssistantUseCase,
     private val streamingRunner: AiStreamingCoroutineRunner,
     private val properties: AiProperties,
+    private val policyConsentService: PolicyConsentService,
 ) : AiApi {
     override fun todayUsage(principal: JwtPrincipal): AiDailyUsageResponse =
         askBibleAssistant.dailyUsage(principal.userId, principal.subscriptionTier).let {
             AiDailyUsageResponse(it.limit, it.used, it.remaining, it.unlimited)
         }
 
-    override suspend fun chat(principal: JwtPrincipal, request: AskAiRequest): AskAiResponse =
-        askBibleAssistant.askAsync(
+    override suspend fun chat(principal: JwtPrincipal, request: AskAiRequest): AskAiResponse {
+        policyConsentService.requireCurrent(principal.userId, setOf(PolicyScope.ACCOUNT, PolicyScope.AI))
+        return askBibleAssistant.askAsync(
             principal.userId,
             principal.subscriptionTier,
             request.question,
             request.conversationId,
         ).toResponse()
+    }
 
     /** 평가가 켜진 경우 검증된 최종 답변만 delta로 보내고 완료 후 인용과 사용량을 전달합니다. */
     override fun stream(principal: JwtPrincipal, request: AskAiRequest): SseEmitter {
+        policyConsentService.requireCurrent(principal.userId, setOf(PolicyScope.ACCOUNT, PolicyScope.AI))
         val emitter = SseEmitter(properties.streamTimeoutMs)
         val active = AtomicBoolean(true)
         emitter.onCompletion { active.set(false) }

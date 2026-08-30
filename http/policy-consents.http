@@ -1,0 +1,20 @@
+### 공개 정책 목록
+GET {{baseUrl}}/api/v1/policies/current?scope=ACCOUNT
+
+### 정책 원문
+GET {{baseUrl}}/api/v1/policies/PRIVACY_POLICY/1.0.0
+
+### 로그인 사용자의 현재 동의 상태
+GET {{baseUrl}}/api/v1/policies/consent-status?scopes=ACCOUNT,AI
+Authorization: Bearer {{accessToken}}
+
+### AI 목자 민감정보 동의
+POST {{baseUrl}}/api/v1/policies/consents
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "consents": [
+    { "type": "AI_SENSITIVE_DATA", "version": "1.0.0", "agreed": true }
+  ]
+}

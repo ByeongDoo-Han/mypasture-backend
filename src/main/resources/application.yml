@@ -118,10 +118,10 @@ app:
     max-input-chars: ${AI_MAX_INPUT_CHARS:300}
     max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:700}
     reasoning-effort: ${OPENAI_REASONING_EFFORT:low}
-    evaluator-reasoning-effort: ${OPENAI_EVALUATOR_REASONING_EFFORT:medium}
+    evaluator-reasoning-effort: ${OPENAI_EVALUATOR_REASONING_EFFORT:none}
     evaluation-enabled: ${AI_EVALUATION_ENABLED:true}
     evaluation-threshold: ${AI_EVALUATION_THRESHOLD:4}
-    evaluation-max-output-tokens: ${AI_EVALUATION_MAX_OUTPUT_TOKENS:250}
+    evaluation-max-output-tokens: ${AI_EVALUATION_MAX_OUTPUT_TOKENS:500}
     max-revision-count: ${AI_MAX_REVISION_COUNT:1}
     free-daily-limit: ${AI_FREE_DAILY_LIMIT:10}
     premium-daily-safety-limit: ${AI_PREMIUM_DAILY_SAFETY_LIMIT:500}

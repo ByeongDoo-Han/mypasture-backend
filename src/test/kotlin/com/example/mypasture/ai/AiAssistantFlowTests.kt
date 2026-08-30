@@ -64,6 +64,7 @@ class AiAssistantFlowTests(
             useCase.ask(user.id, SubscriptionTier.FREE, "zxqvnoresulttoken")
         }
         assertEquals("FAILED", usageRepository.findAllByUserId(user.id).single().status.name)
+        assertEquals(0, usagePort.countToday(user.id))
     }
 
     @Test

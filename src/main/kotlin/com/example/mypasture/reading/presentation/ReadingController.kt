@@ -1,6 +1,7 @@
 package com.example.mypasture.reading.presentation
 
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
+import com.example.mypasture.bible.domain.BibleCatalog
 import com.example.mypasture.reading.application.ReadingService
 import com.example.mypasture.reading.domain.BibleReadingHistoryEntity
 import com.example.mypasture.reading.domain.BibleReadingStateEntity
@@ -17,5 +18,8 @@ class ReadingController(private val service: ReadingService) : ReadingApi {
     override fun history(principal: JwtPrincipal, from: LocalDate, to: LocalDate) = service.history(principal.userId, from, to).map { it.toResponse() }
 }
 
-private fun BibleReadingStateEntity.toResponse() = ReadingStateResponse(bibleVersion, bookCode, chapter, lastVerse, completed, lastReadAt)
-private fun BibleReadingHistoryEntity.toResponse() = ReadingHistoryResponse(bibleVersion, bookCode, chapter, readOn, lastVerse, completed)
+private fun BibleReadingStateEntity.toResponse() = ReadingStateResponse(bibleVersion, bookCode, bookName(), chapter, lastVerse, completed, lastReadAt)
+private fun BibleReadingHistoryEntity.toResponse() = ReadingHistoryResponse(bibleVersion, bookCode, bookName(), chapter, readOn, lastVerse, completed)
+
+private fun BibleReadingStateEntity.bookName() = BibleCatalog.findBook(bookCode)?.name ?: bookCode
+private fun BibleReadingHistoryEntity.bookName() = BibleCatalog.findBook(bookCode)?.name ?: bookCode

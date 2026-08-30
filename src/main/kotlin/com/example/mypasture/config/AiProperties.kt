@@ -42,9 +42,9 @@ data class AiProperties(
     val privacyHashSecret: String = "local-ai-privacy-secret-change-me",
     val generatorModel: String = model,
     val evaluatorModel: String = "gpt-5.6-luna",
-    val evaluatorReasoningEffort: String = "medium",
+    val evaluatorReasoningEffort: String = "none",
     val evaluationEnabled: Boolean = true,
     val evaluationThreshold: Int = 4,
-    val evaluationMaxOutputTokens: Int = 250,
+    val evaluationMaxOutputTokens: Int = 500,
     val maxRevisionCount: Int = 1,
 )

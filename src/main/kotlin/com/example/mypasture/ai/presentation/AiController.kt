@@ -16,6 +16,7 @@ import com.example.mypasture.config.AiProperties
 import com.example.mypasture.config.AiStreamingCoroutineRunner
 import jakarta.validation.constraints.Size
 import kotlinx.coroutines.CancellationException
+import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
@@ -106,12 +107,18 @@ class AiController(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                val response = error.toStreamErrorResponse()
+                // 상담 질문이나 provider 응답은 남기지 않고 운영에 필요한 분류 정보만 기록합니다.
+                logger.warn(
+                    "AI stream failed userId={} code={} exception={}",
+                    principal.userId,
+                    response.code,
+                    error::class.qualifiedName,
+                )
                 if (active.compareAndSet(true, false)) {
                     runCatching {
                         emitter.send(
-                            SseEmitter.event().name("error").data(
-                                error.toStreamErrorResponse(),
-                            ),
+                            SseEmitter.event().name("error").data(response),
                         )
                     }
                     emitter.complete()
@@ -123,6 +130,10 @@ class AiController(
             emitter.completeWithError(AiProviderException("AI streaming 처리 용량을 초과했습니다."))
         }
         return emitter
+    }
+
+    companion object {
+        private val logger = LoggerFactory.getLogger(AiController::class.java)
     }
 }
 

@@ -92,7 +92,7 @@ BIBLE_IMPORT_ENABLED=true
 AI_MOCK_ENABLED=false
 AI_EMBEDDING_INDEXING_ENABLED=true
 AI_EMBEDDING_BATCH_SIZE=100
-AI_RAG_LEXICAL_FALLBACK_ENABLED=false
+AI_RAG_LEXICAL_FALLBACK_ENABLED=true
 AI_STREAM_TIMEOUT_MS=60000
 AI_STREAM_CORE_POOL_SIZE=8
 AI_STREAM_MAX_POOL_SIZE=64
@@ -100,16 +100,18 @@ AI_STREAM_QUEUE_CAPACITY=200
 OPENAI_GENERATOR_MODEL=gpt-5.6-terra
 OPENAI_EVALUATOR_MODEL=gpt-5.6-luna
 OPENAI_REASONING_EFFORT=low
-OPENAI_EVALUATOR_REASONING_EFFORT=medium
+OPENAI_EVALUATOR_REASONING_EFFORT=none
 AI_EVALUATION_ENABLED=true
 AI_EVALUATION_THRESHOLD=4
-AI_EVALUATION_MAX_OUTPUT_TOKENS=250
+AI_EVALUATION_MAX_OUTPUT_TOKENS=500
 AI_MAX_REVISION_COUNT=1
 ```
 
 백필 worker는 한 서버에서만 활성화하고, 관리자 상태 API에서 `remainingVerses=0`을 확인한 후 다시
-비활성화합니다. 로컬의 `AI_MOCK_ENABLED=true`는 결정적 가짜 embedding과 lexical fallback으로 흐름만
-검증하며 실제 OpenAI 검색 품질을 의미하지 않습니다.
+비활성화합니다. lexical fallback은 embedding API 장애 시에도 본문 키워드 검색을 계속 제공하기 위한
+운영 안전장치입니다. 로컬의 `AI_MOCK_ENABLED=true`는 결정적 가짜 embedding과 lexical fallback으로
+흐름만 검증하며 실제 OpenAI 검색 품질을 의미하지 않습니다. AI 요청은 처리 중인 `PENDING`과 성공한
+`COMPLETED` 기록만 일일 한도에 포함하며, 최종 실패한 `FAILED` 기록은 횟수에서 제외합니다.
 
 생성·평가 모델의 환경 변수는 DB에 활성 버전이 없을 때만 기본값으로 사용됩니다. 운영 중 변경은 관리자
 `/ai-models` 화면에서 새 버전으로 활성화하며, 과거 버전 복원도 새 이력으로 남습니다. 평가가 켜진 경우

@@ -2,6 +2,7 @@ package com.example.mypasture.ai.infrastructure
 
 import com.example.mypasture.ai.application.AiUsagePort
 import com.example.mypasture.ai.domain.AiUsageLogEntity
+import com.example.mypasture.ai.domain.AiUsageStatus
 import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
 import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.auth.infrastructure.UserRepository
@@ -19,6 +20,12 @@ import java.util.UUID
 interface AiUsageLogRepository : JpaRepository<AiUsageLogEntity, UUID> {
     fun countByUserIdAndCreatedAtGreaterThanEqual(userId: UUID, createdAt: Instant): Long
 
+    fun countByUserIdAndStatusInAndCreatedAtGreaterThanEqual(
+        userId: UUID,
+        statuses: Collection<AiUsageStatus>,
+        createdAt: Instant,
+    ): Long
+
     fun findAllByUserId(userId: UUID): List<AiUsageLogEntity>
 }
 
@@ -30,8 +37,9 @@ class JdbcAiUsageAdapter(
     private val properties: com.example.mypasture.config.AiProperties,
 ) : AiUsagePort {
     override fun countToday(userId: UUID): Long =
-        repository.countByUserIdAndCreatedAtGreaterThanEqual(
+        repository.countByUserIdAndStatusInAndCreatedAtGreaterThanEqual(
             userId,
+            QUOTA_STATUSES,
             LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC),
         )
 
@@ -69,4 +77,9 @@ class JdbcAiUsageAdapter(
             .apply { init(SecretKeySpec(properties.privacyHashSecret.toByteArray(), "HmacSHA256")) }
             .doFinal(value.lowercase().trim().toByteArray())
             .joinToString("") { "%02x".format(it) }
+
+    companion object {
+        // PENDING은 동시 요청 우회를 막고 COMPLETED만 실제 사용량으로 남깁니다. 실패 요청은 재시도할 수 있습니다.
+        private val QUOTA_STATUSES = listOf(AiUsageStatus.PENDING, AiUsageStatus.COMPLETED)
+    }
 }

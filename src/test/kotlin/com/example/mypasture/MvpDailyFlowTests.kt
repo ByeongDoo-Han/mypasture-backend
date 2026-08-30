@@ -3,6 +3,7 @@ package com.example.mypasture
 import com.example.mypasture.ai.application.AiSafetyException
 import com.example.mypasture.ai.application.AskBibleAssistantUseCase
 import com.example.mypasture.attendance.application.AttendanceService
+import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.daily_word.application.DailyWordService
 import com.example.mypasture.daily_word.infrastructure.DailyWordRepository
@@ -12,8 +13,10 @@ import com.example.mypasture.notification.application.NotificationService
 import com.example.mypasture.quiet_time.application.QuietTimeReflectionService
 import com.example.mypasture.quiet_time.application.QuietTimeService
 import com.example.mypasture.reading.application.ReadingService
+import com.example.mypasture.reading.presentation.ReadingController
 import com.example.mypasture.user.domain.SubscriptionTier
 import com.example.mypasture.user.domain.UserEntity
+import com.example.mypasture.user.domain.UserRole
 import com.example.mypasture.testing.DailyWordFixtures
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -31,6 +34,7 @@ import java.util.UUID
 class MvpDailyFlowTests(
     @Autowired private val userRepository: UserRepository,
     @Autowired private val readingService: ReadingService,
+    @Autowired private val readingController: ReadingController,
     @Autowired private val dailyWordService: DailyWordService,
     @Autowired private val dailyWordRepository: DailyWordRepository,
     @Autowired private val bibleBookRepository: BibleBookEntityRepository,
@@ -48,6 +52,8 @@ class MvpDailyFlowTests(
         val state = readingService.states(user.id).single()
         assertTrue(state.completed); assertEquals(2, state.lastVerse)
         assertEquals(1, readingService.history(user.id, LocalDate.now().minusDays(1), LocalDate.now().plusDays(1)).size)
+        val principal = JwtPrincipal(user.id, user.email, user.displayName, UserRole.USER, SubscriptionTier.FREE, user.authVersion)
+        assertEquals("창세기", readingController.progress(principal).single().bookName)
     }
 
     @Test fun `daily word is generated once and shared by all users`() {

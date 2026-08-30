@@ -33,7 +33,9 @@ locals {
       RATE_LIMIT_FAIL_CLOSED             = "true"
       RATE_LIMIT_TRUST_FORWARDED_HEADERS = "true"
       JWT_ISSUER                         = "mypasture"
-      AI_RAG_LEXICAL_FALLBACK_ENABLED    = "false"
+      AI_RAG_LEXICAL_FALLBACK_ENABLED    = "true"
+      OPENAI_EVALUATOR_REASONING_EFFORT  = "none"
+      AI_EVALUATION_MAX_OUTPUT_TOKENS    = "500"
       GOOGLE_OAUTH_WEB_CLIENT_IDS        = var.google_oauth_web_client_ids
       GOOGLE_OAUTH_IOS_CLIENT_IDS        = var.google_oauth_ios_client_ids
       GOOGLE_OAUTH_ANDROID_CLIENT_IDS    = var.google_oauth_android_client_ids

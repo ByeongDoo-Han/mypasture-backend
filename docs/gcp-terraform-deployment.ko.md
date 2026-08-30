@@ -113,7 +113,7 @@ Terraform output의 `secret_ids` 목록을 기준으로 값을 등록합니다. 
 gcloud secrets versions add SECRET_ID --data-file=-
 ```
 
-입력 후 `Ctrl+D`로 종료합니다. 필수 secret은 application/migration DB password, Redis password, JWT secret, OpenAI API key, AI privacy hash secret, SMTP 계정, email verification HMAC secret입니다. FCM을 켠 경우 Firebase service account JSON도 필요합니다.
+입력 후 `Ctrl+D`로 종료합니다. 필수 secret은 application/migration DB password, Redis password, JWT secret, OpenAI API key, AI privacy hash secret, 쿠폰 코드 pepper, SMTP 계정, email verification HMAC secret입니다. FCM을 켠 경우 Firebase service account JSON도 필요합니다.
 
 실제 SMTP가 준비되지 않은 staging은 이메일 인증과 비밀번호 재설정을 `log`, 오늘의 말씀 장애 메일을 `disabled`로 배포합니다. 이 경우 SMTP username/password version은 필요하지 않으며, production은 기본값인 `smtp`와 검증된 발신자 및 실제 Secret version을 사용해야 합니다. 로그 전달은 인증 코드를 애플리케이션 로그에 남기므로 staging 접근 권한도 운영자에게만 제한합니다.
 

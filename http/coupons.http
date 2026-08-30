@@ -1,0 +1,43 @@
+### 관리자 로그인 후 발급 요청에 사용할 값
+@operationId = {{$uuid}}
+@couponCode = PASTURE-TRIAL-2026
+
+### 1. 공유형 프리미엄 AI 체험 쿠폰 발급
+POST {{baseUrl}}/api/v1/admin/coupon-campaigns
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "operationId": "{{operationId}}",
+  "name": "첫 가입자 7일 AI 목자 체험",
+  "eligibilityKey": "premium-ai-trial-lifetime",
+  "codeType": "SHARED",
+  "redeemStartsAt": "2026-08-31T00:00:00Z",
+  "redeemEndsAt": "2026-12-31T23:59:59Z",
+  "maxRedemptions": 1000,
+  "sharedCode": "{{couponCode}}",
+  "entitlementDurationDays": 7,
+  "aiDailyLimit": 30,
+  "reason": "초기 사용자 프리미엄 AI 목자 체험 제공"
+}
+
+### 2. 사용자 쿠폰 등록
+POST {{baseUrl}}/api/v1/coupons/redeem
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "code": "{{couponCode}}"
+}
+
+### 3. 현재 체험 권한 확인
+GET {{baseUrl}}/api/v1/entitlements/me
+Authorization: Bearer {{accessToken}}
+
+### 4. 체험 한도가 반영된 오늘의 AI 사용량 확인
+GET {{baseUrl}}/api/v1/ai/usage/today
+Authorization: Bearer {{accessToken}}
+
+### 5. 캠페인 목록
+GET {{baseUrl}}/api/v1/admin/coupon-campaigns?page=0&size=20
+Authorization: Bearer {{adminAccessToken}}

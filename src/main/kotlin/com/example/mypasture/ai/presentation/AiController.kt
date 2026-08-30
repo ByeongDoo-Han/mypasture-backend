@@ -106,6 +106,8 @@ data class AiDailyUsageResponse(
     val used: Long,
     val remaining: Long?,
     val unlimited: Boolean,
+    val effectiveTier: String,
+    val entitlementExpiresAt: java.time.Instant?,
 )
 
 /** JWT 사용자의 신앙 질문을 RAG 기반 AI 목자에게 전달합니다. */
@@ -119,7 +121,7 @@ class AiController(
 ) : AiApi {
     override fun todayUsage(principal: JwtPrincipal): AiDailyUsageResponse =
         askBibleAssistant.dailyUsage(principal.userId, principal.subscriptionTier).let {
-            AiDailyUsageResponse(it.limit, it.used, it.remaining, it.unlimited)
+            AiDailyUsageResponse(it.limit, it.used, it.remaining, it.unlimited, it.effectiveTier.name, it.entitlementExpiresAt)
         }
 
     override suspend fun chat(principal: JwtPrincipal, request: AskAiRequest): AskAiResponse {

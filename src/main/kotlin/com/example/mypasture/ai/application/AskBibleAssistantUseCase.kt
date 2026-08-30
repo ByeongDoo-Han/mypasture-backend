@@ -15,6 +15,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.springframework.stereotype.Service
 import java.util.UUID
+import java.time.Instant
 
 /** 무료 사용자 일일 AI 사용량을 초과했을 때 발생하는 예외입니다. */
 class AiQuotaExceededException : RuntimeException("Daily AI quota exceeded")
@@ -34,6 +35,8 @@ data class AiDailyUsage(
     val used: Long,
     val remaining: Long?,
     val unlimited: Boolean,
+    val effectiveTier: SubscriptionTier,
+    val entitlementExpiresAt: Instant?,
 )
 
 // AI assistant의 application layer 진입점입니다.
@@ -51,20 +54,23 @@ class AskBibleAssistantUseCase(
     private val runtimeConfigService: AiRuntimeConfigService,
     private val experiencePolicyResolver: AiAssistantExperiencePolicyResolver,
     private val conversationPort: AiConversationPort,
+    private val accessPolicyResolver: AiAccessPolicyResolver,
 ) {
     /** AI 호출 전에도 모바일이 정확한 남은 횟수를 표시할 수 있게 합니다. */
     fun dailyUsage(userId: UUID, subscriptionTier: SubscriptionTier): AiDailyUsage {
         val used = usagePort.countToday(userId)
-        if (subscriptionTier == SubscriptionTier.PREMIUM) {
-            return AiDailyUsage(limit = null, used = used, remaining = null, unlimited = true)
+        val accessPolicy = accessPolicyResolver.resolve(userId, subscriptionTier)
+        if (accessPolicy.unlimited) {
+            return AiDailyUsage(null, used, null, true, accessPolicy.effectiveTier, accessPolicy.entitlementExpiresAt)
         }
-
-        val limit = properties.freeDailyLimit.toLong()
+        val limit = accessPolicy.reservationDailyLimit
         return AiDailyUsage(
             limit = limit,
             used = used,
             remaining = (limit - used).coerceAtLeast(0),
             unlimited = false,
+            effectiveTier = accessPolicy.effectiveTier,
+            entitlementExpiresAt = accessPolicy.entitlementExpiresAt,
         )
     }
 
@@ -144,17 +150,15 @@ class AskBibleAssistantUseCase(
         if (normalized.length > properties.maxInputChars) throw AiInputTooLongException()
         if (CRISIS_KEYWORDS.any { normalized.contains(it, ignoreCase = true) }) throw AiSafetyException()
 
-        val experiencePolicy = experiencePolicyResolver.resolve(subscriptionTier)
-        if (conversationId != null && subscriptionTier != SubscriptionTier.PREMIUM) {
+        val accessPolicy = accessPolicyResolver.resolve(userId, subscriptionTier)
+        val effectiveTier = accessPolicy.effectiveTier
+        val experiencePolicy = experiencePolicyResolver.resolve(effectiveTier)
+        if (conversationId != null && effectiveTier != SubscriptionTier.PREMIUM) {
             throw com.example.mypasture.ai.domain.AiConversationUnavailableException()
         }
         val conversationContext = conversationId?.let { conversationPort.load(userId, it) }
 
-        val dailyLimit = if (subscriptionTier == SubscriptionTier.FREE) {
-            properties.freeDailyLimit.toLong()
-        } else {
-            properties.premiumDailySafetyLimit.toLong()
-        }
+        val dailyLimit = accessPolicy.reservationDailyLimit
         val runtimeConfig = runtimeConfigService.current()
         val reservationId = usagePort.reserve(userId, normalized, dailyLimit, runtimeConfig) ?: throw AiQuotaExceededException()
         var consumedRetrieval: BibleRetrievalResult? = null
@@ -203,7 +207,7 @@ class AskBibleAssistantUseCase(
                 interactionMode = experiencePolicy.interactionMode,
             )
             consumedCompletion = answer
-            if (subscriptionTier == SubscriptionTier.PREMIUM) {
+            if (effectiveTier == SubscriptionTier.PREMIUM) {
                 val savedConversationId = conversationPort.append(
                     userId = userId,
                     conversationId = conversationContext?.conversationId,
@@ -217,7 +221,7 @@ class AskBibleAssistantUseCase(
                 answer = answer.copy(conversationId = savedConversationId)
             }
             usagePort.complete(reservationId, answer)
-            if (conversationContext == null && subscriptionTier == SubscriptionTier.FREE) {
+            if (conversationContext == null && effectiveTier == SubscriptionTier.FREE) {
                 cachePort.put(userId, normalized, cacheScope, answer)
             }
             return@withContext answer

@@ -12,4 +12,5 @@ data class RateLimitProperties(
     val authRequestsPerWindow: Long = 20,
     val aiRequestsPerWindow: Long = 15,
     val quietTimeJoinCodeRequestsPerWindow: Long = 12,
+    val couponRedeemRequestsPerWindow: Long = 8,
 )

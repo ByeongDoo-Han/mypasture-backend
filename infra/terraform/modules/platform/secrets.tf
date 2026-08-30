@@ -5,6 +5,7 @@ locals {
       JWT_SECRET                     = "jwt-secret"
       OPENAI_API_KEY                 = "openai-api-key"
       AI_PRIVACY_HASH_SECRET         = "ai-privacy-hash-secret"
+      COUPON_CODE_PEPPER             = "coupon-code-pepper"
       EMAIL_VERIFICATION_HMAC_SECRET = "email-verification-hmac-secret"
     },
     local.smtp_enabled ? {

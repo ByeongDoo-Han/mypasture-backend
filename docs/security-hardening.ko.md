@@ -41,6 +41,7 @@
 
 - `JWT_SECRET`: 32바이트 이상의 난수
 - `AI_PRIVACY_HASH_SECRET`: 32바이트 이상의 별도 난수
+- `COUPON_CODE_PEPPER`: 쿠폰 조회 HMAC 전용 32바이트 이상의 별도 난수
 - `OPENAI_API_KEY`
 - `DATABASE_PASSWORD`
 - `REDIS_PASSWORD`, `REDIS_SSL_ENABLED=true`

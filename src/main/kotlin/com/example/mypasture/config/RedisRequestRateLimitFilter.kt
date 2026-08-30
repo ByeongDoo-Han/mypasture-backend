@@ -54,6 +54,8 @@ class RedisRequestRateLimitFilter(
             Policy("ai", properties.aiRequestsPerWindow, authenticatedScope = true)
         request.requestURI == "/api/v1/quiet-time/join-codes/resolve" && request.method == HttpMethod.POST.name() ->
             Policy("quiet-time-code", properties.quietTimeJoinCodeRequestsPerWindow, authenticatedScope = true)
+        request.requestURI == "/api/v1/coupons/redeem" && request.method == HttpMethod.POST.name() ->
+            Policy("coupon-redeem", properties.couponRedeemRequestsPerWindow, authenticatedScope = true)
         else -> null
     }
 

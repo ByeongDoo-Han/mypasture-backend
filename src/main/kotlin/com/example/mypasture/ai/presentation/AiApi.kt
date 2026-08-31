@@ -23,6 +23,12 @@ interface AiApi {
         @Valid @RequestBody request: AskAiRequest,
     ): AskAiResponse
 
+    @GetMapping("/requests/{clientRequestId}")
+    fun requestStatus(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable clientRequestId: java.util.UUID,
+    ): AiRequestStatusResponse
+
     @PostMapping("/chat/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun stream(
         @AuthenticationPrincipal principal: JwtPrincipal,

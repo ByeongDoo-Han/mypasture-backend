@@ -6,6 +6,13 @@ import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
 import com.example.mypasture.ai.domain.AiAssistantExperiencePolicy
 import com.example.mypasture.ai.domain.AiConversationContext
 import com.example.mypasture.ai.domain.AiConversationTurn
+import com.example.mypasture.ai.domain.AiClientRequest
+import com.example.mypasture.ai.domain.AiClientRequestStatus
+import com.example.mypasture.ai.domain.AiRequestInProgressException
+import com.example.mypasture.ai.domain.AiRequestNotFoundException
+import com.example.mypasture.ai.domain.AiRequestPreviouslyFailedException
+import com.example.mypasture.ai.domain.AiRequestResultExpiredException
+import com.example.mypasture.ai.domain.AiUsageReservation
 import com.example.mypasture.ai.domain.BibleRetrievalResult
 import com.example.mypasture.ai.domain.BibleQuestionIntent
 import com.example.mypasture.config.AiProperties
@@ -79,7 +86,8 @@ class AskBibleAssistantUseCase(
         subscriptionTier: SubscriptionTier,
         question: String,
         conversationId: UUID? = null,
-    ): GroundedAnswer = runBlocking { askAsync(userId, subscriptionTier, question, conversationId) }
+        clientRequestId: UUID? = null,
+    ): GroundedAnswer = runBlocking { askAsync(userId, subscriptionTier, question, conversationId, clientRequestId) }
 
     /** HTTP 요청 스레드를 점유하지 않고 외부 AI 응답을 기다리는 coroutine 진입점입니다. */
     suspend fun askAsync(
@@ -87,7 +95,8 @@ class AskBibleAssistantUseCase(
         subscriptionTier: SubscriptionTier,
         question: String,
         conversationId: UUID? = null,
-    ): GroundedAnswer = execute(userId, subscriptionTier, question, conversationId) { normalized, citations, config, policy, context ->
+        clientRequestId: UUID? = null,
+    ): GroundedAnswer = execute(userId, subscriptionTier, question, conversationId, clientRequestId) { normalized, citations, config, policy, context ->
         qualityService.generate(normalized, citations, config, policy, context)
     }
 
@@ -97,10 +106,11 @@ class AskBibleAssistantUseCase(
         subscriptionTier: SubscriptionTier,
         question: String,
         conversationId: UUID? = null,
+        clientRequestId: UUID? = null,
         onStage: (AiAssistantStage) -> Unit = {},
         onDelta: (String) -> Unit,
     ): GroundedAnswer = runBlocking {
-        streamAsync(userId, subscriptionTier, question, conversationId, onStage) { onDelta(it) }
+        streamAsync(userId, subscriptionTier, question, conversationId, clientRequestId, onStage) { onDelta(it) }
     }
 
     /** SSE scope의 취소와 timeout을 외부 AI 호출까지 전달하는 coroutine 스트리밍 진입점입니다. */
@@ -109,6 +119,7 @@ class AskBibleAssistantUseCase(
         subscriptionTier: SubscriptionTier,
         question: String,
         conversationId: UUID? = null,
+        clientRequestId: UUID? = null,
         onStage: (AiAssistantStage) -> Unit = {},
         onDelta: suspend (String) -> Unit,
     ): GroundedAnswer = execute(
@@ -116,6 +127,7 @@ class AskBibleAssistantUseCase(
         subscriptionTier = subscriptionTier,
         question = question,
         conversationId = conversationId,
+        clientRequestId = clientRequestId,
         onStage = onStage,
         onCacheHit = { onDelta(it.answer) },
     ) { normalized, citations, config, policy, context ->
@@ -135,6 +147,7 @@ class AskBibleAssistantUseCase(
         subscriptionTier: SubscriptionTier,
         question: String,
         conversationId: UUID?,
+        clientRequestId: UUID?,
         onStage: (AiAssistantStage) -> Unit = {},
         onCacheHit: suspend (GroundedAnswer) -> Unit = {},
         complete: suspend (
@@ -160,7 +173,19 @@ class AskBibleAssistantUseCase(
 
         val dailyLimit = accessPolicy.reservationDailyLimit
         val runtimeConfig = runtimeConfigService.current()
-        val reservationId = usagePort.reserve(userId, normalized, dailyLimit, runtimeConfig) ?: throw AiQuotaExceededException()
+        val fingerprint = "$normalized\nconversationId=${conversationId ?: "none"}"
+        val reservation = usagePort.reserve(
+            userId = userId,
+            question = normalized,
+            dailyLimit = dailyLimit,
+            config = runtimeConfig,
+            clientRequestId = clientRequestId,
+            requestFingerprint = fingerprint,
+        ) ?: throw AiQuotaExceededException()
+        val reservationId = when (reservation) {
+            is AiUsageReservation.Started -> reservation.turnId
+            is AiUsageReservation.Existing -> return@withContext replayExisting(reservation.request, onCacheHit)
+        }
         var consumedRetrieval: BibleRetrievalResult? = null
         var consumedIntent = BibleQuestionIntent.BIBLE_QA
         var consumedCompletion: GroundedAnswer? = null
@@ -241,6 +266,20 @@ class AskBibleAssistantUseCase(
             usagePort.fail(reservationId, error::class.simpleName ?: "AI_REQUEST_FAILED", consumedAnswer)
             throw error
         }
+    }
+
+    /** 연결이 끊긴 클라이언트가 같은 요청 ID로 최종 상태를 다시 확인합니다. */
+    fun requestStatus(userId: UUID, clientRequestId: UUID): AiClientRequest =
+        usagePort.findClientRequest(userId, clientRequestId) ?: throw AiRequestNotFoundException()
+
+    private suspend fun replayExisting(
+        request: AiClientRequest,
+        onCompleted: suspend (GroundedAnswer) -> Unit,
+    ): GroundedAnswer = when (request.status) {
+        AiClientRequestStatus.PROCESSING -> throw AiRequestInProgressException()
+        AiClientRequestStatus.FAILED -> throw AiRequestPreviouslyFailedException()
+        AiClientRequestStatus.EXPIRED -> throw AiRequestResultExpiredException()
+        AiClientRequestStatus.COMPLETED -> requireNotNull(request.answer).also { onCompleted(it) }
     }
 
     companion object {

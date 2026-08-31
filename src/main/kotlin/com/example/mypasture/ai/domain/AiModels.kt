@@ -189,6 +189,36 @@ data class GroundedAnswer(
     val interactionMode: AiInteractionMode = AiInteractionMode.ONE_SHOT,
 )
 
+/** 클라이언트가 같은 논리 요청의 처리 상태와 최종 결과를 안전하게 다시 조회할 때 사용합니다. */
+enum class AiClientRequestStatus {
+    PROCESSING,
+    COMPLETED,
+    FAILED,
+    EXPIRED,
+}
+
+/** 사용자별 clientRequestId에 연결된 AI 요청 영수증입니다. */
+data class AiClientRequest(
+    val clientRequestId: UUID,
+    val turnId: UUID,
+    val status: AiClientRequestStatus,
+    val answer: GroundedAnswer? = null,
+    val errorCode: String? = null,
+    val updatedAt: Instant,
+)
+
+class AiIdempotencyConflictException : RuntimeException("같은 요청 ID를 다른 AI 질문에 사용할 수 없습니다.")
+class AiRequestInProgressException : RuntimeException("기존 AI 요청을 처리하고 있습니다.")
+class AiRequestPreviouslyFailedException : RuntimeException("이 AI 요청은 이전에 실패했습니다. 새 요청으로 다시 시도해 주세요.")
+class AiRequestResultExpiredException : RuntimeException("저장된 AI 요청 결과가 만료되었습니다. 새 요청으로 다시 시도해 주세요.")
+class AiRequestNotFoundException : RuntimeException("AI 요청을 찾을 수 없습니다.")
+
+/** quota 예약 결과를 신규 실행과 기존 요청 재사용으로 구분합니다. */
+sealed interface AiUsageReservation {
+    data class Started(val turnId: UUID) : AiUsageReservation
+    data class Existing(val request: AiClientRequest) : AiUsageReservation
+}
+
 /** AI 입력 제한과 무료 사용자 사용량 제한 정책을 표현하는 도메인 모델입니다. */
 data class AiUsagePolicy(
     val maxInputChars: Int,

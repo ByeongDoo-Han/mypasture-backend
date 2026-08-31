@@ -11,6 +11,8 @@ import com.example.mypasture.ai.domain.AiCompletedTurn
 import com.example.mypasture.ai.domain.AiFeedbackRating
 import com.example.mypasture.ai.domain.AiFeedbackReason
 import com.example.mypasture.ai.domain.AiFeedbackSummary
+import com.example.mypasture.ai.domain.AiClientRequest
+import com.example.mypasture.ai.domain.AiUsageReservation
 import com.example.mypasture.ai.domain.BibleEmbeddingSource
 import com.example.mypasture.ai.domain.BibleRetrievalResult
 import com.example.mypasture.ai.domain.GroundedAnswer
@@ -115,7 +117,11 @@ interface AiUsagePort {
         question: String,
         dailyLimit: Long,
         config: AiRuntimeConfigSnapshot? = null,
-    ): UUID?
+        clientRequestId: UUID? = null,
+        requestFingerprint: String = question,
+    ): AiUsageReservation?
+
+    fun findClientRequest(userId: UUID, clientRequestId: UUID): AiClientRequest?
 
     fun reserveRegeneration(
         userId: UUID,

@@ -5,6 +5,12 @@ import com.example.mypasture.ai.domain.AiUsageLogEntity
 import com.example.mypasture.ai.domain.AiUsageStatus
 import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
 import com.example.mypasture.ai.domain.AiCompletedTurn
+import com.example.mypasture.ai.domain.AiClientRequest
+import com.example.mypasture.ai.domain.AiClientRequestStatus
+import com.example.mypasture.ai.domain.AiIdempotencyConflictException
+import com.example.mypasture.ai.domain.AiRequestReceiptEntity
+import com.example.mypasture.ai.domain.AiRequestReceiptStatus
+import com.example.mypasture.ai.domain.AiUsageReservation
 import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.auth.infrastructure.UserRepository
 import org.springframework.data.jpa.repository.JpaRepository
@@ -21,6 +27,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 import jakarta.persistence.LockModeType
 import java.security.MessageDigest
+import org.slf4j.LoggerFactory
 
 /** AI 사용량 로그를 PostgreSQL과 개발용 H2에서 동일하게 저장하는 repository입니다. */
 interface AiUsageLogRepository : JpaRepository<AiUsageLogEntity, UUID> {
@@ -37,6 +44,10 @@ interface AiUsageLogRepository : JpaRepository<AiUsageLogEntity, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     fun findLockedByIdAndUserIdAndStatus(id: UUID, userId: UUID, status: AiUsageStatus): AiUsageLogEntity?
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select usage from AiUsageLogEntity usage where usage.id = :id")
+    fun findLockedById(id: UUID): AiUsageLogEntity?
+
     fun findAllByUserId(userId: UUID): List<AiUsageLogEntity>
     fun deleteAllByCreatedAtBefore(cutoff: Instant): Long
 }
@@ -45,6 +56,8 @@ interface AiUsageLogRepository : JpaRepository<AiUsageLogEntity, UUID> {
 @Repository
 class JdbcAiUsageAdapter(
     private val repository: AiUsageLogRepository,
+    private val receiptRepository: AiRequestReceiptRepository,
+    private val responseCodec: AiRequestResponseCodec,
     private val userRepository: UserRepository,
     private val properties: com.example.mypasture.config.AiProperties,
 ) : AiUsagePort {
@@ -57,10 +70,26 @@ class JdbcAiUsageAdapter(
 
     /** 사용자 행을 잠근 상태에서 사용량을 다시 세어 동시 요청의 quota 우회를 차단합니다. */
     @Transactional
-    override fun reserve(userId: UUID, question: String, dailyLimit: Long, config: AiRuntimeConfigSnapshot?): UUID? {
+    override fun reserve(
+        userId: UUID,
+        question: String,
+        dailyLimit: Long,
+        config: AiRuntimeConfigSnapshot?,
+        clientRequestId: UUID?,
+        requestFingerprint: String,
+    ): AiUsageReservation? {
         userRepository.findActiveByIdForUpdate(userId) ?: return null
+        val fingerprintHash = clientRequestId?.let { hash(requestFingerprint) }
+        if (clientRequestId != null) {
+            receiptRepository.findLockedByUserIdAndClientRequestId(userId, clientRequestId)?.let { existing ->
+                if (!MessageDigest.isEqual(existing.requestHash.toByteArray(), fingerprintHash!!.toByteArray())) {
+                    throw AiIdempotencyConflictException()
+                }
+                return AiUsageReservation.Existing(existing.toClientRequest())
+            }
+        }
         if (countToday(userId) >= dailyLimit) return null
-        return repository.save(
+        val usage = repository.save(
             AiUsageLogEntity(
                 userId = userId,
                 requestHash = hash(question),
@@ -68,8 +97,23 @@ class JdbcAiUsageAdapter(
                 modelConfigVersionId = config?.id,
                 evaluatorModel = config?.evaluatorModel?.takeIf { config.evaluationEnabled },
             ),
-        ).id
+        )
+        if (clientRequestId != null) {
+            receiptRepository.save(
+                AiRequestReceiptEntity(
+                    userId = userId,
+                    clientRequestId = clientRequestId,
+                    usageLogId = usage.id,
+                    requestHash = fingerprintHash!!,
+                ),
+            )
+        }
+        return AiUsageReservation.Started(usage.id)
     }
+
+    @Transactional(readOnly = true)
+    override fun findClientRequest(userId: UUID, clientRequestId: UUID): AiClientRequest? =
+        receiptRepository.findByUserIdAndClientRequestId(userId, clientRequestId)?.toClientRequest()
 
     @Transactional
     override fun reserveRegeneration(
@@ -115,15 +159,42 @@ class JdbcAiUsageAdapter(
 
     @Transactional
     override fun complete(reservationId: UUID, answer: GroundedAnswer) {
-        repository.findById(reservationId).orElseThrow().complete(answer, properties.embeddingModel)
+        repository.findLockedById(reservationId)?.complete(answer, properties.embeddingModel)
+            ?: error("AI usage reservation not found: $reservationId")
+        val now = Instant.now()
+        receiptRepository.findLockedByUsageLogId(reservationId)?.complete(
+            encryptedResponse = responseCodec.encode(answer),
+            responseExpiresAt = now.plusSeconds(properties.idempotencyResponseTtlSeconds),
+            now = now,
+        )
     }
 
     @Transactional
     override fun fail(reservationId: UUID, errorCode: String, consumedAnswer: GroundedAnswer?) {
-        repository.findById(reservationId).ifPresent {
+        repository.findLockedById(reservationId)?.let {
             if (consumedAnswer != null) it.complete(consumedAnswer, properties.embeddingModel)
             it.fail(errorCode)
         }
+        receiptRepository.findLockedByUsageLogId(reservationId)?.fail(errorCode, Instant.now())
+    }
+
+    private fun AiRequestReceiptEntity.toClientRequest(now: Instant = Instant.now()): AiClientRequest {
+        if (status == AiRequestReceiptStatus.PENDING) {
+            return AiClientRequest(clientRequestId, usageLogId, AiClientRequestStatus.PROCESSING, updatedAt = updatedAt)
+        }
+        if (status == AiRequestReceiptStatus.FAILED) {
+            return AiClientRequest(clientRequestId, usageLogId, AiClientRequestStatus.FAILED, errorCode = errorCode, updatedAt = updatedAt)
+        }
+        val payload = encryptedResponse
+        val expiresAt = responseExpiresAt
+        if (payload == null || expiresAt == null || !expiresAt.isAfter(now)) {
+            return AiClientRequest(clientRequestId, usageLogId, AiClientRequestStatus.EXPIRED, updatedAt = updatedAt)
+        }
+        val answer = runCatching { responseCodec.decode(payload) }
+            .onFailure { logger.error("AI request receipt response cannot be decrypted receiptId={}", id, it) }
+            .getOrNull()
+            ?: return AiClientRequest(clientRequestId, usageLogId, AiClientRequestStatus.EXPIRED, updatedAt = updatedAt)
+        return AiClientRequest(clientRequestId, usageLogId, AiClientRequestStatus.COMPLETED, answer = answer, updatedAt = updatedAt)
     }
 
     private fun hash(value: String): String =
@@ -133,6 +204,7 @@ class JdbcAiUsageAdapter(
             .joinToString("") { "%02x".format(it) }
 
     companion object {
+        private val logger = LoggerFactory.getLogger(JdbcAiUsageAdapter::class.java)
         // PENDING은 동시 요청 우회를 막고 COMPLETED만 실제 사용량으로 남깁니다. 실패 요청은 재시도할 수 있습니다.
         private val QUOTA_STATUSES = listOf(AiUsageStatus.PENDING, AiUsageStatus.COMPLETED)
     }

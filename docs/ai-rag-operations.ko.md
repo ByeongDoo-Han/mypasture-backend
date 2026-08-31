@@ -142,3 +142,25 @@ data: {"status":"completed"}
 `AI_STREAM_CORE_POOL_SIZE`, `AI_STREAM_MAX_POOL_SIZE`, `AI_STREAM_QUEUE_CAPACITY`로 제한합니다.
 429 또는 5xx와 연결 오류는 delta 전까지만 최대 3회 재시도합니다. 일부 문자를 전송한 뒤에는 중복
 표시를 막기 위해 자동 재시도하지 않습니다.
+
+## 모바일 재요청과 사용량 멱등성
+
+모바일은 AI 질문마다 `clientRequestId` UUID를 한 번 발급하고, 앱이 종료되거나 SSE 연결이 끊겨도 같은
+ID를 다시 사용합니다. 서버는 `(user_id, client_request_id)`를 유일 키로 저장하므로 같은 질문을 다시
+받아도 새 OpenAI 호출이나 사용량 행을 만들지 않습니다. 같은 ID로 질문 또는 대화 ID를 바꾸면
+`AI_IDEMPOTENCY_CONFLICT`로 거부합니다.
+
+완료 결과는 `AI_PRIVACY_HASH_SECRET`에서 용도 분리한 AES-GCM 키로 암호화해 기본 24시간 보관하고,
+질문 원문 대신 HMAC만 저장합니다. 연결이 끊긴 앱은 아래 API로 처리 상태와 완료 결과를 복구합니다.
+
+```http
+GET /api/v1/ai/requests/{clientRequestId}
+```
+
+- `AI_IDEMPOTENCY_RESPONSE_TTL_SECONDS`: 암호화된 완료 결과 재전달 기간, 기본 86,400초
+- `AI_IDEMPOTENCY_RECEIPT_RETENTION_DAYS`: 감사용 요청 영수증 보존 기간, 기본 30일
+- `AI_IDEMPOTENCY_PENDING_TIMEOUT_MS`: 멈춘 요청을 실패로 확정해 quota를 복구하는 시간, 기본 120초
+
+만료·정리 스케줄은 `APP_WORKER_ENABLED=true`인 단일 worker에서만 실행합니다. 운영에서
+`AI_PRIVACY_HASH_SECRET`을 교체하면 이전 영수증은 복호화할 수 없어 `EXPIRED`로 취급되므로, 키 교체는
+최대 24시간의 결과 복구 포기를 포함한 운영 변경으로 처리해야 합니다.

@@ -47,4 +47,22 @@ data class AiProperties(
     val evaluationThreshold: Int = 4,
     val evaluationMaxOutputTokens: Int = 500,
     val maxRevisionCount: Int = 1,
-)
+    val idempotencyResponseTtlSeconds: Long = 86_400,
+    val idempotencyReceiptRetentionDays: Long = 30,
+    val idempotencyPendingTimeoutMs: Long = 120_000,
+) {
+    init {
+        require(idempotencyResponseTtlSeconds in 60..604_800) {
+            "AI idempotency response TTL must be between 60 seconds and 7 days."
+        }
+        require(idempotencyReceiptRetentionDays in 1..365) {
+            "AI idempotency receipt retention must be between 1 and 365 days."
+        }
+        require(idempotencyReceiptRetentionDays * 86_400 >= idempotencyResponseTtlSeconds) {
+            "AI idempotency receipt retention must not be shorter than the response TTL."
+        }
+        require(idempotencyPendingTimeoutMs in streamTimeoutMs..86_400_000) {
+            "AI idempotency pending timeout must be at least the stream timeout and no more than 24 hours."
+        }
+    }
+}

@@ -56,6 +56,21 @@ class AiExceptionHandler {
     @ExceptionHandler(AiConversationUnavailableException::class) @ResponseStatus(HttpStatus.NOT_FOUND)
     fun conversationUnavailable(exception: AiConversationUnavailableException, request: HttpServletRequest) =
         AiErrorCode.CONVERSATION_UNAVAILABLE.toResponse(request, exception.message ?: AiErrorCode.CONVERSATION_UNAVAILABLE.defaultMessage)
+    @ExceptionHandler(com.example.mypasture.ai.domain.AiIdempotencyConflictException::class) @ResponseStatus(HttpStatus.CONFLICT)
+    fun idempotencyConflict(exception: com.example.mypasture.ai.domain.AiIdempotencyConflictException, request: HttpServletRequest) =
+        AiErrorCode.IDEMPOTENCY_CONFLICT.toResponse(request, exception.message ?: AiErrorCode.IDEMPOTENCY_CONFLICT.defaultMessage)
+    @ExceptionHandler(com.example.mypasture.ai.domain.AiRequestInProgressException::class) @ResponseStatus(HttpStatus.CONFLICT)
+    fun requestInProgress(exception: com.example.mypasture.ai.domain.AiRequestInProgressException, request: HttpServletRequest) =
+        AiErrorCode.REQUEST_IN_PROGRESS.toResponse(request, exception.message ?: AiErrorCode.REQUEST_IN_PROGRESS.defaultMessage)
+    @ExceptionHandler(com.example.mypasture.ai.domain.AiRequestPreviouslyFailedException::class) @ResponseStatus(HttpStatus.CONFLICT)
+    fun requestFailed(exception: com.example.mypasture.ai.domain.AiRequestPreviouslyFailedException, request: HttpServletRequest) =
+        AiErrorCode.REQUEST_FAILED.toResponse(request, exception.message ?: AiErrorCode.REQUEST_FAILED.defaultMessage)
+    @ExceptionHandler(com.example.mypasture.ai.domain.AiRequestResultExpiredException::class) @ResponseStatus(HttpStatus.GONE)
+    fun requestExpired(exception: com.example.mypasture.ai.domain.AiRequestResultExpiredException, request: HttpServletRequest) =
+        AiErrorCode.REQUEST_RESULT_EXPIRED.toResponse(request, exception.message ?: AiErrorCode.REQUEST_RESULT_EXPIRED.defaultMessage)
+    @ExceptionHandler(com.example.mypasture.ai.domain.AiRequestNotFoundException::class) @ResponseStatus(HttpStatus.NOT_FOUND)
+    fun requestNotFound(exception: com.example.mypasture.ai.domain.AiRequestNotFoundException, request: HttpServletRequest) =
+        AiErrorCode.REQUEST_NOT_FOUND.toResponse(request, exception.message ?: AiErrorCode.REQUEST_NOT_FOUND.defaultMessage)
     @ExceptionHandler(BibleEmbeddingIndexUnavailableException::class) @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
     fun embeddingUnavailable(exception: BibleEmbeddingIndexUnavailableException, request: HttpServletRequest) =
         AiErrorCode.EMBEDDING_INDEX_UNAVAILABLE.toResponse(request, exception.message ?: AiErrorCode.EMBEDDING_INDEX_UNAVAILABLE.defaultMessage)
@@ -73,6 +88,11 @@ enum class AiErrorCode(
     SAFETY_ESCALATION("AI_SAFETY_ESCALATION", "즉시 도움을 요청해 주세요."),
     PROVIDER_UNAVAILABLE("AI_PROVIDER_UNAVAILABLE", "AI service unavailable"),
     CONVERSATION_UNAVAILABLE("AI_CONVERSATION_UNAVAILABLE", "AI 대화를 찾을 수 없거나 이미 만료되었습니다."),
+    IDEMPOTENCY_CONFLICT("AI_IDEMPOTENCY_CONFLICT", "같은 요청 ID를 다른 질문에 사용할 수 없습니다."),
+    REQUEST_IN_PROGRESS("AI_REQUEST_IN_PROGRESS", "기존 AI 요청을 처리하고 있습니다."),
+    REQUEST_FAILED("AI_REQUEST_FAILED", "이 AI 요청은 이전에 실패했습니다."),
+    REQUEST_RESULT_EXPIRED("AI_REQUEST_RESULT_EXPIRED", "저장된 AI 요청 결과가 만료되었습니다."),
+    REQUEST_NOT_FOUND("AI_REQUEST_NOT_FOUND", "AI 요청을 찾을 수 없습니다."),
     EMBEDDING_INDEX_UNAVAILABLE("AI_EMBEDDING_INDEX_UNAVAILABLE", "Embedding index unavailable"),
     STREAM_FAILED("AI_STREAM_FAILED", "AI streaming 요청에 실패했습니다."),
     ADMIN_OPERATION_CONFLICT("AI_ADMIN_OPERATION_CONFLICT", "이미 다른 AI 관리자 작업에 사용된 operationId입니다."),

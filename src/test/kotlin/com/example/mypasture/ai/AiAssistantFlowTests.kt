@@ -13,8 +13,13 @@ import com.example.mypasture.ai.domain.RagRetrievalStrategy
 import com.example.mypasture.ai.domain.AiAssistantStage
 import com.example.mypasture.ai.domain.BibleQuestionIntent
 import com.example.mypasture.ai.domain.AiConversationUnavailableException
+import com.example.mypasture.ai.domain.AiClientRequestStatus
+import com.example.mypasture.ai.domain.AiIdempotencyConflictException
+import com.example.mypasture.ai.domain.AiUsageReservation
 import com.example.mypasture.ai.infrastructure.AiUsageLogRepository
 import com.example.mypasture.ai.infrastructure.AiConversationRepository
+import com.example.mypasture.ai.infrastructure.AiRequestReceiptMaintenanceService
+import com.example.mypasture.ai.infrastructure.AiRequestReceiptRepository
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.user.domain.SubscriptionTier
 import com.example.mypasture.user.domain.UserEntity
@@ -49,6 +54,8 @@ class AiAssistantFlowTests(
     @Autowired private val conversationRepository: AiConversationRepository,
     @Autowired private val feedbackService: AiAnswerFeedbackService,
     @Autowired private val feedbackRepository: AiAnswerFeedbackRepository,
+    @Autowired private val receiptMaintenanceService: AiRequestReceiptMaintenanceService,
+    @Autowired private val receiptRepository: AiRequestReceiptRepository,
 ) {
     @Test
     fun `local assistant returns grounded answer and records usage`() {
@@ -239,12 +246,61 @@ class AiAssistantFlowTests(
     }
 
     @Test
+    fun `same client request id replays one completed answer without consuming quota twice`() {
+        val user = userRepository.save(UserEntity(email = "ai-idempotent-${UUID.randomUUID()}@example.com", displayName = "AI Idempotent"))
+        val clientRequestId = UUID.randomUUID()
+
+        val first = useCase.ask(user.id, SubscriptionTier.FREE, "창세기 1장 1절을 설명해주세요", clientRequestId = clientRequestId)
+        val replayed = useCase.ask(user.id, SubscriptionTier.FREE, "창세기 1장 1절을 설명해주세요", clientRequestId = clientRequestId)
+
+        assertEquals(first, replayed)
+        assertEquals(1, usageRepository.findAllByUserId(user.id).size)
+        assertEquals(1, usagePort.countToday(user.id))
+        assertEquals(AiClientRequestStatus.COMPLETED, useCase.requestStatus(user.id, clientRequestId).status)
+    }
+
+    @Test
+    fun `same client request id cannot be reused for a different question`() {
+        val user = userRepository.save(UserEntity(email = "ai-conflict-${UUID.randomUUID()}@example.com", displayName = "AI Conflict"))
+        val clientRequestId = UUID.randomUUID()
+        useCase.ask(user.id, SubscriptionTier.FREE, "창세기 1장 1절을 설명해주세요", clientRequestId = clientRequestId)
+
+        assertThrows(AiIdempotencyConflictException::class.java) {
+            useCase.ask(user.id, SubscriptionTier.FREE, "요한복음 3장 16절을 설명해주세요", clientRequestId = clientRequestId)
+        }
+        assertEquals(1, usageRepository.findAllByUserId(user.id).size)
+        assertEquals(1, usagePort.countToday(user.id))
+    }
+
+    @Test
+    fun `stale pending request releases quota and records failure`() {
+        val user = userRepository.save(UserEntity(email = "ai-stale-${UUID.randomUUID()}@example.com", displayName = "AI Stale"))
+        val clientRequestId = UUID.randomUUID()
+        val reservation = usagePort.reserve(
+            userId = user.id,
+            question = "처리가 멈춘 질문",
+            dailyLimit = 10,
+            clientRequestId = clientRequestId,
+        )
+        assertTrue(reservation is AiUsageReservation.Started)
+
+        val receipt = receiptRepository.findByUserIdAndClientRequestId(user.id, clientRequestId)!!
+        receipt.updatedAt = java.time.Instant.now().minusSeconds(121)
+        receiptRepository.saveAndFlush(receipt)
+        receiptMaintenanceService.failStalePendingRequests()
+
+        assertEquals(0, usagePort.countToday(user.id))
+        assertEquals(AiClientRequestStatus.FAILED, useCase.requestStatus(user.id, clientRequestId).status)
+        assertEquals("AI_REQUEST_STALE", useCase.requestStatus(user.id, clientRequestId).errorCode)
+    }
+
+    @Test
     fun `concurrent quota reservations cannot exceed the free daily limit`() {
         val user = userRepository.save(UserEntity(email = "ai-concurrent-${UUID.randomUUID()}@example.com", displayName = "AI Concurrent"))
         val executor = Executors.newFixedThreadPool(12)
         try {
             val reservations = (1..12).map { index ->
-                executor.submit<UUID?> { usagePort.reserve(user.id, "동시 질문 $index", 10) }
+                executor.submit<AiUsageReservation?> { usagePort.reserve(user.id, "동시 질문 $index", 10) }
             }.map { it.get() }
 
             assertEquals(10, reservations.count { it != null })

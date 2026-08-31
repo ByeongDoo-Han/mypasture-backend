@@ -58,12 +58,13 @@ class AiControllerStreamingTests(
             content = """{"email":"$email","password":"$password"}"""
         }.andReturn()
         val token = objectMapper.readTree(login.response.contentAsString).path("token").asText()
+        val clientRequestId = UUID.randomUUID()
 
         val initial = mockMvc.post("/api/v1/ai/chat/stream") {
             header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
             accept = MediaType.TEXT_EVENT_STREAM
-            content = """{"question":"창세기 말씀을 설명해주세요"}"""
+            content = """{"question":"창세기 말씀을 설명해주세요","clientRequestId":"$clientRequestId"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
         initial.getAsyncResult(5_000)
         awaitStreamContent(initial, "event:done")
@@ -77,6 +78,42 @@ class AiControllerStreamingTests(
             .andExpect(content().string(containsString("event:citations")))
             .andExpect(content().string(containsString("event:usage")))
             .andExpect(content().string(containsString("event:done")))
+
+        mockMvc.get("/api/v1/ai/requests/$clientRequestId") {
+            header("Authorization", "Bearer $token")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.clientRequestId") { value(clientRequestId.toString()) }
+            jsonPath("$.status") { value("COMPLETED") }
+            jsonPath("$.response.status") { value("COMPLETED") }
+        }
+
+        val strangerToken = issueToken("ai-sse-stranger-${UUID.randomUUID()}@example.com")
+        mockMvc.get("/api/v1/ai/requests/$clientRequestId") {
+            header("Authorization", "Bearer $strangerToken")
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("AI_REQUEST_NOT_FOUND") }
+        }
+
+        val replay = mockMvc.post("/api/v1/ai/chat/stream") {
+            header("Authorization", "Bearer $token")
+            contentType = MediaType.APPLICATION_JSON
+            accept = MediaType.TEXT_EVENT_STREAM
+            content = """{"question":"창세기 말씀을 설명해주세요","clientRequestId":"$clientRequestId"}"""
+        }.andExpect { request { asyncStarted() } }.andReturn()
+        replay.getAsyncResult(5_000)
+        awaitStreamContent(replay, "event:done")
+        mockMvc.perform(asyncDispatch(replay))
+            .andExpect(status().isOk)
+            .andExpect(content().string(containsString("event:delta")))
+
+        mockMvc.get("/api/v1/ai/usage/today") {
+            header("Authorization", "Bearer $token")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.used") { value(1) }
+        }
     }
 
     @Test

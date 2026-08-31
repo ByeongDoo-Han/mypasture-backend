@@ -14,6 +14,12 @@ import com.example.mypasture.ai.domain.AiAssistantStage
 import com.example.mypasture.ai.domain.AI_ASSISTANT_RESPONSE_SCHEMA_VERSION
 import com.example.mypasture.ai.domain.AiAssistantNextAction
 import com.example.mypasture.ai.domain.AiConversationUnavailableException
+import com.example.mypasture.ai.domain.AiClientRequest
+import com.example.mypasture.ai.domain.AiIdempotencyConflictException
+import com.example.mypasture.ai.domain.AiRequestInProgressException
+import com.example.mypasture.ai.domain.AiRequestNotFoundException
+import com.example.mypasture.ai.domain.AiRequestPreviouslyFailedException
+import com.example.mypasture.ai.domain.AiRequestResultExpiredException
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.common.error.ApiErrorResponse
 import com.example.mypasture.config.AiProperties
@@ -35,6 +41,7 @@ import com.example.mypasture.policy.domain.PolicyScope
 data class AskAiRequest(
     @field:Size(min = 1, max = 300) val question: String,
     val conversationId: UUID? = null,
+    val clientRequestId: UUID? = null,
 )
 
 /** 답변별 최종 평가와 최대 세 개의 품질 사유를 전달합니다. */
@@ -135,6 +142,16 @@ data class AiDailyUsageResponse(
     val entitlementExpiresAt: java.time.Instant?,
 )
 
+/** 응답 연결이 끊긴 모바일이 같은 요청의 처리 상태와 완료 결과를 다시 확인합니다. */
+data class AiRequestStatusResponse(
+    val clientRequestId: UUID,
+    val turnId: UUID,
+    val status: String,
+    val response: AskAiResponse?,
+    val errorCode: String?,
+    val updatedAt: java.time.Instant,
+)
+
 /** JWT 사용자의 신앙 질문을 RAG 기반 AI 목자에게 전달합니다. */
 @RestController
 @RequestMapping("/api/v1/ai")
@@ -157,7 +174,13 @@ class AiController(
             principal.subscriptionTier,
             request.question,
             request.conversationId,
+            request.clientRequestId,
         ).toResponse()
+    }
+
+    override fun requestStatus(principal: JwtPrincipal, clientRequestId: UUID): AiRequestStatusResponse {
+        policyConsentService.requireCurrent(principal.userId, setOf(PolicyScope.ACCOUNT, PolicyScope.AI))
+        return askBibleAssistant.requestStatus(principal.userId, clientRequestId).toResponse()
     }
 
     /** 평가가 켜진 경우 검증된 최종 답변만 delta로 보내고 완료 후 인용과 사용량을 전달합니다. */
@@ -176,20 +199,20 @@ class AiController(
                         subscriptionTier = principal.subscriptionTier,
                         question = request.question,
                         conversationId = request.conversationId,
+                        clientRequestId = request.clientRequestId,
                         onStage = { stage ->
-                            if (active.get()) emitter.send(SseEmitter.event().name("status").data(mapOf("stage" to stage.name)))
+                            sendIfActive(active, emitter, SseEmitter.event().name("status").data(mapOf("stage" to stage.name)))
                         },
                         onDelta = { delta ->
-                            if (!active.get()) throw AiProviderException("AI streaming 연결이 종료되었습니다.")
-                            emitter.send(SseEmitter.event().name("delta").data(delta))
+                            sendIfActive(active, emitter, SseEmitter.event().name("delta").data(delta))
                         },
                     )
                 if (active.get()) {
-                    emitter.send(SseEmitter.event().name("response").data(result.toResponse()))
-                    emitter.send(SseEmitter.event().name("citations").data(result.citations))
-                    emitter.send(SseEmitter.event().name("usage").data(result.toStreamUsage()))
-                    emitter.send(SseEmitter.event().name("done").data(mapOf("status" to "completed")))
-                    emitter.complete()
+                    sendIfActive(active, emitter, SseEmitter.event().name("response").data(result.toResponse()))
+                    sendIfActive(active, emitter, SseEmitter.event().name("citations").data(result.citations))
+                    sendIfActive(active, emitter, SseEmitter.event().name("usage").data(result.toStreamUsage()))
+                    sendIfActive(active, emitter, SseEmitter.event().name("done").data(mapOf("status" to "completed")))
+                    if (active.get()) emitter.complete()
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -246,8 +269,24 @@ class AiController(
 
     companion object {
         private val logger = LoggerFactory.getLogger(AiController::class.java)
+
+        /** 클라이언트 연결 종료는 AI 작업 실패가 아니므로 전송만 멈추고 생성·저장은 완료합니다. */
+        private fun sendIfActive(active: AtomicBoolean, emitter: SseEmitter, event: SseEmitter.SseEventBuilder) {
+            if (!active.get()) return
+            runCatching { emitter.send(event) }
+                .onFailure { active.set(false) }
+        }
     }
 }
+
+private fun AiClientRequest.toResponse() = AiRequestStatusResponse(
+    clientRequestId = clientRequestId,
+    turnId = turnId,
+    status = status.name,
+    response = answer?.toResponse(),
+    errorCode = errorCode,
+    updatedAt = updatedAt,
+)
 
 private fun com.example.mypasture.ai.domain.AiAnswerFeedback.toResponse() = AiFeedbackResponse(
     turnId = turnId,
@@ -268,6 +307,10 @@ private fun Throwable.toStreamErrorResponse(): ApiErrorResponse =
         is AiSafetyException -> ApiErrorResponse.of(AiErrorCode.SAFETY_ESCALATION, message = message ?: AiErrorCode.SAFETY_ESCALATION.defaultMessage)
         is AiProviderException -> ApiErrorResponse.of(AiErrorCode.PROVIDER_UNAVAILABLE, message = message ?: AiErrorCode.PROVIDER_UNAVAILABLE.defaultMessage)
         is AiConversationUnavailableException -> ApiErrorResponse.of(AiErrorCode.CONVERSATION_UNAVAILABLE, message = message ?: AiErrorCode.CONVERSATION_UNAVAILABLE.defaultMessage)
+        is AiIdempotencyConflictException -> ApiErrorResponse.of(AiErrorCode.IDEMPOTENCY_CONFLICT, message = message ?: AiErrorCode.IDEMPOTENCY_CONFLICT.defaultMessage)
+        is AiRequestInProgressException -> ApiErrorResponse.of(AiErrorCode.REQUEST_IN_PROGRESS, message = message ?: AiErrorCode.REQUEST_IN_PROGRESS.defaultMessage)
+        is AiRequestPreviouslyFailedException -> ApiErrorResponse.of(AiErrorCode.REQUEST_FAILED, message = message ?: AiErrorCode.REQUEST_FAILED.defaultMessage)
+        is AiRequestResultExpiredException -> ApiErrorResponse.of(AiErrorCode.REQUEST_RESULT_EXPIRED, message = message ?: AiErrorCode.REQUEST_RESULT_EXPIRED.defaultMessage)
         else -> ApiErrorResponse.of(AiErrorCode.STREAM_FAILED)
     }
 

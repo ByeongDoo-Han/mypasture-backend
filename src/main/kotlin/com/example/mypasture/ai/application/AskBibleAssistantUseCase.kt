@@ -172,7 +172,7 @@ class AskBibleAssistantUseCase(
             val cacheScope = "${runtimeConfig.cacheScope}:${experiencePolicy.interactionMode}:$AI_RESPONSE_CACHE_VERSION"
             if (conversationContext == null) cachePort.get(userId, normalized, cacheScope)?.let { cached ->
                 val cacheHit = cached.copy(
-                    turnId = UUID.randomUUID(),
+                    turnId = reservationId,
                     promptTokens = 0,
                     completionTokens = 0,
                     estimatedCostUsd = java.math.BigDecimal.ZERO,
@@ -199,6 +199,7 @@ class AskBibleAssistantUseCase(
             onStage(AiAssistantStage.GENERATING_ANSWER)
             val completion = complete(normalized, retrieval.citations, runtimeConfig, experiencePolicy, conversationContext)
             var answer = completion.copy(
+                turnId = reservationId,
                 estimatedCostUsd = completion.estimatedCostUsd.add(retrieval.embeddingCostUsd),
                 embeddingTokens = retrieval.embeddingTokens,
                 embeddingCostUsd = retrieval.embeddingCostUsd,

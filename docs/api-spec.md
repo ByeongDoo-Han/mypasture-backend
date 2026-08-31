@@ -852,6 +852,24 @@ POST /api/v1/admin/daily-words/{date}/generation-jobs
 GET  /api/v1/admin/daily-words/generation-jobs
 ```
 
+### 4.6 Answer Feedback and Improvement
+
+Status: `IMPLEMENTED`
+
+```http
+POST /api/v1/ai/feedback
+POST /api/v1/ai/feedback/{turnId}/regenerate
+GET  /api/v1/admin/ai/feedback/summary
+GET  /api/v1/admin/ai/feedback/priority?limit=20
+```
+
+- `HELPFUL`은 사유 없이, `NOT_HELPFUL`은 1~3개 사유와 선택 의견 300자 이하로 보냅니다.
+- 같은 사용자와 `turnId`의 최종 평가는 한 건으로 갱신됩니다.
+- 피드백 제출은 AI 사용량을 차감하지 않습니다.
+- 원래 질문과 HMAC이 일치하고 `NOT_HELPFUL`인 답변만 한 번 무료로 개선 생성할 수 있습니다.
+- 개선 생성의 토큰·비용은 별도 usage log에 기록하지만 `quota_counted=false`입니다.
+- 관리자 조회에는 질문, 답변, 자유 의견을 반환하지 않고 집계와 잘못된 구절 신고의 추적 ID만 제공합니다.
+
 ## 5. Today's Word API
 
 ### 5.1 Get Today's Word

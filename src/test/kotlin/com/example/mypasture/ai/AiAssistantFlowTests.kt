@@ -3,6 +3,11 @@ package com.example.mypasture.ai
 import com.example.mypasture.ai.application.AskBibleAssistantUseCase
 import com.example.mypasture.ai.application.AiGroundingNotFoundException
 import com.example.mypasture.ai.application.AiUsagePort
+import com.example.mypasture.ai.application.AiAnswerFeedbackService
+import com.example.mypasture.ai.domain.AiFeedbackRating
+import com.example.mypasture.ai.domain.AiFeedbackReason
+import com.example.mypasture.ai.domain.AiFeedbackTargetNotFoundException
+import com.example.mypasture.ai.infrastructure.AiAnswerFeedbackRepository
 import com.example.mypasture.ai.application.TextEmbeddingPort
 import com.example.mypasture.ai.domain.RagRetrievalStrategy
 import com.example.mypasture.ai.domain.AiAssistantStage
@@ -42,6 +47,8 @@ class AiAssistantFlowTests(
     @Autowired private val embeddingPort: TextEmbeddingPort,
     @Autowired private val usagePort: AiUsagePort,
     @Autowired private val conversationRepository: AiConversationRepository,
+    @Autowired private val feedbackService: AiAnswerFeedbackService,
+    @Autowired private val feedbackRepository: AiAnswerFeedbackRepository,
 ) {
     @Test
     fun `local assistant returns grounded answer and records usage`() {
@@ -60,6 +67,55 @@ class AiAssistantFlowTests(
         assertEquals(null, answer.followUpQuestion)
         assertEquals(null, answer.conversationId)
         assertEquals(1, usageRepository.countByUserIdAndCreatedAtGreaterThanEqual(user.id, java.time.Instant.EPOCH))
+        assertEquals(answer.turnId, usageRepository.findAllByUserId(user.id).single().id)
+    }
+
+    @Test
+    fun `feedback is idempotently updated and regeneration does not consume quota`() = runTest {
+        val user = userRepository.save(UserEntity(email = "ai-feedback-${UUID.randomUUID()}@example.com", displayName = "AI Feedback"))
+        val question = "창세기 1장 1절을 설명해주세요"
+        val original = useCase.ask(user.id, SubscriptionTier.FREE, question)
+
+        feedbackService.submit(
+            user.id,
+            original.turnId,
+            AiFeedbackRating.NOT_HELPFUL,
+            setOf(AiFeedbackReason.IRRELEVANT_SCRIPTURE),
+            "질문과 조금 멀게 느껴졌어요.",
+        )
+        feedbackService.submit(
+            user.id,
+            original.turnId,
+            AiFeedbackRating.NOT_HELPFUL,
+            setOf(AiFeedbackReason.TOO_GENERIC),
+            null,
+        )
+        val regenerated = feedbackService.regenerate(user.id, SubscriptionTier.FREE, original.turnId, question)
+
+        assertEquals(1, feedbackRepository.count())
+        assertEquals(1, usagePort.countToday(user.id))
+        assertEquals(2, usageRepository.findAllByUserId(user.id).size)
+        val regenerationUsage = usageRepository.findById(regenerated.turnId).orElseThrow()
+        assertEquals(false, regenerationUsage.quotaCounted)
+        assertEquals(original.turnId, regenerationUsage.parentTurnId)
+        assertEquals("COMPLETED", feedbackRepository.findByUserIdAndTurnId(user.id, original.turnId)?.regenerationStatus?.name)
+    }
+
+    @Test
+    fun `another user cannot submit feedback for an answer`() {
+        val owner = userRepository.save(UserEntity(email = "ai-feedback-owner-${UUID.randomUUID()}@example.com", displayName = "Owner"))
+        val stranger = userRepository.save(UserEntity(email = "ai-feedback-stranger-${UUID.randomUUID()}@example.com", displayName = "Stranger"))
+        val answer = useCase.ask(owner.id, SubscriptionTier.FREE, "창세기를 설명해주세요 ${UUID.randomUUID()}")
+
+        assertThrows(AiFeedbackTargetNotFoundException::class.java) {
+            feedbackService.submit(
+                stranger.id,
+                answer.turnId,
+                AiFeedbackRating.HELPFUL,
+                emptySet(),
+                null,
+            )
+        }
     }
 
     @Test

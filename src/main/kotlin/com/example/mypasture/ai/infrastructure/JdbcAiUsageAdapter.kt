@@ -4,9 +4,11 @@ import com.example.mypasture.ai.application.AiUsagePort
 import com.example.mypasture.ai.domain.AiUsageLogEntity
 import com.example.mypasture.ai.domain.AiUsageStatus
 import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
+import com.example.mypasture.ai.domain.AiCompletedTurn
 import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.auth.infrastructure.UserRepository
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.stereotype.Repository
 import org.springframework.stereotype.Component
 import org.springframework.scheduling.annotation.Scheduled
@@ -17,16 +19,23 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
+import jakarta.persistence.LockModeType
+import java.security.MessageDigest
 
 /** AI 사용량 로그를 PostgreSQL과 개발용 H2에서 동일하게 저장하는 repository입니다. */
 interface AiUsageLogRepository : JpaRepository<AiUsageLogEntity, UUID> {
     fun countByUserIdAndCreatedAtGreaterThanEqual(userId: UUID, createdAt: Instant): Long
 
-    fun countByUserIdAndStatusInAndCreatedAtGreaterThanEqual(
+    fun countByUserIdAndQuotaCountedTrueAndStatusInAndCreatedAtGreaterThanEqual(
         userId: UUID,
         statuses: Collection<AiUsageStatus>,
         createdAt: Instant,
     ): Long
+
+    fun findByIdAndUserIdAndStatus(id: UUID, userId: UUID, status: AiUsageStatus): AiUsageLogEntity?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    fun findLockedByIdAndUserIdAndStatus(id: UUID, userId: UUID, status: AiUsageStatus): AiUsageLogEntity?
 
     fun findAllByUserId(userId: UUID): List<AiUsageLogEntity>
     fun deleteAllByCreatedAtBefore(cutoff: Instant): Long
@@ -40,7 +49,7 @@ class JdbcAiUsageAdapter(
     private val properties: com.example.mypasture.config.AiProperties,
 ) : AiUsagePort {
     override fun countToday(userId: UUID): Long =
-        repository.countByUserIdAndStatusInAndCreatedAtGreaterThanEqual(
+        repository.countByUserIdAndQuotaCountedTrueAndStatusInAndCreatedAtGreaterThanEqual(
             userId,
             QUOTA_STATUSES,
             LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC),
@@ -60,6 +69,48 @@ class JdbcAiUsageAdapter(
                 evaluatorModel = config?.evaluatorModel?.takeIf { config.evaluationEnabled },
             ),
         ).id
+    }
+
+    @Transactional
+    override fun reserveRegeneration(
+        userId: UUID,
+        question: String,
+        parentTurnId: UUID,
+        config: AiRuntimeConfigSnapshot,
+    ): UUID {
+        userRepository.findActiveByIdForUpdate(userId) ?: error("AI 사용자를 찾을 수 없습니다.")
+        repository.findLockedByIdAndUserIdAndStatus(parentTurnId, userId, AiUsageStatus.COMPLETED)
+            ?: error("피드백 대상 AI 답변을 찾을 수 없습니다.")
+        return repository.save(
+            AiUsageLogEntity(
+                userId = userId,
+                requestHash = hash(question),
+                model = config.generatorModel,
+                modelConfigVersionId = config.id,
+                evaluatorModel = config.evaluatorModel.takeIf { config.evaluationEnabled },
+                quotaCounted = false,
+                parentTurnId = parentTurnId,
+            ),
+        ).id
+    }
+
+    @Transactional(readOnly = true)
+    override fun findCompletedTurn(userId: UUID, turnId: UUID): AiCompletedTurn? =
+        repository.findByIdAndUserIdAndStatus(turnId, userId, AiUsageStatus.COMPLETED)?.let { entity ->
+            AiCompletedTurn(
+                turnId = entity.id,
+                citationVerseIds = entity.citationVerseIds
+                    ?.split(',')
+                    ?.mapNotNull(String::toLongOrNull)
+                    ?.toSet()
+                    .orEmpty(),
+            )
+        }
+
+    @Transactional(readOnly = true)
+    override fun questionMatches(userId: UUID, turnId: UUID, question: String): Boolean {
+        val entity = repository.findByIdAndUserIdAndStatus(turnId, userId, AiUsageStatus.COMPLETED) ?: return false
+        return MessageDigest.isEqual(entity.requestHash.toByteArray(), hash(question).toByteArray())
     }
 
     @Transactional

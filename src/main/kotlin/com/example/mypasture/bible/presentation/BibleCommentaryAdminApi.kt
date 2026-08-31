@@ -7,6 +7,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestBody
 import java.util.UUID
 
@@ -24,6 +26,22 @@ interface BibleCommentaryAdminApi {
         @Valid @RequestBody request: QueueBibleCommentaryGenerationRequest,
     ): ResponseEntity<BibleCommentaryGenerationJobResponse>
 
+    @PostMapping("/generation-jobs/books")
+    fun queueBookGeneration(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @Valid @RequestBody request: QueueBibleCommentaryBookGenerationRequest,
+    ): ResponseEntity<BibleCommentaryBookGenerationResponse>
+
+    @PutMapping("/{commentaryId}")
+    fun edit(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable commentaryId: UUID,
+        @Valid @RequestBody request: EditBibleCommentaryRequest,
+    ): BibleCommentaryAdminResponse
+
+    @GetMapping("/{commentaryId}/reviews")
+    fun reviews(@PathVariable commentaryId: UUID): List<BibleCommentaryReviewEventResponse>
+
     @PostMapping("/{commentaryId}/publish")
     fun publish(
         @AuthenticationPrincipal principal: JwtPrincipal,
@@ -35,5 +53,28 @@ interface BibleCommentaryAdminApi {
     fun reject(
         @AuthenticationPrincipal principal: JwtPrincipal,
         @PathVariable commentaryId: UUID,
+        @Valid @RequestBody request: RejectBibleCommentaryRequest,
     ): ResponseEntity<Void>
+
+    @GetMapping("/evidence")
+    fun evidence(
+        @RequestParam version: String,
+        @RequestParam bookCode: String,
+        @RequestParam chapter: Int,
+    ): List<BibleCommentaryEvidenceResponse>
+
+    @PostMapping("/evidence")
+    fun createEvidence(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @Valid @RequestBody request: CreateBibleCommentaryEvidenceRequest,
+    ): ResponseEntity<BibleCommentaryEvidenceResponse>
+
+    @PostMapping("/evidence/{evidenceId}/approve")
+    fun approveEvidence(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable evidenceId: UUID,
+    ): BibleCommentaryEvidenceResponse
+
+    @PostMapping("/evidence/{evidenceId}/retire")
+    fun retireEvidence(@PathVariable evidenceId: UUID): BibleCommentaryEvidenceResponse
 }

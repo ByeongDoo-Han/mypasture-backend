@@ -1,0 +1,42 @@
+### 개인 말씀 메모 API
+### http-client.env.json에서 local 환경을 선택하고 accessToken을 설정한 뒤 실행합니다.
+
+### 창세기 1장 1~2절에 메모 생성
+POST {{baseUrl}}/api/v1/bible-notes
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "content": "창조의 시작을 기억합니다.",
+  "verses": [
+    { "version": "KOR1910", "bookCode": "GEN", "chapter": 1, "verse": 1 },
+    { "version": "KOR1910", "bookCode": "GEN", "chapter": 1, "verse": 2 }
+  ]
+}
+
+> {%
+  client.global.set("bibleNoteId", response.body.id);
+  client.global.set("bibleNoteRevision", response.body.revision);
+%}
+
+### 내 말씀 메모 최신순 조회
+GET {{baseUrl}}/api/v1/bible-notes?page=0&size=20
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
+### 최신 revision으로 메모와 연결 구절 교체
+PUT {{baseUrl}}/api/v1/bible-notes/{{bibleNoteId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "expectedRevision": {{bibleNoteRevision}},
+  "content": "첫 절을 중심으로 다시 묵상합니다.",
+  "verses": [
+    { "version": "KOR1910", "bookCode": "GEN", "chapter": 1, "verse": 1 }
+  ]
+}
+
+### 내 메모 삭제
+DELETE {{baseUrl}}/api/v1/bible-notes/{{bibleNoteId}}
+Authorization: Bearer {{accessToken}}

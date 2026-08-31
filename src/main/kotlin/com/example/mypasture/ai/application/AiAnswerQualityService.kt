@@ -26,6 +26,7 @@ class AiAnswerQualityService(
         config: AiRuntimeConfigSnapshot,
         experiencePolicy: AiAssistantExperiencePolicy = DEFAULT_EXPERIENCE_POLICY,
         conversationContext: AiConversationContext? = null,
+        generationInstructions: List<String> = emptyList(),
         onReview: () -> Unit = {},
     ): GroundedAnswer {
         var generated = completionPort.answerWithCitations(
@@ -34,6 +35,7 @@ class AiAnswerQualityService(
             config,
             experiencePolicy,
             conversationContext,
+            generationInstructions,
         )
         if (!config.evaluationEnabled) return generated.withRuntimeMetadata(config)
 
@@ -71,6 +73,7 @@ class AiAnswerQualityService(
                 config = config,
                 experiencePolicy = experiencePolicy,
                 conversationContext = conversationContext,
+                generationInstructions = generationInstructions,
                 previousAnswer = previous.answer,
                 revisionInstructions = evaluation.issues.ifEmpty { listOf("모든 평가 항목을 기준 이상으로 개선하세요.") },
             )

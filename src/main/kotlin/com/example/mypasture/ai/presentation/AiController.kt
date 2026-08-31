@@ -7,6 +7,7 @@ import com.example.mypasture.ai.application.AiQuotaExceededException
 import com.example.mypasture.ai.application.AiSafetyException
 import com.example.mypasture.ai.application.AiAnswerRejectedException
 import com.example.mypasture.ai.application.AskBibleAssistantUseCase
+import com.example.mypasture.ai.application.AiAnswerFeedbackService
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.ai.domain.AiAssistantStage
@@ -18,6 +19,7 @@ import com.example.mypasture.common.error.ApiErrorResponse
 import com.example.mypasture.config.AiProperties
 import com.example.mypasture.config.AiStreamingCoroutineRunner
 import jakarta.validation.constraints.Size
+import jakarta.validation.constraints.NotNull
 import kotlinx.coroutines.CancellationException
 import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.RequestMapping
@@ -33,6 +35,29 @@ import com.example.mypasture.policy.domain.PolicyScope
 data class AskAiRequest(
     @field:Size(min = 1, max = 300) val question: String,
     val conversationId: UUID? = null,
+)
+
+/** 답변별 최종 평가와 최대 세 개의 품질 사유를 전달합니다. */
+data class SubmitAiFeedbackRequest(
+    @field:NotNull val turnId: UUID,
+    @field:NotNull val rating: com.example.mypasture.ai.domain.AiFeedbackRating,
+    val reasons: Set<com.example.mypasture.ai.domain.AiFeedbackReason> = emptySet(),
+    @field:Size(max = 300) val comment: String? = null,
+)
+
+/** 원래 질문의 HMAC을 검증한 뒤 개선 답변을 생성하는 요청입니다. */
+data class RegenerateAiAnswerRequest(
+    @field:Size(min = 1, max = 300) val question: String,
+)
+
+/** 저장된 피드백 상태만 반환하고 민감할 수 있는 자유 의견은 반환하지 않습니다. */
+data class AiFeedbackResponse(
+    val turnId: UUID,
+    val rating: String,
+    val reasons: Set<String>,
+    val regenerationStatus: String,
+    val regeneratedTurnId: UUID?,
+    val updatedAt: java.time.Instant,
 )
 
 /** 앱이 타입별 UI로 렌더링하는 AI 응답 block의 공통 contract입니다. */
@@ -118,6 +143,7 @@ class AiController(
     private val streamingRunner: AiStreamingCoroutineRunner,
     private val properties: AiProperties,
     private val policyConsentService: PolicyConsentService,
+    private val feedbackService: AiAnswerFeedbackService,
 ) : AiApi {
     override fun todayUsage(principal: JwtPrincipal): AiDailyUsageResponse =
         askBibleAssistant.dailyUsage(principal.userId, principal.subscriptionTier).let {
@@ -193,10 +219,44 @@ class AiController(
         return emitter
     }
 
+    override fun feedback(principal: JwtPrincipal, request: SubmitAiFeedbackRequest): AiFeedbackResponse {
+        policyConsentService.requireCurrent(principal.userId, setOf(PolicyScope.ACCOUNT, PolicyScope.AI))
+        return feedbackService.submit(
+            principal.userId,
+            request.turnId,
+            request.rating,
+            request.reasons,
+            request.comment,
+        ).toResponse()
+    }
+
+    override suspend fun regenerate(
+        principal: JwtPrincipal,
+        turnId: UUID,
+        request: RegenerateAiAnswerRequest,
+    ): AskAiResponse {
+        policyConsentService.requireCurrent(principal.userId, setOf(PolicyScope.ACCOUNT, PolicyScope.AI))
+        return feedbackService.regenerate(
+            principal.userId,
+            principal.subscriptionTier,
+            turnId,
+            request.question,
+        ).toResponse()
+    }
+
     companion object {
         private val logger = LoggerFactory.getLogger(AiController::class.java)
     }
 }
+
+private fun com.example.mypasture.ai.domain.AiAnswerFeedback.toResponse() = AiFeedbackResponse(
+    turnId = turnId,
+    rating = rating.name,
+    reasons = reasons.map { it.name }.toSet(),
+    regenerationStatus = regenerationStatus.name,
+    regeneratedTurnId = regeneratedTurnId,
+    updatedAt = updatedAt,
+)
 
 /** SSE는 이미 200 응답을 시작했으므로 도메인 예외를 안정적인 event code로 변환합니다. */
 private fun Throwable.toStreamErrorResponse(): ApiErrorResponse =

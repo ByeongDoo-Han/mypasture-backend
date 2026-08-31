@@ -6,6 +6,11 @@ import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
 import com.example.mypasture.ai.domain.AiAssistantExperiencePolicy
 import com.example.mypasture.ai.domain.AiConversationContext
 import com.example.mypasture.ai.domain.AiConversationTurn
+import com.example.mypasture.ai.domain.AiAnswerFeedback
+import com.example.mypasture.ai.domain.AiCompletedTurn
+import com.example.mypasture.ai.domain.AiFeedbackRating
+import com.example.mypasture.ai.domain.AiFeedbackReason
+import com.example.mypasture.ai.domain.AiFeedbackSummary
 import com.example.mypasture.ai.domain.BibleEmbeddingSource
 import com.example.mypasture.ai.domain.BibleRetrievalResult
 import com.example.mypasture.ai.domain.GroundedAnswer
@@ -49,6 +54,7 @@ interface AiCompletionPort {
         config: AiRuntimeConfigSnapshot,
         experiencePolicy: AiAssistantExperiencePolicy,
         conversationContext: AiConversationContext? = null,
+        generationInstructions: List<String> = emptyList(),
         previousAnswer: String? = null,
         revisionInstructions: List<String> = emptyList(),
     ): GroundedAnswer
@@ -111,10 +117,42 @@ interface AiUsagePort {
         config: AiRuntimeConfigSnapshot? = null,
     ): UUID?
 
+    fun reserveRegeneration(
+        userId: UUID,
+        question: String,
+        parentTurnId: UUID,
+        config: AiRuntimeConfigSnapshot,
+    ): UUID
+
+    fun findCompletedTurn(userId: UUID, turnId: UUID): AiCompletedTurn?
+
+    fun questionMatches(userId: UUID, turnId: UUID, question: String): Boolean
+
     fun complete(
         reservationId: UUID,
         answer: GroundedAnswer,
     )
 
     fun fail(reservationId: UUID, errorCode: String, consumedAnswer: GroundedAnswer? = null)
+}
+
+/** 답변별 최종 피드백과 무료 재생성 상태를 영속 저장하는 포트입니다. */
+interface AiFeedbackPort {
+    fun upsert(
+        userId: UUID,
+        turnId: UUID,
+        rating: AiFeedbackRating,
+        reasons: Set<AiFeedbackReason>,
+        comment: String?,
+    ): AiAnswerFeedback
+
+    fun beginRegeneration(userId: UUID, turnId: UUID): AiAnswerFeedback
+
+    fun completeRegeneration(userId: UUID, turnId: UUID, regeneratedTurnId: UUID)
+
+    fun failRegeneration(userId: UUID, turnId: UUID)
+
+    fun summary(): AiFeedbackSummary
+
+    fun priority(limit: Int): List<AiAnswerFeedback>
 }

@@ -87,6 +87,7 @@ class AiAnswerQualityServiceTests {
             config: AiRuntimeConfigSnapshot,
             experiencePolicy: AiAssistantExperiencePolicy,
             conversationContext: AiConversationContext?,
+            generationInstructions: List<String>,
             previousAnswer: String?,
             revisionInstructions: List<String>,
         ): GroundedAnswer {

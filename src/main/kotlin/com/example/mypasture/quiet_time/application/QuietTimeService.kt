@@ -7,6 +7,7 @@ import com.example.mypasture.quiet_time.domain.QuietTimeParticipantEntity
 import com.example.mypasture.quiet_time.domain.QuietTimePastureEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeQrInvitationEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeQrStatus
+import com.example.mypasture.quiet_time.domain.QuietTimeQuestionStyle
 import com.example.mypasture.quiet_time.domain.QuietTimeSessionScope
 import com.example.mypasture.quiet_time.domain.QuietTimeSessionStatus
 import com.example.mypasture.quiet_time.domain.QuietTimeSensitivityLevel
@@ -35,6 +36,7 @@ class QuietTimeService(
     private val qrInvitationRepository: QuietTimeQrInvitationRepository,
     private val participantRepository: QuietTimeParticipantRepository,
     private val attendanceService: AttendanceService,
+    private val questionSetService: QuietTimeQuestionSetService,
     private val qrProperties: QuietTimeQrProperties,
     private val clock: Clock = Clock.systemUTC(),
 ) {
@@ -91,6 +93,8 @@ class QuietTimeService(
         meetingStartsAt: Instant?,
         meetingEndsAt: Instant?,
         joinStartsAt: Instant?,
+        focusThemeCode: String? = null,
+        questionStyle: QuietTimeQuestionStyle? = null,
     ): QuietTimeSessionQrView =
         createPastureSession(
             leaderUserId = leaderUserId,
@@ -98,6 +102,8 @@ class QuietTimeService(
             title = title,
             passageId = passageId,
             theme = theme,
+            focusThemeCode = focusThemeCode,
+            questionStyle = questionStyle,
             meetingDate = meetingDate,
             meetingStartsAt = meetingStartsAt,
             meetingEndsAt = meetingEndsAt,
@@ -115,6 +121,8 @@ class QuietTimeService(
         meetingStartsAt: Instant?,
         meetingEndsAt: Instant?,
         joinStartsAt: Instant?,
+        focusThemeCode: String? = null,
+        questionStyle: QuietTimeQuestionStyle? = null,
     ): QuietTimeSessionQrView {
         val now = Instant.now(clock)
         val pasture = pastureRepository.findById(pastureId)
@@ -129,6 +137,8 @@ class QuietTimeService(
             title = title,
             passageId = passageId,
             theme = theme,
+            focusThemeCode = focusThemeCode,
+            questionStyle = questionStyle,
             meetingDate = meetingDate,
             meetingStartsAt = meetingStartsAt,
             meetingEndsAt = meetingEndsAt,
@@ -149,6 +159,8 @@ class QuietTimeService(
         meetingStartsAt: Instant?,
         meetingEndsAt: Instant?,
         joinStartsAt: Instant?,
+        focusThemeCode: String? = null,
+        questionStyle: QuietTimeQuestionStyle? = null,
     ): QuietTimeSessionQrView {
         require(hostDisplayName.trim().length in 1..80) { "Host display name length must be between 1 and 80." }
         return createSession(
@@ -159,6 +171,8 @@ class QuietTimeService(
             title = title,
             passageId = passageId,
             theme = theme,
+            focusThemeCode = focusThemeCode,
+            questionStyle = questionStyle,
             meetingDate = meetingDate,
             meetingStartsAt = meetingStartsAt,
             meetingEndsAt = meetingEndsAt,
@@ -175,6 +189,8 @@ class QuietTimeService(
         title: String?,
         passageId: UUID?,
         theme: String?,
+        focusThemeCode: String?,
+        questionStyle: QuietTimeQuestionStyle?,
         meetingDate: LocalDate?,
         meetingStartsAt: Instant?,
         meetingEndsAt: Instant?,
@@ -195,6 +211,7 @@ class QuietTimeService(
         val participationStartsAt = joinStartsAt ?: now
         val expiresAt = endsAt.plusSeconds(qrProperties.expiryGraceMinutes * 60)
         validateQrWindow(now, startsAt, endsAt, participationStartsAt, expiresAt)
+        val questionSet = questionSetService.selectForSession(passage, focusThemeCode, theme, questionStyle)
 
         val session = sessionRepository.save(
             QuietTimeSessionEntity(
@@ -207,6 +224,16 @@ class QuietTimeService(
                 meetingDate = meetingDate ?: LocalDate.ofInstant(startsAt, ZoneOffset.UTC),
                 meetingStartsAt = startsAt,
                 meetingEndsAt = endsAt,
+                focusThemeCode = questionSet.focusTheme.code,
+                focusThemeName = questionSet.focusTheme.name,
+                questionStyle = questionSet.style,
+                questionSetVersion = questionSet.version,
+                observationQuestions = questionSet.observationQuestions.joinToString("|"),
+                meditationQuestions = questionSet.meditationQuestions.joinToString("|"),
+                sharingQuestions = questionSet.sharingQuestions.joinToString("|"),
+                actionGuide = questionSet.actionGuide,
+                prayerGuide = questionSet.prayerGuide,
+                questionSetLockedAt = now,
             ),
         )
         val invitation = createInvitation(session, participationStartsAt, expiresAt, now)

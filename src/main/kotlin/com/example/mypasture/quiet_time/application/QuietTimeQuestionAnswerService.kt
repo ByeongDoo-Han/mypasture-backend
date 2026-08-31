@@ -91,9 +91,9 @@ class QuietTimeQuestionAnswerService(
         questionIndex: Int,
     ): String {
         val encoded = when (category) {
-            QuietTimeQuestionCategory.OBSERVATION -> session.passage.observationQuestions
-            QuietTimeQuestionCategory.MEDITATION -> session.passage.meditationQuestions
-            QuietTimeQuestionCategory.SHARING -> session.passage.sharingQuestions
+            QuietTimeQuestionCategory.OBSERVATION -> session.observationQuestions
+            QuietTimeQuestionCategory.MEDITATION -> session.meditationQuestions
+            QuietTimeQuestionCategory.SHARING -> session.sharingQuestions
         }
         val questions = encoded.split("|").map(String::trim).filter(String::isNotBlank)
         require(questionIndex in questions.indices) { "존재하지 않는 QT 질문입니다." }

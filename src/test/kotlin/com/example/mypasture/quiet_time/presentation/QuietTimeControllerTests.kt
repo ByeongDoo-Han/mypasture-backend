@@ -46,6 +46,89 @@ class QuietTimeControllerTests(
     }
 
     @Test
+    fun `one passage exposes multiple weighted themes and creates different previews`() {
+        val passageResult = mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
+            param("theme", "불안")
+            param("size", "1")
+        }.andExpect { status { isOk() } }.andReturn()
+        val passageId = objectMapper.readTree(passageResult.response.contentAsString)[0]["id"].asText()
+
+        mockMvc.get("/api/v1/quiet-time/passages/$passageId/themes")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.length()") { value(3) }
+                jsonPath("$[0].code") { value("PEACE") }
+                jsonPath("$[0].primary") { value(true) }
+                jsonPath("$[1].primary") { value(false) }
+                jsonPath("$[0].evidenceReference") { value("빌립보서 4:7") }
+            }
+
+        val peace = previewQuestionSet(passageId, "PEACE", "REFLECTION")
+        val prayer = previewQuestionSet(passageId, "PRAYER", "REFLECTION")
+        check(peace["meditationQuestions"][0].asText() != prayer["meditationQuestions"][0].asText())
+        check(peace["focusTheme"]["name"].asText() == "평안")
+        check(prayer["focusTheme"]["name"].asText() == "기도")
+    }
+
+    @Test
+    fun `session freezes selected theme question set and answers use the snapshot`() {
+        val passageResult = mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
+            param("theme", "불안")
+            param("size", "1")
+        }.andReturn()
+        val passageId = objectMapper.readTree(passageResult.response.contentAsString)[0]["id"].asText()
+        val pastureId = createPasture()
+        val result = mockMvc.post("/api/v1/quiet-time/pastures/$pastureId/sessions") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content =
+                """
+                {
+                  "title": "평안을 나누는 QT",
+                  "passageId": "$passageId",
+                  "focusThemeCode": "PEACE",
+                  "questionStyle": "SHARING"
+                }
+                """.trimIndent()
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.questionSet.focusTheme.code") { value("PEACE") }
+            jsonPath("$.questionSet.style") { value("SHARING") }
+            jsonPath("$.questionSet.lockedAt") { exists() }
+            jsonPath("$.questionSet.sharingQuestions.length()") { value(2) }
+        }.andReturn()
+        val session = objectMapper.readTree(result.response.contentAsString)
+        val expectedQuestion = session["questionSet"]["sharingQuestions"][0].asText()
+
+        mockMvc.put("/api/v1/quiet-time/sessions/${session["id"].asText()}/answers/SHARING/0") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"함께 기도하며 나누겠습니다."}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.questionText") { value(expectedQuestion) }
+        }
+    }
+
+    @Test
+    fun `question preview rejects a theme not linked to the passage`() {
+        val passageResult = mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
+            param("theme", "불안")
+            param("size", "1")
+        }.andReturn()
+        val passageId = objectMapper.readTree(passageResult.response.contentAsString)[0]["id"].asText()
+
+        mockMvc.post("/api/v1/quiet-time/passages/$passageId/question-preview") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"focusThemeCode":"FORGIVENESS","questionStyle":"BALANCED"}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("INVALID_QUIET_TIME_REQUEST") }
+        }
+    }
+
+    @Test
     fun `pasture session creates expiring invite url for frontend qr`() {
         val session = createSession(createPasture())
         val offlineCode = session["offlineCode"].asText()
@@ -422,6 +505,19 @@ class QuietTimeControllerTests(
             jsonPath("$.joinCode") { exists() }
             jsonPath("$.expiresAt") { exists() }
         }.andReturn()
+        return objectMapper.readTree(result.response.contentAsString)
+    }
+
+    private fun previewQuestionSet(
+        passageId: String,
+        focusThemeCode: String,
+        questionStyle: String,
+    ): JsonNode {
+        val result = mockMvc.post("/api/v1/quiet-time/passages/$passageId/question-preview") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"focusThemeCode":"$focusThemeCode","questionStyle":"$questionStyle"}"""
+        }.andExpect { status { isOk() } }.andReturn()
         return objectMapper.readTree(result.response.contentAsString)
     }
 

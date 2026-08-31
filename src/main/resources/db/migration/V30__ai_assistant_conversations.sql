@@ -1,3 +1,8 @@
+-- V1의 초기 스키마는 평문 메시지 기반 대화 테이블을 만들었습니다.
+-- 새 암호화 문맥 모델과 이름이 충돌하므로 기존 데이터는 레거시 테이블로 보존합니다.
+alter table ai_messages rename to ai_messages_legacy;
+alter table ai_conversations rename to ai_conversations_legacy;
+
 create table ai_conversations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users(id),

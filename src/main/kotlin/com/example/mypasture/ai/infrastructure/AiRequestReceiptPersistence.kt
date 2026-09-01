@@ -34,6 +34,8 @@ interface AiRequestReceiptRepository : JpaRepository<AiRequestReceiptEntity, UUI
 
     fun findByUserIdAndClientRequestId(userId: UUID, clientRequestId: UUID): AiRequestReceiptEntity?
 
+    fun findByUsageLogId(usageLogId: UUID): AiRequestReceiptEntity?
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     fun findLockedByUsageLogId(usageLogId: UUID): AiRequestReceiptEntity?
 

@@ -1,0 +1,62 @@
+### 신고·차단 운영 흐름
+### private 환경 파일에 본인 소유 AI turn, 참여 가능한 QT 답변, 차단할 작성자 ID를 설정합니다.
+
+### 1. AI 답변 신고
+POST {{baseUrl}}/api/v1/moderation/reports
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "targetType": "AI_ANSWER",
+  "targetId": "{{aiTurnId}}",
+  "reason": "FALSE_INFORMATION",
+  "details": "인용 말씀과 답변 내용이 일치하는지 확인해 주세요."
+}
+
+> {%
+client.test("AI report is accepted", function () {
+  client.assert(response.status === 201, "Expected HTTP 201");
+  client.assert(response.body.status === "OPEN", "Expected OPEN report");
+});
+client.global.set("moderationReportId", response.body.id);
+%}
+
+### 2. QT 답변 신고
+POST {{baseUrl}}/api/v1/moderation/reports
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "targetType": "QUIET_TIME_ANSWER",
+  "targetId": "{{quietTimeAnswerId}}",
+  "reason": "HARASSMENT",
+  "details": "다른 참여자에게 불편을 줄 수 있는 표현입니다."
+}
+
+### 3. QT 작성자 차단
+PUT {{baseUrl}}/api/v1/moderation/blocks/{{blockedUserId}}
+Authorization: Bearer {{accessToken}}
+
+### 4. 차단 목록 조회
+GET {{baseUrl}}/api/v1/moderation/blocks
+Authorization: Bearer {{accessToken}}
+
+### 5. 차단 해제
+DELETE {{baseUrl}}/api/v1/moderation/blocks/{{blockedUserId}}
+Authorization: Bearer {{accessToken}}
+
+### 6. 관리자 신고 대기열 조회
+GET {{baseUrl}}/api/v1/admin/moderation/reports?status=OPEN&page=0&size=20
+Authorization: Bearer {{adminAccessToken}}
+
+### 7. 관리자 숨김 처리
+PATCH {{baseUrl}}/api/v1/admin/moderation/reports/{{moderationReportId}}
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "operationId": "{{$uuid}}",
+  "status": "RESOLVED",
+  "action": "CONTENT_HIDDEN",
+  "note": "운영 정책 검토 후 해당 콘텐츠를 숨김 처리합니다."
+}

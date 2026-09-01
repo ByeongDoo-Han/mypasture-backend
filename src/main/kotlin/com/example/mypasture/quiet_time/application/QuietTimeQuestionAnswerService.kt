@@ -1,5 +1,8 @@
 package com.example.mypasture.quiet_time.application
 
+import com.example.mypasture.moderation.application.ModerationVisibilityService
+import com.example.mypasture.moderation.application.UserGeneratedContentGuard
+import com.example.mypasture.moderation.domain.ModerationTargetType
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionAnswerEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionCategory
 import com.example.mypasture.quiet_time.domain.QuietTimeSessionEntity
@@ -20,6 +23,8 @@ class QuietTimeQuestionAnswerService(
     private val participantRepository: QuietTimeParticipantRepository,
     private val answerRepository: QuietTimeQuestionAnswerRepository,
     private val eventPublisher: ApplicationEventPublisher,
+    private val moderationVisibility: ModerationVisibilityService,
+    private val contentGuard: UserGeneratedContentGuard,
 ) {
     @Transactional
     fun save(
@@ -31,6 +36,7 @@ class QuietTimeQuestionAnswerService(
     ): QuietTimeQuestionAnswerView {
         val normalizedContent = content.trim()
         require(normalizedContent.length in 1..MAX_ANSWER_LENGTH) { "답변은 1자 이상 ${MAX_ANSWER_LENGTH}자 이하여야 합니다." }
+        contentGuard.requireAllowed(normalizedContent)
         // 같은 모임에서 최초 답변 생성과 수정 판정을 직렬화해 유일 키 경쟁을 방지합니다.
         val session = sessionRepository.findByIdForUpdate(sessionId)
             ?: throw QuietTimeNotFoundException("Quiet time session was not found: $sessionId")
@@ -64,8 +70,13 @@ class QuietTimeQuestionAnswerService(
     fun list(sessionId: UUID, userId: UUID): List<QuietTimeQuestionAnswerView> {
         val session = findSession(sessionId)
         requireParticipantOrLeader(session, userId)
-        return answerRepository.findAllBySessionIdOrderByQuestionCategoryAscQuestionIndexAscUpdatedAtAsc(sessionId)
+        val answers = answerRepository.findAllBySessionIdOrderByQuestionCategoryAscQuestionIndexAscUpdatedAtAsc(sessionId)
+        val hiddenIds = moderationVisibility.hiddenTargetIds(ModerationTargetType.QUIET_TIME_ANSWER, answers.map { it.id })
+        val blockedUserIds = moderationVisibility.blockedUserIds(userId)
+        return answers.asSequence()
+            .filterNot { it.id in hiddenIds || (it.userId != null && it.userId in blockedUserIds) }
             .map(QuietTimeQuestionAnswerEntity::toView)
+            .toList()
     }
 
     @Transactional(readOnly = true)
@@ -109,7 +120,7 @@ class QuietTimeQuestionAnswerService(
 data class QuietTimeQuestionAnswerView(
     val id: UUID,
     val sessionId: UUID,
-    val userId: UUID,
+    val userId: UUID?,
     val authorDisplayName: String,
     val questionCategory: QuietTimeQuestionCategory,
     val questionIndex: Int,

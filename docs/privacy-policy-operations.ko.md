@@ -29,7 +29,7 @@
 - `privacy@mypasture.app` 메일함 생성 및 담당자·응답 기한 지정
 - 실제 운영자 상호·대표자·주소가 필요한 문서와 앱스토어 항목에 반영
 - OpenAI, GCP, Firebase 및 소셜 로그인 공급자의 실제 처리 지역·보유 설정 확인
-- App Store App Privacy와 Google Play Data safety 응답을 본 문서와 일치시킴
+- 코드 기준 `data-safety-inventory.ko.md`와 App Store App Privacy·Google Play Data Safety 응답을 대조
 - 계정 삭제 시 사용자 콘텐츠, AI 대화, 푸시 토큰과 동의 상태의 삭제·보존 동작 검증
 - 회원가입·AI 진입·설정의 동의 화면 접근성 및 개별 선택 검증
 - 운영 DB 백업에도 삭제 주기와 접근 통제를 적용

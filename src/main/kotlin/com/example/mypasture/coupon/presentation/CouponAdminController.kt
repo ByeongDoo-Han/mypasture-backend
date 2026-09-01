@@ -22,7 +22,7 @@ class CouponAdminController(private val service: CouponCampaignAdminService) : C
             CreateCouponCampaignCommand(
                 request.operationId, request.name, request.eligibilityKey, request.codeType,
                 request.redeemStartsAt, request.redeemEndsAt, request.maxRedemptions, request.codeCount,
-                request.sharedCode, request.entitlementDurationDays, request.aiDailyLimit, request.reason,
+                request.sharedCode, request.rewardType, request.rewardItemCode, request.rewardQuantity, request.reason,
             ),
         )
         return CreatedCouponCampaignResponse(created.campaign.toResponse(), created.generatedCodes)
@@ -35,5 +35,5 @@ class CouponAdminController(private val service: CouponCampaignAdminService) : C
 private fun CouponCampaignPage.toResponse() = CouponCampaignPageResponse(items.map { it.toResponse() }, page, size, totalElements, totalPages)
 private fun CouponCampaignView.toResponse() = CouponCampaignResponse(
     id, name, eligibilityKey, codeType.name, status.name, redeemStartsAt, redeemEndsAt,
-    maxRedemptions, redeemedCount, entitlementDurationDays, aiDailyLimit, createdAt,
+    maxRedemptions, redeemedCount, rewardType.name, rewardItemCode, rewardQuantity, createdAt,
 )

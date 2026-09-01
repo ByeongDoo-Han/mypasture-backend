@@ -13,26 +13,37 @@ import org.mockito.BDDMockito.given
 import org.mockito.Mockito.doAnswer
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.context.TestPropertySource
 import org.springframework.http.MediaType
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 /** AuthController의 회원가입 HTTP 흐름을 검증하는 통합 테스트입니다. */
 @SpringBootTest
 @AutoConfigureMockMvc
-@TestPropertySource(properties = ["app.security.jwt.access-token-ttl-seconds=900"])
+@TestPropertySource(
+    properties = [
+        "app.security.jwt.access-token-ttl-seconds=900",
+        "app.oauth.google.web-client-ids=google-review-client.apps.googleusercontent.com",
+        "app.oauth.apple.client-ids=com.mypasture.app",
+        "app.oauth.kakao.app-ids=123456789",
+    ],
+)
 class AuthControllerTests(
     @Autowired private val mockMvc: MockMvc,
+    @Autowired private val jdbcTemplate: JdbcTemplate,
 ) {
     @MockitoBean
     private lateinit var googleOidcOAuthClient: GoogleOidcOAuthClient
@@ -51,6 +62,18 @@ class AuthControllerTests(
         given(googleOidcOAuthClient.provider).willReturn(AuthProvider.GOOGLE)
         given(appleOidcOAuthClient.provider).willReturn(AuthProvider.APPLE)
         given(kakaoOAuthClient.provider).willReturn(AuthProvider.KAKAO)
+    }
+
+    @Test
+    fun `social provider readiness is public and does not expose client identifiers`() {
+        mockMvc.get("/api/v1/auth/social-login/providers")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.providers.GOOGLE") { value(true) }
+                jsonPath("$.providers.APPLE") { value(true) }
+                jsonPath("$.providers.KAKAO") { value(true) }
+                jsonPath("$.providers.clientIds") { doesNotExist() }
+            }
     }
 
     @Test
@@ -499,6 +522,31 @@ class AuthControllerTests(
         val email = "withdraw@example.com"
         val password = "password123!"
         val token = signupAndLogin(email, password)
+        val deletedUserId = jdbcTemplate.queryForObject("select id from users where email = ?", UUID::class.java, email)!!
+        jdbcTemplate.update(
+            "insert into bible_notes(id, user_id, content, revision, created_at, updated_at) values (?, ?, ?, ?, current_timestamp, current_timestamp)",
+            UUID.randomUUID(),
+            deletedUserId,
+            "회원탈퇴와 함께 지워져야 하는 개인 말씀 메모",
+            0,
+        )
+        val testVersionId = UUID.randomUUID()
+        jdbcTemplate.update(
+            "insert into faith_test_versions(id, code, version, title, status, created_at) values (?, ?, ?, ?, ?, current_timestamp)",
+            testVersionId,
+            "WITHDRAWAL-${UUID.randomUUID()}",
+            1,
+            "회원탈퇴 삭제 검증",
+            "PUBLISHED",
+        )
+        val assessmentId = UUID.randomUUID()
+        jdbcTemplate.update(
+            "insert into faith_assessments(id, user_id, test_version_id, status, started_at) values (?, ?, ?, ?, current_timestamp)",
+            assessmentId,
+            deletedUserId,
+            testVersionId,
+            "IN_PROGRESS",
+        )
 
         mockMvc.delete("/api/v1/auth/me") {
             header("Authorization", "Bearer $token")
@@ -519,6 +567,8 @@ class AuthControllerTests(
         }.andExpect {
             status { isUnauthorized() }
         }
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from bible_notes where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from faith_assessments where id = ?", Long::class.java, assessmentId) ?: -1L)
 
         mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON

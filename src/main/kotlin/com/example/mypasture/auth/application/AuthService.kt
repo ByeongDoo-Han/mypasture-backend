@@ -59,6 +59,7 @@ class AuthService(
     private val eventPublisher: ApplicationEventPublisher,
     private val emailVerificationService: EmailVerificationService,
     private val policyConsentService: PolicyConsentService,
+    private val personalDataEraser: AccountPersonalDataEraser,
 ) {
     private val secureRandom = SecureRandom()
 
@@ -294,6 +295,7 @@ class AuthService(
         passwordResetTokenRepository.revokeAllActiveByUserId(user.id, now)
         refreshTokenRepository.revokeAllByUserId(user.id, now)
         authAccountRepository.deleteAllByUserId(user.id)
+        personalDataEraser.erase(user.id, user.email)
         user.withdraw(now)
         userRepository.saveAndFlush(user)
     }

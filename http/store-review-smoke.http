@@ -1,0 +1,78 @@
+### 스토어 심사 계정 스모크 테스트
+### 심사 메모에 제공할 계정과 유효한 QT 참여 코드는 private 환경 파일에서만 관리합니다.
+
+### 1. 심사 계정 로그인
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{reviewEmail}}",
+  "password": "{{reviewPassword}}"
+}
+
+> {%
+client.test("Review account can log in", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(!!response.body.token, "Expected access token");
+});
+client.global.set("reviewAccessToken", response.body.token);
+%}
+
+### 2. 소셜 로그인 제공자 준비 상태
+GET {{baseUrl}}/api/v1/auth/social-login/providers
+
+> {%
+client.test("Provider readiness is public", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(typeof response.body.providers.GOOGLE === "boolean", "Expected GOOGLE readiness");
+  client.assert(typeof response.body.providers.APPLE === "boolean", "Expected APPLE readiness");
+  client.assert(typeof response.body.providers.KAKAO === "boolean", "Expected KAKAO readiness");
+});
+%}
+
+### 3. AI 화면 권한 및 사용량 조회
+GET {{baseUrl}}/api/v1/ai/usage/today
+Authorization: Bearer {{reviewAccessToken}}
+
+> {%
+client.test("Review account can open AI", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+});
+%}
+
+### 4. 심사용 QT·QR 참여 코드 조회
+GET {{baseUrl}}/api/v1/quiet-time/offline/{{reviewJoinCode}}
+
+> {%
+client.test("Review QR destination is active", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(!!response.body.id, "Expected QT session");
+});
+client.global.set("reviewQuietTimeSessionId", response.body.id);
+%}
+
+### 5. 심사 계정으로 QT 참여
+POST {{baseUrl}}/api/v1/quiet-time/offline/{{reviewJoinCode}}/join
+Authorization: Bearer {{reviewAccessToken}}
+Content-Type: application/json
+
+{
+  "displayName": "앱 심사자",
+  "deviceId": "{{reviewDeviceId}}"
+}
+
+> {%
+client.test("Review account can join QT", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+});
+%}
+
+### 6. 참여 후 QT 답변 화면 조회
+GET {{baseUrl}}/api/v1/quiet-time/sessions/{{reviewQuietTimeSessionId}}/answers
+Authorization: Bearer {{reviewAccessToken}}
+
+> {%
+client.test("Review account can open QT answers", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+});
+%}

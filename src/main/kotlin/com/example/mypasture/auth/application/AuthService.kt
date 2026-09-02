@@ -27,6 +27,9 @@ import com.example.mypasture.auth.presentation.dto.UpdateMyProfileRequest
 import com.example.mypasture.config.AuthSecurityProperties
 import com.example.mypasture.config.JwtProperties
 import com.example.mypasture.config.OAuthProperties
+import com.example.mypasture.user.application.AccountDataErasure
+import com.example.mypasture.user.application.AccountDataErasureCommand
+import com.example.mypasture.user.application.AccountDeletedEvent
 import com.example.mypasture.user.domain.UserEntity
 import com.example.mypasture.policy.application.PolicyConsentService
 import org.springframework.context.ApplicationEventPublisher
@@ -59,6 +62,7 @@ class AuthService(
     private val eventPublisher: ApplicationEventPublisher,
     private val emailVerificationService: EmailVerificationService,
     private val policyConsentService: PolicyConsentService,
+    private val accountDataErasure: AccountDataErasure,
 ) {
     private val secureRandom = SecureRandom()
 
@@ -274,7 +278,7 @@ class AuthService(
         return UserDto.from(user)
     }
 
-    /** 현재 비밀번호 재확인 후 로그인 수단을 제거하고 사용자 직접 식별 정보를 익명화합니다. */
+    /** 현재 비밀번호 재확인 후 개인 데이터 삭제와 공동 기록 익명화를 한 트랜잭션으로 완료합니다. */
     @Transactional
     fun deleteAccount(userId: UUID, authenticatedAt: Instant, request: DeleteAccountRequest) {
         if (request.confirmation != ACCOUNT_DELETION_CONFIRMATION) throw AccountDeletionConfirmationException()
@@ -291,11 +295,17 @@ class AuthService(
         }
 
         val now = Instant.now()
-        passwordResetTokenRepository.revokeAllActiveByUserId(user.id, now)
-        refreshTokenRepository.revokeAllByUserId(user.id, now)
-        authAccountRepository.deleteAllByUserId(user.id)
+        val email = user.email
         user.withdraw(now)
         userRepository.saveAndFlush(user)
+        accountDataErasure.erase(
+            AccountDataErasureCommand(
+                userId = user.id,
+                email = email,
+                requestedAt = now,
+            ),
+        )
+        eventPublisher.publishEvent(AccountDeletedEvent(user.id))
     }
 
     private fun findOrCreateSocialUser(profile: SocialUserProfile): UserEntity {

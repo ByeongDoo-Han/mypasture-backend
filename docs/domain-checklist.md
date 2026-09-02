@@ -130,6 +130,8 @@ Package: `com.example.mypasture.auth`
 - [x] 비밀번호 변경 시 기존 JWT 전체 무효화
 - [x] 회원탈퇴 시 현재 비밀번호 재확인, 로그인 수단 제거, 개인정보 익명화
 - [x] 탈퇴 즉시 기존 JWT 무효화 및 동일 이메일 재가입
+- [x] 회원탈퇴 시 개인·민감 데이터 물리 삭제 및 공동 QT 기록 익명화
+- [x] 탈퇴 DB 트랜잭션, 비식별 완료 감사 원장 및 사용자별 AI 캐시 제거
 - [x] Auth API interface와 Controller 구현 분리
 - [x] 인증 API 통합 테스트
 
@@ -141,7 +143,8 @@ Package: `com.example.mypasture.auth`
 - [ ] 메일 outbox, retry, 실패 모니터링
 - [ ] 소셜 전용 계정 탈퇴 시 provider recent reauthentication
 - [ ] 비밀번호 유출 목록 검사와 정책 고도화
-- [ ] 탈퇴 데이터별 삭제/익명화/법정 보존 정책 확정
+- [x] 탈퇴 데이터별 삭제/익명화 기준과 한글 운영 정책 문서화
+- [ ] 운영 백업 파기 SLA와 법정 보존 데이터의 별도 저장소 확정
 - [ ] 구독 취소 및 App Store/Google Play server notification 연계
 - [ ] 관리자 계정 차단, 휴면, 강제 세션 만료
 - [ ] 보안 감사 이벤트와 이상 로그인 탐지

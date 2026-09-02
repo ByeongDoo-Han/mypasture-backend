@@ -106,6 +106,9 @@ interface AiCachePort {
         cacheScope: String,
         answer: GroundedAnswer,
     )
+
+    /** 계정 삭제 후 해당 사용자가 접근한 AI 응답 캐시를 제거합니다. */
+    fun evictUser(userId: UUID)
 }
 
 /** AI 요청을 호출 전에 예약하고 성공/실패를 확정해 quota 우회를 방지하는 사용량 포트입니다. */

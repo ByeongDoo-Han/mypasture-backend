@@ -2,7 +2,7 @@
 
 ## 1. 현재 배포 모델
 
-My Pasture 서버는 같은 불변 Docker 이미지를 네 가지 실행 단위에서 사용합니다.
+My Pasture 백엔드는 같은 불변 Docker 이미지를 네 가지 실행 단위에서 사용하고, Admin은 별도 Next.js 이미지를 사용합니다.
 
 | 실행 단위 | 역할 | 확장 정책 |
 |---|---|---|
@@ -10,8 +10,10 @@ My Pasture 서버는 같은 불변 Docker 이미지를 네 가지 실행 단위�
 | Cloud Run worker | 알림, 이메일 outbox, 오늘의 말씀, 정리 작업 | 최소/최대 1개 |
 | Cloud Run migration Job | Flyway, JPA schema 검증, 1910 성경 멱등 적재 후 종료 | 배포마다 먼저 1회 실행 |
 | Cloud Run embedding-backfill Job | 전체 성경 절의 pgvector embedding 생성 | 최초 적재 또는 모델 변경 시 명시적으로 실행 |
+| Cloud Run Admin | Next.js 관리자 화면과 BFF | direct IAP, 최소 0개, 최대 1~2개 |
 
 운영 데이터는 Cloud SQL PostgreSQL 17과 pgvector에 저장합니다. Redis 캐시, rate limit, Pub/Sub은 외부 IP가 없는 Compute Engine VM의 TLS Docker Redis를 사용합니다. 운영 API는 외부 HTTPS Load Balancer와 Cloud Armor를 통과하고 Cloud Run 기본 URL 직접 접근은 차단합니다.
+Admin은 DB와 Redis에 직접 접근하지 않고 HTTPS API만 호출하며, Cloud Run direct IAP와 백엔드 `ADMIN` 역할로 이중 보호합니다.
 
 ## 2. 배포 전 준비
 
@@ -74,7 +76,7 @@ terraform plan -out=bootstrap.tfplan
 terraform apply bootstrap.tfplan
 ```
 
-이 단계는 VPC, Cloud SQL, Redis VM, Artifact Registry, secret container, runtime service account를 생성하지만 아직 Cloud Run을 만들지 않습니다.
+이 단계는 VPC, Cloud SQL, Redis VM, backend/admin Artifact Registry, secret container, runtime service account를 생성하지만 아직 Cloud Run을 만들지 않습니다.
 
 ## 5. DB 계정과 extension 준비
 
@@ -245,6 +247,9 @@ OIDC를 신뢰하는 Workload Identity Federation provider와 환경별 배포 s
 repository 이름과 함께 GitHub의 변경 불가능한 repository ID, owner ID, `refs/heads/main`을 검증하므로
 repository 이름이 다른 계정에서 재사용되어도 배포 권한을 얻을 수 없습니다.
 
+Admin 저장소는 별도 WIF provider와 deploy service account를 사용합니다. 최초 이미지와 IAP 적용 순서는
+[`admin-cloud-run-operations.ko.md`](admin-cloud-run-operations.ko.md)를 따릅니다.
+
 배포 service account의 기본 권한은 다음 범위로 제한합니다.
 
 - `roles/artifactregistry.writer`
@@ -307,6 +312,8 @@ expand/contract 방식으로 작성해야 합니다. migration 자체가 실패�
 - [ ] staging Terraform plan/apply 및 E2E 통과
 - [ ] Artifact Registry 취약점 검사 결과 검토
 - [ ] secret version과 runtime IAM 최소 권한 확인
+- [ ] Admin direct IAP 활성화, 운영자 member와 비ADMIN 접근 거부 확인
+- [ ] Admin runtime service account에 DB·Redis·Secret 권한이 없는지 확인
 - [ ] Cloud SQL HA, backup, PITR, deletion protection 확인
 - [ ] Redis VM 외부 IP 없음, TLS/AUTH, private network와 IAP 접근만 허용 확인
 - [ ] Redis AOF, 디스크 스냅샷, 인증서 교체와 VM 재생성 복구 훈련 확인

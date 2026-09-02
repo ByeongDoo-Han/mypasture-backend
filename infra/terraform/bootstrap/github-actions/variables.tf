@@ -30,6 +30,28 @@ variable "allowed_ref" {
   default     = "refs/heads/main"
 }
 
+variable "admin_github_repository" {
+  description = "Admin GitHub repository in owner/name form. Required when admin_deployments is not empty."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = length(var.admin_deployments) == 0 || trimspace(var.admin_github_repository) != ""
+    error_message = "admin_github_repository is required when admin_deployments is configured."
+  }
+}
+
+variable "admin_github_repository_id" {
+  description = "Immutable numeric admin GitHub repository ID."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = length(var.admin_deployments) == 0 || can(regex("^[0-9]+$", var.admin_github_repository_id))
+    error_message = "admin_github_repository_id must be numeric when admin_deployments is configured."
+  }
+}
+
 variable "deployments" {
   description = "Environment-specific deployment targets and runtime identities."
   type = map(object({
@@ -41,5 +63,20 @@ variable "deployments" {
   validation {
     condition     = length(var.deployments) > 0 && alltrue([for environment in keys(var.deployments) : contains(["staging", "prod"], environment)])
     error_message = "deployments must contain only staging and/or prod targets."
+  }
+}
+
+variable "admin_deployments" {
+  description = "Environment-specific Admin Cloud Run deployment targets."
+  type = map(object({
+    project_id                    = string
+    artifact_repository_id        = string
+    runtime_service_account_email = string
+  }))
+  default = {}
+
+  validation {
+    condition     = alltrue([for environment in keys(var.admin_deployments) : contains(["staging", "prod"], environment)])
+    error_message = "admin_deployments must contain only staging and/or prod targets."
   }
 }

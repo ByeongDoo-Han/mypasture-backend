@@ -14,6 +14,30 @@ variable "container_image" {
   type        = string
 }
 
+variable "admin_enabled" {
+  description = "Create the production admin Cloud Run service."
+  type        = bool
+  default     = false
+}
+
+variable "admin_container_image" {
+  description = "Production admin image using a commit SHA tag or digest."
+  type        = string
+  default     = ""
+}
+
+variable "admin_api_base_url" {
+  description = "HTTPS production API URL used by the admin BFF."
+  type        = string
+  default     = ""
+}
+
+variable "admin_iap_members" {
+  description = "Production operators allowed through IAP."
+  type        = set(string)
+  default     = []
+}
+
 variable "api_domain" {
   description = "Production API hostname."
   type        = string

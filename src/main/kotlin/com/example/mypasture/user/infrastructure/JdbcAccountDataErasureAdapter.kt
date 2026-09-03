@@ -166,6 +166,17 @@ class JdbcAccountDataErasureAdapter(
         deleted += update("notification_devices", "delete from notification_devices where user_id = ?", command.userId)
         deleted += update("daily_word_notification_settings", "delete from daily_word_notification_settings where user_id = ?", command.userId)
 
+        deleted += update("moderation_reports", "delete from moderation_reports where reporter_user_id = ?", command.userId)
+        anonymized += update("moderation_reports", "update moderation_reports set target_user_id = null where target_user_id = ?", command.userId)
+        anonymized += update("moderation_reports", "update moderation_reports set resolved_by = null where resolved_by = ?", command.userId)
+        deleted += update(
+            "user_blocks",
+            "delete from user_blocks where blocker_user_id = ? or blocked_user_id = ?",
+            command.userId,
+            command.userId,
+        )
+
+        deleted += update("user_collectibles", "delete from user_collectibles where user_id = ?", command.userId)
         deleted += update("user_entitlements", "delete from user_entitlements where user_id = ?", command.userId)
         deleted += update("coupon_redemptions", "delete from coupon_redemptions where user_id = ?", command.userId)
         deleted += update("user_policy_consent_events", "delete from user_policy_consent_events where user_id = ?", command.userId)

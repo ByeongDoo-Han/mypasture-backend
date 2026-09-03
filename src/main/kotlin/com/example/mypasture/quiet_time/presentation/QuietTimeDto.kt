@@ -314,7 +314,7 @@ data class SaveQuietTimeQuestionAnswerRequest(
 data class QuietTimeQuestionAnswerResponse(
     val id: UUID,
     val sessionId: UUID,
-    val userId: UUID,
+    val userId: UUID?,
     val authorDisplayName: String,
     val questionCategory: QuietTimeQuestionCategory,
     val questionIndex: Int,

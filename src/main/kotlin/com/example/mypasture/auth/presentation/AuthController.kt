@@ -13,6 +13,7 @@ import com.example.mypasture.auth.presentation.dto.SocialLoginRequest
 import com.example.mypasture.auth.presentation.dto.UserLoginRequest
 import com.example.mypasture.auth.presentation.dto.UserSignupRequest
 import com.example.mypasture.auth.presentation.dto.UpdateMyProfileRequest
+import com.example.mypasture.config.OAuthProperties
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
@@ -22,8 +23,17 @@ import org.springframework.web.bind.annotation.RestController
 class AuthController(
     private val authService: AuthService,
     private val emailVerificationService: EmailVerificationService,
+    private val oauthProperties: OAuthProperties,
 ) : AuthApi {
     override fun health(): Map<String, String> = mapOf("status" to "auth-ready")
+
+    override fun socialProviderReadiness() = SocialProviderReadinessResponse(
+        providers = mapOf(
+            "GOOGLE" to oauthProperties.google.acceptedClientIds().isNotEmpty(),
+            "APPLE" to oauthProperties.apple.acceptedClientIds().isNotEmpty(),
+            "KAKAO" to oauthProperties.kakao.appIds.isNotEmpty(),
+        ),
+    )
 
     override fun requestEmailVerification(request: EmailVerificationRequest) =
         emailVerificationService.request(request)

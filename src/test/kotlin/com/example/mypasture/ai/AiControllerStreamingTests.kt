@@ -166,9 +166,9 @@ class AiControllerStreamingTests(
     private fun awaitStreamContent(result: MvcResult, marker: String) {
         val deadline = System.nanoTime() + 5_000_000_000L
         while (System.nanoTime() < deadline) {
-            if (result.response.contentAsString.contains(marker)) return
+            if (result.response.contentAsString.contains(marker) && streamingRunner.isIdle()) return
             Thread.sleep(10)
         }
-        error("SSE response did not contain '$marker' within 5 seconds")
+        error("SSE response did not contain '$marker' and finish within 5 seconds")
     }
 }

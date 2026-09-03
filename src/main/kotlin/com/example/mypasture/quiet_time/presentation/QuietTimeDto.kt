@@ -8,7 +8,10 @@ import com.example.mypasture.quiet_time.domain.QuietTimeReflectionEntity
 import com.example.mypasture.quiet_time.application.QuietTimeJoinResult
 import com.example.mypasture.quiet_time.application.QuietTimeQuestionAnswerView
 import com.example.mypasture.quiet_time.application.QuietTimeSessionQrView
+import com.example.mypasture.quiet_time.application.QuietTimePassageThemeView
+import com.example.mypasture.quiet_time.application.QuietTimeQuestionSet
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionCategory
+import com.example.mypasture.quiet_time.domain.QuietTimeQuestionStyle
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import java.time.Instant
@@ -28,10 +31,20 @@ data class CreateQuietTimeSessionRequest(
     val title: String? = null,
     val passageId: UUID? = null,
     val theme: String? = null,
+    val focusThemeCode: String? = null,
+    val questionStyle: QuietTimeQuestionStyle? = null,
     val meetingDate: LocalDate? = null,
     val meetingStartsAt: Instant? = null,
     val meetingEndsAt: Instant? = null,
     val joinStartsAt: Instant? = null,
+)
+
+/** 선택한 본문과 초점 주제로 질문을 확정하기 전 미리 보는 요청입니다. */
+data class PreviewQuietTimeQuestionSetRequest(
+    @field:NotBlank
+    @field:Size(max = 50)
+    val focusThemeCode: String,
+    val questionStyle: QuietTimeQuestionStyle = QuietTimeQuestionStyle.BALANCED,
 )
 
 /** 같은 큐티 세션의 기존 QR을 폐기하고 새 QR을 발급하는 요청 DTO입니다. */
@@ -39,6 +52,12 @@ data class ReissueQuietTimeQrRequest(
     val joinStartsAt: Instant? = null,
 )
 
+/** 사람이 읽을 수 있는 6자리 코드로 QT 초대 정보를 찾는 요청입니다. */
+data class ResolveQuietTimeJoinCodeRequest(
+    @field:NotBlank
+    @field:Size(max = 20)
+    val joinCode: String,
+)
 
 /** QR 스캔 후 오프라인 큐티 세션 참여 요청 DTO입니다. */
 data class JoinQuietTimeSessionRequest(
@@ -91,6 +110,30 @@ data class QuietTimePastureResponse(
     val createdAt: Instant,
 )
 
+/** 한 본문에 연결된 주제의 우선순위와 근거 구간을 전달합니다. */
+data class QuietTimePassageThemeResponse(
+    val code: String,
+    val name: String,
+    val parentCode: String?,
+    val description: String,
+    val relevanceScore: Int,
+    val primary: Boolean,
+    val evidenceReference: String,
+)
+
+/** 리더가 확정하고 모든 참여자가 공유하는 버전 고정 질문 묶음입니다. */
+data class QuietTimeQuestionSetResponse(
+    val focusTheme: QuietTimePassageThemeResponse,
+    val style: String,
+    val version: Int,
+    val observationQuestions: List<String>,
+    val meditationQuestions: List<String>,
+    val sharingQuestions: List<String>,
+    val actionGuide: String,
+    val prayerGuide: String,
+    val lockedAt: Instant?,
+)
+
 /** QR로 공유되는 오프라인 큐티 세션 응답 DTO입니다. */
 data class QuietTimeSessionResponse(
     val id: UUID,
@@ -98,11 +141,13 @@ data class QuietTimeSessionResponse(
     val pasture: QuietTimePastureResponse?,
     val hostDisplayName: String,
     val passage: QuietTimePassageResponse,
+    val questionSet: QuietTimeQuestionSetResponse,
     val title: String,
     val meetingDate: LocalDate,
     val meetingStartsAt: Instant,
     val meetingEndsAt: Instant,
     val offlineCode: String,
+    val joinCode: String,
     val inviteUrl: String,
     val joinStartsAt: Instant,
     val expiresAt: Instant,
@@ -169,11 +214,31 @@ fun QuietTimeSessionQrView.toResponse(): QuietTimeSessionResponse =
         pasture = session.pasture?.toResponse(),
         hostDisplayName = session.hostDisplayName,
         passage = session.passage.toResponse(),
+        questionSet = QuietTimeQuestionSetResponse(
+            focusTheme = QuietTimePassageThemeResponse(
+                code = session.focusThemeCode,
+                name = session.focusThemeName,
+                parentCode = null,
+                description = "세션 생성 시 리더가 확정한 초점 주제입니다.",
+                relevanceScore = 100,
+                primary = true,
+                evidenceReference = session.passage.toResponse().reference,
+            ),
+            style = session.questionStyle.name,
+            version = session.questionSetVersion,
+            observationQuestions = session.observationQuestions.toListValue("|"),
+            meditationQuestions = session.meditationQuestions.toListValue("|"),
+            sharingQuestions = session.sharingQuestions.toListValue("|"),
+            actionGuide = session.actionGuide,
+            prayerGuide = session.prayerGuide,
+            lockedAt = session.questionSetLockedAt,
+        ),
         title = session.title,
         meetingDate = session.meetingDate,
         meetingStartsAt = session.meetingStartsAt,
         meetingEndsAt = session.meetingEndsAt,
         offlineCode = invitation.offlineCode,
+        joinCode = invitation.joinCode,
         inviteUrl = invitation.inviteUrl,
         joinStartsAt = invitation.joinStartsAt,
         expiresAt = invitation.expiresAt,
@@ -183,6 +248,28 @@ fun QuietTimeSessionQrView.toResponse(): QuietTimeSessionResponse =
         qrStatus = qrStatus.name,
         createdAt = session.createdAt,
     )
+
+fun QuietTimePassageThemeView.toResponse() = QuietTimePassageThemeResponse(
+    code = code,
+    name = name,
+    parentCode = parentCode,
+    description = description,
+    relevanceScore = relevanceScore,
+    primary = primary,
+    evidenceReference = evidenceReference,
+)
+
+fun QuietTimeQuestionSet.toResponse() = QuietTimeQuestionSetResponse(
+    focusTheme = focusTheme.toResponse(),
+    style = style.name,
+    version = version,
+    observationQuestions = observationQuestions,
+    meditationQuestions = meditationQuestions,
+    sharingQuestions = sharingQuestions,
+    actionGuide = actionGuide,
+    prayerGuide = prayerGuide,
+    lockedAt = null,
+)
 
 private fun String.toListValue(separator: String = ","): List<String> =
     split(separator).map { it.trim() }.filter { it.isNotBlank() }
@@ -227,7 +314,7 @@ data class SaveQuietTimeQuestionAnswerRequest(
 data class QuietTimeQuestionAnswerResponse(
     val id: UUID,
     val sessionId: UUID,
-    val userId: UUID,
+    val userId: UUID?,
     val authorDisplayName: String,
     val questionCategory: QuietTimeQuestionCategory,
     val questionIndex: Int,

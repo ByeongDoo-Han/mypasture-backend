@@ -1,0 +1,183 @@
+name: Deploy Server to GCP
+
+on:
+  workflow_run:
+    workflows:
+      - Server CI
+    branches:
+      - main
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        type: choice
+        options:
+          - staging
+          - prod
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: gcp-deploy-${{ github.event_name == 'workflow_run' && 'staging' || inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy-${{ github.event_name == 'workflow_run' && 'staging' || inputs.environment }}
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ github.event_name == 'workflow_run' && 'staging' || inputs.environment }}
+    env:
+      DEPLOY_ENVIRONMENT: ${{ github.event_name == 'workflow_run' && 'staging' || inputs.environment }}
+      DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY }}
+
+    steps:
+      - name: Checkout verified commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Validate deployment variables
+        env:
+          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          for variable in PROJECT_ID REGION REPOSITORY WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT; do
+            if [ -z "${!variable:-}" ]; then
+              echo "Missing GitHub Environment variable: ${variable}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Authenticate to Google Cloud with OIDC
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Configure Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push immutable amd64 image
+        id: image
+        run: |
+          set -euo pipefail
+          IMAGE_BASE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/api"
+          docker buildx build \
+            --platform linux/amd64 \
+            --tag "${IMAGE_BASE}:${DEPLOY_SHA}" \
+            --metadata-file "${RUNNER_TEMP}/build-metadata.json" \
+            --push .
+          DIGEST=$(jq -er '."containerimage.digest"' "${RUNNER_TEMP}/build-metadata.json")
+          echo "uri=${IMAGE_BASE}@${DIGEST}" >> "${GITHUB_OUTPUT}"
+
+      - name: Capture currently deployed images
+        id: previous
+        run: |
+          set -euo pipefail
+          PREFIX="mypasture-${DEPLOY_ENVIRONMENT}"
+          api=$(gcloud run services describe "${PREFIX}-api" --project "${PROJECT_ID}" --region "${REGION}" --format='value(spec.template.spec.containers[0].image)')
+          worker=$(gcloud run services describe "${PREFIX}-worker" --project "${PROJECT_ID}" --region "${REGION}" --format='value(spec.template.spec.containers[0].image)')
+          migration=$(gcloud run jobs describe "${PREFIX}-migration" --project "${PROJECT_ID}" --region "${REGION}" --format='value(spec.template.spec.template.spec.containers[0].image)')
+          embedding=$(gcloud run jobs describe "${PREFIX}-embedding-backfill" --project "${PROJECT_ID}" --region "${REGION}" --format='value(spec.template.spec.template.spec.containers[0].image)')
+          echo "api=${api}" >> "${GITHUB_OUTPUT}"
+          echo "worker=${worker}" >> "${GITHUB_OUTPUT}"
+          echo "migration=${migration}" >> "${GITHUB_OUTPUT}"
+          echo "embedding=${embedding}" >> "${GITHUB_OUTPUT}"
+
+      - name: Update and execute migration job
+        env:
+          IMAGE: ${{ steps.image.outputs.uri }}
+        run: |
+          set -euo pipefail
+          JOB="mypasture-${DEPLOY_ENVIRONMENT}-migration"
+          gcloud run jobs update "${JOB}" --image "${IMAGE}" --project "${PROJECT_ID}" --region "${REGION}" --quiet
+          gcloud run jobs execute "${JOB}" --project "${PROJECT_ID}" --region "${REGION}" --wait
+
+      - name: Update embedding job image without executing it
+        env:
+          IMAGE: ${{ steps.image.outputs.uri }}
+        run: |
+          gcloud run jobs update "mypasture-${DEPLOY_ENVIRONMENT}-embedding-backfill" \
+            --image "${IMAGE}" --project "${PROJECT_ID}" --region "${REGION}" --quiet
+
+      - name: Deploy worker
+        env:
+          IMAGE: ${{ steps.image.outputs.uri }}
+        run: |
+          gcloud run services update "mypasture-${DEPLOY_ENVIRONMENT}-worker" \
+            --image "${IMAGE}" --project "${PROJECT_ID}" --region "${REGION}" --quiet
+
+      - name: Deploy API
+        env:
+          IMAGE: ${{ steps.image.outputs.uri }}
+        run: |
+          gcloud run services update "mypasture-${DEPLOY_ENVIRONMENT}-api" \
+            --image "${IMAGE}" --project "${PROJECT_ID}" --region "${REGION}" --quiet
+
+      - name: Verify readiness and Bible smoke tests
+        env:
+          CONFIGURED_API_URL: ${{ vars.API_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          API_URL="${CONFIGURED_API_URL}"
+          if [ -z "${API_URL}" ]; then
+            API_URL=$(gcloud run services describe "mypasture-${DEPLOY_ENVIRONMENT}-api" \
+              --project "${PROJECT_ID}" --region "${REGION}" --format='value(status.url)')
+          fi
+          API_URL="${API_URL%/}"
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 5 \
+            --max-time 15 "${API_URL}/actuator/health/readiness" | jq -e '.status == "UP"'
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
+            --max-time 15 "${API_URL}/api/v1/bibles/versions" | jq -e 'length >= 1'
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
+            --max-time 15 "${API_URL}/api/v1/bibles/KOR1910/books" | jq -e 'length == 66'
+
+      - name: Restore previous images after deployment failure
+        if: ${{ failure() && steps.previous.outcome == 'success' }}
+        env:
+          PREVIOUS_API: ${{ steps.previous.outputs.api }}
+          PREVIOUS_WORKER: ${{ steps.previous.outputs.worker }}
+          PREVIOUS_MIGRATION: ${{ steps.previous.outputs.migration }}
+          PREVIOUS_EMBEDDING: ${{ steps.previous.outputs.embedding }}
+        run: |
+          set +e
+          PREFIX="mypasture-${DEPLOY_ENVIRONMENT}"
+          gcloud run services update "${PREFIX}-worker" --image "${PREVIOUS_WORKER}" --project "${PROJECT_ID}" --region "${REGION}" --quiet
+          gcloud run services update "${PREFIX}-api" --image "${PREVIOUS_API}" --project "${PROJECT_ID}" --region "${REGION}" --quiet
+          gcloud run jobs update "${PREFIX}-migration" --image "${PREVIOUS_MIGRATION}" --project "${PROJECT_ID}" --region "${REGION}" --quiet
+          gcloud run jobs update "${PREFIX}-embedding-backfill" --image "${PREVIOUS_EMBEDDING}" --project "${PROJECT_ID}" --region "${REGION}" --quiet
+
+      - name: Write deployment summary
+        if: ${{ always() }}
+        env:
+          IMAGE: ${{ steps.image.outputs.uri }}
+        run: |
+          {
+            echo "## My Pasture ${DEPLOY_ENVIRONMENT} deployment"
+            echo ""
+            echo "- Commit: \`${DEPLOY_SHA}\`"
+            echo "- Image: \`${IMAGE:-not-built}\`"
+            echo "- Migration runs before worker and API deployment."
+            echo "- Embedding job image is updated but the paid backfill is not executed automatically."
+          } >> "${GITHUB_STEP_SUMMARY}"

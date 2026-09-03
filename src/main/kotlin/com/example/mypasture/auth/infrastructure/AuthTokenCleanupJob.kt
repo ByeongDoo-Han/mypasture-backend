@@ -1,5 +1,6 @@
 package com.example.mypasture.auth.infrastructure
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
@@ -8,6 +9,7 @@ import java.time.temporal.ChronoUnit
 
 /** 만료된 소셜 challenge와 보존 기간이 지난 refresh token을 정기적으로 삭제합니다. */
 @Component
+@ConditionalOnProperty(prefix = "app.worker", name = ["enabled"], havingValue = "true")
 class AuthTokenCleanupJob(
     private val refreshTokenRepository: RefreshTokenRepository,
     private val socialLoginChallengeRepository: SocialLoginChallengeRepository,

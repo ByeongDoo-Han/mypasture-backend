@@ -4,6 +4,7 @@ import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.quiet_time.application.QuietTimeService
 import com.example.mypasture.quiet_time.application.QuietTimeReflectionService
 import com.example.mypasture.quiet_time.application.QuietTimeQuestionAnswerService
+import com.example.mypasture.quiet_time.application.QuietTimeQuestionSetService
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionCategory
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -16,6 +17,7 @@ class QuietTimeController(
     private val quietTimeService: QuietTimeService,
     private val reflectionService: QuietTimeReflectionService,
     private val answerService: QuietTimeQuestionAnswerService,
+    private val questionSetService: QuietTimeQuestionSetService,
     private val answerStreamRegistry: QuietTimeAnswerStreamRegistry,
 ) : QuietTimeApi {
     override fun recommendedPassages(
@@ -24,6 +26,16 @@ class QuietTimeController(
         size: Int,
     ): List<QuietTimePassageResponse> =
         quietTimeService.recommendPassages(theme, beginnerOnly, size).map { it.toResponse() }
+
+    override fun passageThemes(passageId: UUID): List<QuietTimePassageThemeResponse> =
+        questionSetService.themesForPassage(passageId).map { it.toResponse() }
+
+    override fun previewQuestionSet(
+        principal: JwtPrincipal,
+        passageId: UUID,
+        request: PreviewQuietTimeQuestionSetRequest,
+    ): QuietTimeQuestionSetResponse =
+        questionSetService.preview(passageId, request.focusThemeCode, request.questionStyle).toResponse()
 
     override fun createPasture(
         principal: JwtPrincipal,
@@ -45,6 +57,8 @@ class QuietTimeController(
             title = request.title,
             passageId = request.passageId,
             theme = request.theme,
+            focusThemeCode = request.focusThemeCode,
+            questionStyle = request.questionStyle,
             meetingDate = request.meetingDate,
             meetingStartsAt = request.meetingStartsAt,
             meetingEndsAt = request.meetingEndsAt,
@@ -61,6 +75,8 @@ class QuietTimeController(
             title = request.title,
             passageId = request.passageId,
             theme = request.theme,
+            focusThemeCode = request.focusThemeCode,
+            questionStyle = request.questionStyle,
             meetingDate = request.meetingDate,
             meetingStartsAt = request.meetingStartsAt,
             meetingEndsAt = request.meetingEndsAt,
@@ -69,6 +85,11 @@ class QuietTimeController(
 
     override fun offlineSession(offlineCode: String): QuietTimeSessionResponse =
         quietTimeService.getOfflineSession(offlineCode).toResponse()
+
+    override fun resolveJoinCode(
+        principal: JwtPrincipal,
+        request: ResolveQuietTimeJoinCodeRequest,
+    ): QuietTimeSessionResponse = quietTimeService.resolveJoinCode(request.joinCode).toResponse()
 
     override fun joinOfflineSession(
         offlineCode: String,
@@ -95,7 +116,7 @@ class QuietTimeController(
         answerService.list(sessionId, principal.userId).map { it.toResponse() }
 
     override fun streamQuestionAnswers(principal: JwtPrincipal, sessionId: UUID) =
-        answerService.requireReadAccess(sessionId, principal.userId).let { answerStreamRegistry.subscribe(sessionId) }
+        answerService.requireReadAccess(sessionId, principal.userId).let { answerStreamRegistry.subscribe(sessionId, principal.userId) }
 
     override fun reissueQr(
         principal: JwtPrincipal,

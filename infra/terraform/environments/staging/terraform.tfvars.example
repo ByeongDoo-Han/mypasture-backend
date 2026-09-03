@@ -1,0 +1,29 @@
+project_id           = "mypasture-staging"
+container_image      = "asia-northeast3-docker.pkg.dev/mypasture-staging/mypasture-staging-backend/api:COMMIT_SHA"
+admin_enabled        = false
+admin_container_image = "asia-northeast3-docker.pkg.dev/mypasture-staging/mypasture-staging-admin/admin:COMMIT_SHA"
+admin_api_base_url    = "https://api.mypasture.app"
+admin_iap_members     = ["user:admin@example.com"]
+deploy_runtime       = false
+deploy_services      = false
+enable_external_load_balancer = true
+api_domain           = "api.mypasture.app"
+redis_backend        = "vm"
+provision_redis_vm   = true
+retain_memorystore   = false
+cors_allowed_origins = "https://mypasture.app,https://www.mypasture.app,https://staging.mypasture.app"
+smtp_host            = "smtp.example.com"
+mail_from            = "no-reply@staging.mypasture.app"
+alert_email          = "operations@example.com"
+billing_account_id   = ""
+monthly_budget_amount = 150000
+budget_currency_code  = "KRW"
+
+firebase_enabled    = false
+firebase_project_id = ""
+
+google_oauth_web_client_ids     = ""
+google_oauth_ios_client_ids     = ""
+google_oauth_android_client_ids = ""
+apple_oauth_client_ids          = ""
+kakao_app_ids                   = ""

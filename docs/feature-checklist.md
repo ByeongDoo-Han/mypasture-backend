@@ -188,12 +188,32 @@
 - [ ] GCP 배포
 - [ ] Observability metrics/log/tracing
 
+## 15. 개인정보와 정책 동의
+
+- [x] 한국어 서비스 이용약관과 개인정보 처리방침
+- [x] 계정 필수 수집·이용 동의와 AI 민감정보 별도 동의
+- [x] 선택 마케팅 알림 동의 및 철회 API
+- [x] 정책 원문 버전 관리와 공개 조회 API
+- [x] 사용자별 최신 동의 상태와 추가 전용 감사 이력
+- [x] 이메일 회원가입 필수 동의 검증
+- [x] 모바일 회원가입·기능 진입 동의 화면과 원문 보기
+- [x] 회원탈퇴 개인 데이터 물리 삭제, 공동 QT 익명화, 비식별 파기 감사
+- [x] 탈퇴 성공 후 사용자별 AI Redis 캐시 제거
+- [ ] 실제 사업자·담당자 정보 확정 및 법률 검토
+- [x] 코드·SDK 기준 App Privacy·Google Play Data Safety 대조표 작성
+- [ ] App Store Connect·Play Console 입력값을 대조표와 확인 후 제출
+- [x] 앱 내 회원탈퇴와 외부 삭제 요청 페이지 구현
+- [x] AI 답변 및 QT 답변 신고, 사용자 차단·해제 구현
+- [x] 관리자 신고 검토·전체 숨김 및 감사 로그 구현
+- [ ] 신고 처리 SLA 모니터링과 보존기간 만료 worker
+- [ ] 관리자 정책 버전 게시·재동의 대상 집계 화면
+
 ## 다음 개발 추천 순서
 
-1. Redis 분산 rate limit
-2. embedding 기반 유사 질문 semantic cache
-3. 북마크·하이라이트·스크랩의 실제 `verse_id` 연결
-4. AI 대화 conversation/session 저장과 삭제 정책
+1. 스토어 서명 빌드에서 Google·Apple·Kakao 로그인 E2E 검증
+2. 심사 전용 계정·QT 코드 운영 자동 점검
+3. 신고 SLA 모니터링과 보존기간 만료 worker
+4. embedding 기반 유사 질문 semantic cache
 5. 관리자 AI 사용량·비용·RAG 품질 대시보드
 6. Pasture/prayer/challenge 도메인 API 확장
 

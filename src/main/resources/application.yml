@@ -8,6 +8,11 @@ spring:
     properties:
       hibernate:
         format_sql: false
+  lifecycle:
+    timeout-per-shutdown-phase: 9s
+
+server:
+  shutdown: graceful
 
 management:
   endpoints:
@@ -20,6 +25,10 @@ management:
         enabled: true
 
 app:
+  policy:
+    enforcement-enabled: ${POLICY_CONSENT_ENFORCED:true}
+  worker:
+    enabled: ${APP_WORKER_ENABLED:false}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}
   security:
@@ -30,6 +39,10 @@ app:
       window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:60}
       auth-requests-per-window: ${AUTH_RATE_LIMIT_PER_WINDOW:20}
       ai-requests-per-window: ${AI_RATE_LIMIT_PER_WINDOW:15}
+      quiet-time-join-code-requests-per-window: ${QUIET_TIME_JOIN_CODE_RATE_LIMIT_PER_WINDOW:12}
+      coupon-redeem-requests-per-window: ${COUPON_REDEEM_RATE_LIMIT_PER_WINDOW:8}
+  coupon:
+    code-pepper: ${COUPON_CODE_PEPPER:local-coupon-code-pepper-change-me}
   auth:
     email-verification:
       required: ${EMAIL_VERIFICATION_REQUIRED:true}
@@ -100,16 +113,20 @@ app:
     embedding-batch-size: ${AI_EMBEDDING_BATCH_SIZE:100}
     embedding-indexing-enabled: ${AI_EMBEDDING_INDEXING_ENABLED:false}
     embedding-index-poll-delay-ms: ${AI_EMBEDDING_INDEX_POLL_DELAY_MS:10000}
+    embedding-backfill-enabled: ${AI_EMBEDDING_BACKFILL_ENABLED:false}
+    embedding-backfill-max-batches: ${AI_EMBEDDING_BACKFILL_MAX_BATCHES:1000}
+    embedding-backfill-delay-ms: ${AI_EMBEDDING_BACKFILL_DELAY_MS:100}
+    embedding-response-max-bytes: ${AI_EMBEDDING_RESPONSE_MAX_BYTES:16777216}
     embedding-input-cost-per-million: ${AI_EMBEDDING_INPUT_COST_PER_MILLION:0.02}
     api-key: ${OPENAI_API_KEY:test}
     base-url: ${OPENAI_BASE_URL:https://api.openai.com}
     max-input-chars: ${AI_MAX_INPUT_CHARS:300}
     max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:700}
     reasoning-effort: ${OPENAI_REASONING_EFFORT:low}
-    evaluator-reasoning-effort: ${OPENAI_EVALUATOR_REASONING_EFFORT:medium}
+    evaluator-reasoning-effort: ${OPENAI_EVALUATOR_REASONING_EFFORT:none}
     evaluation-enabled: ${AI_EVALUATION_ENABLED:true}
     evaluation-threshold: ${AI_EVALUATION_THRESHOLD:4}
-    evaluation-max-output-tokens: ${AI_EVALUATION_MAX_OUTPUT_TOKENS:250}
+    evaluation-max-output-tokens: ${AI_EVALUATION_MAX_OUTPUT_TOKENS:500}
     max-revision-count: ${AI_MAX_REVISION_COUNT:1}
     free-daily-limit: ${AI_FREE_DAILY_LIMIT:10}
     premium-daily-safety-limit: ${AI_PREMIUM_DAILY_SAFETY_LIMIT:500}
@@ -119,6 +136,9 @@ app:
     stream-core-pool-size: ${AI_STREAM_CORE_POOL_SIZE:8}
     stream-max-pool-size: ${AI_STREAM_MAX_POOL_SIZE:64}
     stream-queue-capacity: ${AI_STREAM_QUEUE_CAPACITY:200}
+    idempotency-response-ttl-seconds: ${AI_IDEMPOTENCY_RESPONSE_TTL_SECONDS:86400}
+    idempotency-receipt-retention-days: ${AI_IDEMPOTENCY_RECEIPT_RETENTION_DAYS:30}
+    idempotency-pending-timeout-ms: ${AI_IDEMPOTENCY_PENDING_TIMEOUT_MS:120000}
     cache-ttl-seconds: ${AI_CACHE_TTL_SECONDS:86400}
     rag-top-k: ${AI_RAG_TOP_K:10}
     rag-min-similarity: ${AI_RAG_MIN_SIMILARITY:0.35}

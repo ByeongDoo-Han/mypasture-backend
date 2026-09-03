@@ -1,0 +1,24 @@
+### QT 본문별 복수 주제와 질문 미리보기
+### 먼저 mypasture-flow.http에서 로그인해 accessToken을 준비합니다.
+
+### 추천 본문 조회
+GET {{baseUrl}}/api/v1/quiet-time/passages/recommendations?beginnerOnly=true&size=5
+Authorization: Bearer {{accessToken}}
+
+> {% client.global.set("quietTimePassageId", response.body[0].id); %}
+
+### 본문에 연결된 기본·보조 주제 조회
+GET {{baseUrl}}/api/v1/quiet-time/passages/{{quietTimePassageId}}/themes
+Authorization: Bearer {{accessToken}}
+
+> {% client.global.set("quietTimeFocusThemeCode", response.body[0].code); %}
+
+### 선택한 초점과 진행 방식으로 질문 미리보기
+POST {{baseUrl}}/api/v1/quiet-time/passages/{{quietTimePassageId}}/question-preview
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "focusThemeCode": "{{quietTimeFocusThemeCode}}",
+  "questionStyle": "SHARING"
+}

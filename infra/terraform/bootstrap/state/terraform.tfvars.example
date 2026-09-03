@@ -1,0 +1,3 @@
+project_id  = "mypasture-infra"
+region      = "asia-northeast3"
+bucket_name = "mypasture-terraform-state-UNIQUE_SUFFIX"

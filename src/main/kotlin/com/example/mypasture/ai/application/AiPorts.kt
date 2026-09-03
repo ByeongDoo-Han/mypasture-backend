@@ -3,6 +3,16 @@ package com.example.mypasture.ai.application
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.domain.AiAnswerEvaluation
 import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
+import com.example.mypasture.ai.domain.AiAssistantExperiencePolicy
+import com.example.mypasture.ai.domain.AiConversationContext
+import com.example.mypasture.ai.domain.AiConversationTurn
+import com.example.mypasture.ai.domain.AiAnswerFeedback
+import com.example.mypasture.ai.domain.AiCompletedTurn
+import com.example.mypasture.ai.domain.AiFeedbackRating
+import com.example.mypasture.ai.domain.AiFeedbackReason
+import com.example.mypasture.ai.domain.AiFeedbackSummary
+import com.example.mypasture.ai.domain.AiClientRequest
+import com.example.mypasture.ai.domain.AiUsageReservation
 import com.example.mypasture.ai.domain.BibleEmbeddingSource
 import com.example.mypasture.ai.domain.BibleRetrievalResult
 import com.example.mypasture.ai.domain.GroundedAnswer
@@ -44,6 +54,9 @@ interface AiCompletionPort {
         question: String,
         citations: List<BibleCitation>,
         config: AiRuntimeConfigSnapshot,
+        experiencePolicy: AiAssistantExperiencePolicy,
+        conversationContext: AiConversationContext? = null,
+        generationInstructions: List<String> = emptyList(),
         previousAnswer: String? = null,
         revisionInstructions: List<String> = emptyList(),
     ): GroundedAnswer
@@ -55,8 +68,22 @@ interface AiStreamingCompletionPort {
         question: String,
         citations: List<BibleCitation>,
         config: AiRuntimeConfigSnapshot,
+        experiencePolicy: AiAssistantExperiencePolicy,
+        conversationContext: AiConversationContext? = null,
         onDelta: suspend (String) -> Unit,
     ): GroundedAnswer
+}
+
+/** 프리미엄 상담 문맥의 소유권, 만료, 암호화 저장을 application layer와 분리합니다. */
+interface AiConversationPort {
+    fun load(userId: UUID, conversationId: UUID): AiConversationContext
+
+    fun append(
+        userId: UUID,
+        conversationId: UUID?,
+        turn: AiConversationTurn,
+        maxContextTurns: Int,
+    ): UUID
 }
 
 /** 생성 답변을 성경 근거와 비교해 구조화 점수로 검증하는 평가 모델 포트입니다. */
@@ -79,6 +106,9 @@ interface AiCachePort {
         cacheScope: String,
         answer: GroundedAnswer,
     )
+
+    /** 계정 삭제 후 해당 사용자가 접근한 AI 응답 캐시를 제거합니다. */
+    fun evictUser(userId: UUID)
 }
 
 /** AI 요청을 호출 전에 예약하고 성공/실패를 확정해 quota 우회를 방지하는 사용량 포트입니다. */
@@ -90,7 +120,22 @@ interface AiUsagePort {
         question: String,
         dailyLimit: Long,
         config: AiRuntimeConfigSnapshot? = null,
-    ): UUID?
+        clientRequestId: UUID? = null,
+        requestFingerprint: String = question,
+    ): AiUsageReservation?
+
+    fun findClientRequest(userId: UUID, clientRequestId: UUID): AiClientRequest?
+
+    fun reserveRegeneration(
+        userId: UUID,
+        question: String,
+        parentTurnId: UUID,
+        config: AiRuntimeConfigSnapshot,
+    ): UUID
+
+    fun findCompletedTurn(userId: UUID, turnId: UUID): AiCompletedTurn?
+
+    fun questionMatches(userId: UUID, turnId: UUID, question: String): Boolean
 
     fun complete(
         reservationId: UUID,
@@ -98,4 +143,25 @@ interface AiUsagePort {
     )
 
     fun fail(reservationId: UUID, errorCode: String, consumedAnswer: GroundedAnswer? = null)
+}
+
+/** 답변별 최종 피드백과 무료 재생성 상태를 영속 저장하는 포트입니다. */
+interface AiFeedbackPort {
+    fun upsert(
+        userId: UUID,
+        turnId: UUID,
+        rating: AiFeedbackRating,
+        reasons: Set<AiFeedbackReason>,
+        comment: String?,
+    ): AiAnswerFeedback
+
+    fun beginRegeneration(userId: UUID, turnId: UUID): AiAnswerFeedback
+
+    fun completeRegeneration(userId: UUID, turnId: UUID, regeneratedTurnId: UUID)
+
+    fun failRegeneration(userId: UUID, turnId: UUID)
+
+    fun summary(): AiFeedbackSummary
+
+    fun priority(limit: Int): List<AiAnswerFeedback>
 }

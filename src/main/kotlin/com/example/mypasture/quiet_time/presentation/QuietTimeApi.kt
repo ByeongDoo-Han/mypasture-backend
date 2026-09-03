@@ -14,6 +14,16 @@ interface QuietTimeApi {
     @GetMapping("/passages/recommendations")
     fun recommendedPassages(@RequestParam(required = false) theme: String?, @RequestParam(defaultValue = "true") beginnerOnly: Boolean, @RequestParam(defaultValue = "5") size: Int): List<QuietTimePassageResponse>
 
+    @GetMapping("/passages/{passageId}/themes")
+    fun passageThemes(@PathVariable passageId: UUID): List<QuietTimePassageThemeResponse>
+
+    @PostMapping("/passages/{passageId}/question-preview")
+    fun previewQuestionSet(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable passageId: UUID,
+        @Valid @RequestBody request: PreviewQuietTimeQuestionSetRequest,
+    ): QuietTimeQuestionSetResponse
+
     @PostMapping("/pastures")
     fun createPasture(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: CreateQuietTimePastureRequest): QuietTimePastureResponse
 
@@ -28,6 +38,9 @@ interface QuietTimeApi {
 
     @GetMapping("/offline/{offlineCode}")
     fun offlineSession(@PathVariable offlineCode: String): QuietTimeSessionResponse
+
+    @PostMapping("/join-codes/resolve")
+    fun resolveJoinCode(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: ResolveQuietTimeJoinCodeRequest): QuietTimeSessionResponse
 
     @PostMapping("/offline/{offlineCode}/join")
     fun joinOfflineSession(@PathVariable offlineCode: String, @AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: JoinQuietTimeSessionRequest): JoinQuietTimeSessionResponse

@@ -5,6 +5,7 @@ import com.example.mypasture.auth.application.AccountDeletionReauthenticationExc
 import com.example.mypasture.auth.application.EmailAlreadyRegisteredException
 import com.example.mypasture.auth.application.EmailVerificationRequiredException
 import com.example.mypasture.auth.application.InvalidEmailVerificationCodeException
+import com.example.mypasture.auth.application.InvalidDisplayNameException
 import com.example.mypasture.auth.application.InvalidCredentialsException
 import com.example.mypasture.auth.application.InvalidPasswordResetTokenException
 import com.example.mypasture.auth.application.InvalidRefreshTokenException
@@ -115,6 +116,11 @@ class AuthExceptionHandler {
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     fun handleAccountDeletionReauthentication(request: HttpServletRequest) =
         AuthErrorCode.REAUTHENTICATION_FAILED.toResponse(request)
+
+    @ExceptionHandler(InvalidDisplayNameException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun handleInvalidDisplayName(request: HttpServletRequest) =
+        AuthErrorCode.INVALID_DISPLAY_NAME.toResponse(request)
 }
 
 /** 인증 도메인이 외부 클라이언트에 제공하는 안정적인 오류 코드와 기본 메시지입니다. */
@@ -139,4 +145,5 @@ enum class AuthErrorCode(
     PASSWORD_REUSE_NOT_ALLOWED("PASSWORD_REUSE_NOT_ALLOWED", "기존 비밀번호와 다른 비밀번호를 사용해 주세요."),
     INVALID_DELETION_CONFIRMATION("INVALID_DELETION_CONFIRMATION", "회원탈퇴 확인값이 올바르지 않습니다."),
     REAUTHENTICATION_FAILED("REAUTHENTICATION_FAILED", "회원탈퇴를 위해 현재 비밀번호를 확인해 주세요."),
+    INVALID_DISPLAY_NAME("INVALID_DISPLAY_NAME", "이름은 공백을 제외하고 1자 이상 40자 이하로 입력해 주세요."),
 }

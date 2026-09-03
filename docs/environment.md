@@ -1,6 +1,19 @@
 # 서버 환경 설정
 
+GCP Terraform 기반 staging/production 구축은 [GCP Terraform 배포 가이드](gcp-terraform-deployment.ko.md)를 참고하세요.
+
 서버 환경은 `local`과 `prod` 두 가지 Spring Profile로 관리합니다.
+
+6자리 현장 QT 참여 코드는 로그인 사용자만 해석할 수 있으며, 운영에서는 Redis rate limit을 활성화합니다.
+
+```dotenv
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_FAIL_CLOSED=true
+RATE_LIMIT_TRUST_FORWARDED_HEADERS=true
+QUIET_TIME_JOIN_CODE_RATE_LIMIT_PER_WINDOW=12
+```
+
+`QUIET_TIME_JOIN_CODE_RATE_LIMIT_PER_WINDOW`은 `RATE_LIMIT_WINDOW_SECONDS` 동안 인증 사용자 한 명이 시도할 수 있는 코드 해석 횟수입니다. Nginx 또는 로드 밸런서 뒤에서 운영할 때만 신뢰 가능한 프록시 구성과 함께 `RATE_LIMIT_TRUST_FORWARDED_HEADERS=true`를 사용합니다.
 
 ## Local
 
@@ -79,24 +92,29 @@ BIBLE_IMPORT_ENABLED=true
 AI_MOCK_ENABLED=false
 AI_EMBEDDING_INDEXING_ENABLED=true
 AI_EMBEDDING_BATCH_SIZE=100
-AI_RAG_LEXICAL_FALLBACK_ENABLED=false
+AI_RAG_LEXICAL_FALLBACK_ENABLED=true
 AI_STREAM_TIMEOUT_MS=60000
 AI_STREAM_CORE_POOL_SIZE=8
 AI_STREAM_MAX_POOL_SIZE=64
 AI_STREAM_QUEUE_CAPACITY=200
+AI_IDEMPOTENCY_RESPONSE_TTL_SECONDS=86400
+AI_IDEMPOTENCY_RECEIPT_RETENTION_DAYS=30
+AI_IDEMPOTENCY_PENDING_TIMEOUT_MS=120000
 OPENAI_GENERATOR_MODEL=gpt-5.6-terra
 OPENAI_EVALUATOR_MODEL=gpt-5.6-luna
 OPENAI_REASONING_EFFORT=low
-OPENAI_EVALUATOR_REASONING_EFFORT=medium
+OPENAI_EVALUATOR_REASONING_EFFORT=none
 AI_EVALUATION_ENABLED=true
 AI_EVALUATION_THRESHOLD=4
-AI_EVALUATION_MAX_OUTPUT_TOKENS=250
+AI_EVALUATION_MAX_OUTPUT_TOKENS=500
 AI_MAX_REVISION_COUNT=1
 ```
 
 백필 worker는 한 서버에서만 활성화하고, 관리자 상태 API에서 `remainingVerses=0`을 확인한 후 다시
-비활성화합니다. 로컬의 `AI_MOCK_ENABLED=true`는 결정적 가짜 embedding과 lexical fallback으로 흐름만
-검증하며 실제 OpenAI 검색 품질을 의미하지 않습니다.
+비활성화합니다. lexical fallback은 embedding API 장애 시에도 본문 키워드 검색을 계속 제공하기 위한
+운영 안전장치입니다. 로컬의 `AI_MOCK_ENABLED=true`는 결정적 가짜 embedding과 lexical fallback으로
+흐름만 검증하며 실제 OpenAI 검색 품질을 의미하지 않습니다. AI 요청은 처리 중인 `PENDING`과 성공한
+`COMPLETED` 기록만 일일 한도에 포함하며, 최종 실패한 `FAILED` 기록은 횟수에서 제외합니다.
 
 생성·평가 모델의 환경 변수는 DB에 활성 버전이 없을 때만 기본값으로 사용됩니다. 운영 중 변경은 관리자
 `/ai-models` 화면에서 새 버전으로 활성화하며, 과거 버전 복원도 새 이력으로 남습니다. 평가가 켜진 경우

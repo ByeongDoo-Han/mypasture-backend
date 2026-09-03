@@ -1,10 +1,13 @@
 package com.example.mypasture.bible.infrastructure
 
-import com.example.mypasture.bible.application.BibleCommentaryGeneratorPort
+import com.example.mypasture.bible.application.BibleCommentaryEvidenceService
+import com.example.mypasture.bible.application.BibleCommentaryGenerationPipeline
 import com.example.mypasture.bible.application.BibleCommentaryService
 import com.example.mypasture.bible.application.BibleReaderService
 import com.example.mypasture.bible.domain.BibleCommentaryJobStatus
 import com.example.mypasture.config.AiProperties
+import com.example.mypasture.ai.application.AiRuntimeConfigService
+import com.example.mypasture.ai.domain.AiUseCase
 import kotlinx.coroutines.CancellationException
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.data.domain.PageRequest
@@ -23,8 +26,10 @@ import java.util.UUID
 class BibleCommentaryGenerationWorker(
     private val jobRepository: BibleCommentaryGenerationJobRepository,
     private val bibleReaderService: BibleReaderService,
-    private val generator: BibleCommentaryGeneratorPort,
+    private val generationPipeline: BibleCommentaryGenerationPipeline,
+    private val evidenceService: BibleCommentaryEvidenceService,
     private val commentaryService: BibleCommentaryService,
+    private val runtimeConfigService: AiRuntimeConfigService,
     private val properties: AiProperties,
     private val transactionTemplate: TransactionTemplate,
     private val clock: Clock = Clock.systemUTC(),
@@ -35,8 +40,16 @@ class BibleCommentaryGenerationWorker(
         try {
             val job = jobRepository.findById(jobId).orElseThrow()
             val chapter = bibleReaderService.getChapter(job.version, job.bookCode, job.chapter)
-            val generated = generator.generate(chapter)
-            commentaryService.saveGeneratedDraft(job.id, generated, properties.commentaryPromptVersion)
+            val evidence = evidenceService.approvedFor(job.version, job.bookCode, job.chapter)
+            val config = runtimeConfigService.current(AiUseCase.BIBLE_COMMENTARY)
+            val result = generationPipeline.generate(chapter, evidence, config)
+            commentaryService.saveGeneratedDraft(
+                job.id,
+                result.commentary,
+                result.evaluation,
+                properties.commentaryPromptVersion,
+                config.evaluationThreshold,
+            )
         } catch (exception: CancellationException) {
             failJob(jobId, "서버 종료로 해설 생성이 취소되었습니다.")
             throw exception

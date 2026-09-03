@@ -235,7 +235,11 @@ class AiRuntimeConfigService(
         evaluatorModel = properties.evaluatorModel,
         generatorReasoningEffort = reasoning(properties.reasoningEffort),
         evaluatorReasoningEffort = reasoning(properties.evaluatorReasoningEffort),
-        maxOutputTokens = properties.maxOutputTokens,
+        maxOutputTokens = if (useCase == AiUseCase.BIBLE_COMMENTARY) {
+            properties.commentaryMaxOutputTokens
+        } else {
+            properties.maxOutputTokens
+        },
         evaluationMaxOutputTokens = properties.evaluationMaxOutputTokens,
         evaluationEnabled = properties.evaluationEnabled,
         evaluationThreshold = properties.evaluationThreshold,

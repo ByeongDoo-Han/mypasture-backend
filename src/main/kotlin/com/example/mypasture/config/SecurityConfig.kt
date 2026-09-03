@@ -5,6 +5,7 @@ import com.example.mypasture.auth.infrastructure.RestAccessDeniedHandler
 import com.example.mypasture.auth.infrastructure.RestAuthenticationEntryPoint
 import com.example.mypasture.common.error.RequestCorrelationFilter
 import jakarta.servlet.DispatcherType
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpHeaders
@@ -46,6 +47,7 @@ class SecurityConfig {
     }
 
     @Bean
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     fun securityFilterChain(
         http: HttpSecurity,
         jwtAuthenticationFilter: JwtAuthenticationFilter,
@@ -67,6 +69,10 @@ class SecurityConfig {
                 it.requestMatchers(
                     AndRequestMatcher(
                         DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
+                        AntPathRequestMatcher("/api/v1/ai/chat", "POST"),
+                    ),
+                    AndRequestMatcher(
+                        DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
                         AntPathRequestMatcher("/api/v1/ai/chat/stream", "POST"),
                     ),
                     AndRequestMatcher(
@@ -75,13 +81,13 @@ class SecurityConfig {
                     ),
                 ).permitAll()
                 it.requestMatchers(
-                    "/actuator/health",
+                    "/actuator/health/**",
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
                 ).permitAll()
                 it.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                it.requestMatchers(HttpMethod.GET, "/api/v1/auth/health").permitAll()
+                it.requestMatchers(HttpMethod.GET, "/api/v1/auth/health", "/api/v1/auth/social-login/providers").permitAll()
                 it.requestMatchers(
                     HttpMethod.POST,
                     "/api/v1/auth/email-verifications",
@@ -95,6 +101,7 @@ class SecurityConfig {
                     "/api/v1/auth/password-reset/confirm",
                 ).permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/bibles/**", "/api/v1/today-word").permitAll()
+                it.requestMatchers(HttpMethod.GET, "/api/v1/policies/current", "/api/v1/policies/*/*").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/quiet-time/passages/**", "/api/v1/quiet-time/offline/**").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/faith-profile/tests/current").permitAll()
                 it.anyRequest().authenticated()

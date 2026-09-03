@@ -12,7 +12,74 @@ data class BibleCitation(
     val chapter: Int,
     val verse: Int,
     val text: String,
+    val bookCode: String = "",
 )
+
+/** 모바일이 AI 응답을 동일한 renderer로 표시할 수 있게 고정한 응답 계약 버전입니다. */
+const val AI_ASSISTANT_RESPONSE_SCHEMA_VERSION = "assistant-response-v2"
+
+/** 무료 일회성 답변과 프리미엄 연속 대화를 구분합니다. */
+enum class AiInteractionMode {
+    ONE_SHOT,
+    GUIDED_DIALOGUE,
+}
+
+/** AI 응답 이후 클라이언트가 기다려야 할 다음 사용자 동작입니다. */
+enum class AiAssistantNextAction {
+    COMPLETE,
+    WAIT_USER_INPUT,
+}
+
+/** 플랜별 AI 목자 경험을 prompt와 application 정책에 동일하게 전달합니다. */
+data class AiAssistantExperiencePolicy(
+    val interactionMode: AiInteractionMode,
+    val scriptureCount: Int,
+    val includePrayer: Boolean,
+    val allowFollowUp: Boolean,
+    val maxContextTurns: Int,
+)
+
+/** 구조화 출력에서 답변과 분리된 추천 기도문입니다. */
+data class AiRecommendedPrayer(
+    val title: String,
+    val content: String,
+)
+
+/** 프리미엄 대화를 이어가기 위한 한 개의 집중된 후속 질문입니다. */
+data class AiFollowUpQuestion(
+    val question: String,
+    val options: List<String>,
+    val allowSkip: Boolean = true,
+)
+
+/** 민감한 상담 문맥을 암호화해 보존할 때 사용하는 제한된 대화 turn입니다. */
+data class AiConversationTurn(
+    val userQuestion: String,
+    val assistantAnswer: String,
+    val followUpQuestion: String?,
+)
+
+/** 프리미엄 사용자가 소유한 최근 대화 문맥입니다. */
+data class AiConversationContext(
+    val conversationId: UUID,
+    val turns: List<AiConversationTurn>,
+) {
+    fun retrievalQuestion(currentQuestion: String): String {
+        val previousQuestion = turns.lastOrNull()?.userQuestion ?: return currentQuestion
+        return "$previousQuestion\n추가로 알려준 내용: $currentQuestion"
+    }
+
+    fun promptContext(): String = turns.joinToString("\n") { turn ->
+        buildString {
+            append("사용자: ").append(turn.userQuestion)
+            append("\nAI 목자: ").append(turn.assistantAnswer)
+            turn.followUpQuestion?.let { append("\nAI 목자의 후속 질문: ").append(it) }
+        }
+    }
+}
+
+/** 만료되었거나 다른 사용자가 소유한 AI 대화에 접근할 때 발생합니다. */
+class AiConversationUnavailableException : RuntimeException("AI 대화를 찾을 수 없거나 이미 만료되었습니다.")
 
 /** RAG가 사용한 검색 방식으로 운영 중 vector index 누락과 lexical fallback을 구분합니다. */
 enum class RagRetrievalStrategy {
@@ -92,6 +159,7 @@ data class BibleEmbeddingIndexSummary(
 /** AI 답변, 근거 구절, 토큰 사용량, 비용 정보를 함께 담는 응답 모델입니다. */
 data class GroundedAnswer(
     val conversationId: UUID?,
+    val turnId: UUID = UUID.randomUUID(),
     val answer: String,
     val citations: List<BibleCitation>,
     val promptTokens: Int,
@@ -116,7 +184,40 @@ data class GroundedAnswer(
     val evaluationPastoralToneScore: Int? = null,
     val evaluationIssues: List<String> = emptyList(),
     val revisionCount: Int = 0,
+    val prayer: AiRecommendedPrayer? = null,
+    val followUpQuestion: AiFollowUpQuestion? = null,
+    val interactionMode: AiInteractionMode = AiInteractionMode.ONE_SHOT,
 )
+
+/** 클라이언트가 같은 논리 요청의 처리 상태와 최종 결과를 안전하게 다시 조회할 때 사용합니다. */
+enum class AiClientRequestStatus {
+    PROCESSING,
+    COMPLETED,
+    FAILED,
+    EXPIRED,
+}
+
+/** 사용자별 clientRequestId에 연결된 AI 요청 영수증입니다. */
+data class AiClientRequest(
+    val clientRequestId: UUID,
+    val turnId: UUID,
+    val status: AiClientRequestStatus,
+    val answer: GroundedAnswer? = null,
+    val errorCode: String? = null,
+    val updatedAt: Instant,
+)
+
+class AiIdempotencyConflictException : RuntimeException("같은 요청 ID를 다른 AI 질문에 사용할 수 없습니다.")
+class AiRequestInProgressException : RuntimeException("기존 AI 요청을 처리하고 있습니다.")
+class AiRequestPreviouslyFailedException : RuntimeException("이 AI 요청은 이전에 실패했습니다. 새 요청으로 다시 시도해 주세요.")
+class AiRequestResultExpiredException : RuntimeException("저장된 AI 요청 결과가 만료되었습니다. 새 요청으로 다시 시도해 주세요.")
+class AiRequestNotFoundException : RuntimeException("AI 요청을 찾을 수 없습니다.")
+
+/** quota 예약 결과를 신규 실행과 기존 요청 재사용으로 구분합니다. */
+sealed interface AiUsageReservation {
+    data class Started(val turnId: UUID) : AiUsageReservation
+    data class Existing(val request: AiClientRequest) : AiUsageReservation
+}
 
 /** AI 입력 제한과 무료 사용자 사용량 제한 정책을 표현하는 도메인 모델입니다. */
 data class AiUsagePolicy(

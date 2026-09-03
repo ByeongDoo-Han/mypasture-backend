@@ -31,6 +31,12 @@ class UserEntity(
     val createdAt: Instant = Instant.now(),
     var updatedAt: Instant = Instant.now(),
 ) {
+    /** 표시 이름만 변경하며 로그인 식별자와 기존 인증 세션은 유지합니다. */
+    fun updateDisplayName(newDisplayName: String, now: Instant) {
+        displayName = newDisplayName
+        updatedAt = now
+    }
+
     /** 비밀번호 변경처럼 기존 로그인 세션을 모두 종료해야 할 때 인증 버전을 증가시킵니다. */
     fun invalidateSessions(now: Instant) {
         authVersion += 1

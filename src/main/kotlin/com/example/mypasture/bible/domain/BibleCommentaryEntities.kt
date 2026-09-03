@@ -20,11 +20,23 @@ import java.util.UUID
 /** 생성된 장별 해설이 검수와 게시 과정 중 어느 단계에 있는지 표현합니다. */
 enum class BibleCommentaryStatus { DRAFT, PUBLISHED, REJECTED, SUPERSEDED }
 
+/** AI 자동 평가와 사람 검수 중 현재 해설이 거친 검증 수준입니다. */
+enum class BibleCommentaryEvaluationStatus { NOT_EVALUATED, PASSED, FAILED, MANUAL_REVIEW }
+
 /** 장별 AI 해설 생성 작업의 실행 상태를 표현합니다. */
 enum class BibleCommentaryJobStatus { PENDING, PROCESSING, COMPLETED, FAILED }
 
 /** 해설에 반복해서 포함되는 주제, 묵상 질문, 해석상 주의사항을 구분합니다. */
 enum class BibleCommentaryItemType { KEY_THEME, REFLECTION_QUESTION, CAUTION }
+
+/** 해설 생성 모델에 제공할 승인된 배경 메모의 성격입니다. */
+enum class BibleCommentaryEvidenceType { HISTORICAL, LITERARY, THEOLOGICAL }
+
+/** 배경 메모가 생성 입력에 포함될 수 있는지 나타냅니다. */
+enum class BibleCommentaryEvidenceStatus { DRAFT, APPROVED, RETIRED }
+
+/** 해설에 수행된 사람 검수 행위를 감사 가능한 형태로 구분합니다. */
+enum class BibleCommentaryReviewAction { EDITED, PUBLISHED, REJECTED }
 
 /** 한 장의 검수 가능한 AI 해설과 생성 이력, 게시 상태를 보관하는 JPA entity입니다. */
 @Entity
@@ -50,6 +62,26 @@ class BibleChapterCommentaryEntity(
     val completionTokens: Int = 0,
     val estimatedCostUsd: BigDecimal = BigDecimal.ZERO,
     var qualityScore: Int? = null,
+    @Enumerated(EnumType.STRING)
+    var evaluationStatus: BibleCommentaryEvaluationStatus = BibleCommentaryEvaluationStatus.NOT_EVALUATED,
+    var evaluatorModel: String? = null,
+    var evaluationScore: Int? = null,
+    var evaluationGroundingScore: Int? = null,
+    var evaluationHistoricalEvidenceScore: Int? = null,
+    var evaluationReferenceRelevanceScore: Int? = null,
+    var evaluationTheologicalNeutralityScore: Int? = null,
+    var evaluationClarityScore: Int? = null,
+    var fabricatedScripture: Boolean = false,
+    var unsupportedHistoricalClaims: Boolean = false,
+    @Column(columnDefinition = "text")
+    var evaluationIssues: String? = null,
+    var evaluationPromptTokens: Int = 0,
+    var evaluationCompletionTokens: Int = 0,
+    var evaluationCostUsd: BigDecimal = BigDecimal.ZERO,
+    @Column(columnDefinition = "text")
+    var reviewNotes: String? = null,
+    var lastEditedBy: UUID? = null,
+    var lastEditedAt: Instant? = null,
     var reviewedBy: UUID? = null,
     var reviewedAt: Instant? = null,
     var publishedAt: Instant? = null,
@@ -66,9 +98,10 @@ class BibleChapterCommentaryEntity(
     val references: MutableList<BibleCommentaryReferenceEntity> = mutableListOf()
 
     /** 검수자가 현재 초안을 게시 상태로 전환합니다. */
-    fun publish(reviewerId: UUID, score: Int, now: Instant) {
+    fun publish(reviewerId: UUID, score: Int, notes: String, now: Instant) {
         status = BibleCommentaryStatus.PUBLISHED
         qualityScore = score
+        reviewNotes = notes
         reviewedBy = reviewerId
         reviewedAt = now
         publishedAt = now
@@ -82,13 +115,73 @@ class BibleChapterCommentaryEntity(
     }
 
     /** 검수 기준을 충족하지 못한 초안을 재사용하지 않도록 거절 처리합니다. */
-    fun reject(reviewerId: UUID, now: Instant) {
+    fun reject(reviewerId: UUID, notes: String, now: Instant) {
         status = BibleCommentaryStatus.REJECTED
+        reviewNotes = notes
         reviewedBy = reviewerId
         reviewedAt = now
         updatedAt = now
     }
 }
+
+/** 저작권과 출처가 확인된 배경 메모를 초안 생성에만 제공하는 JPA entity입니다. */
+@Entity
+@Table(name = "bible_commentary_evidence_notes")
+class BibleCommentaryEvidenceEntity(
+    @Id
+    val id: UUID = UUID.randomUUID(),
+    val version: String,
+    val bookCode: String,
+    val chapter: Int? = null,
+    @Enumerated(EnumType.STRING)
+    val evidenceType: BibleCommentaryEvidenceType,
+    var title: String,
+    @Column(columnDefinition = "text")
+    var content: String,
+    var sourceName: String,
+    var sourceUrl: String? = null,
+    var licenseNote: String,
+    @Enumerated(EnumType.STRING)
+    var status: BibleCommentaryEvidenceStatus = BibleCommentaryEvidenceStatus.DRAFT,
+    val createdBy: UUID,
+    var approvedBy: UUID? = null,
+    var approvedAt: Instant? = null,
+    val createdAt: Instant = Instant.now(),
+    var updatedAt: Instant = Instant.now(),
+) {
+    /** 관리자 승인을 받은 메모만 AI 생성 근거로 사용할 수 있게 전환합니다. */
+    fun approve(adminId: UUID, now: Instant) {
+        check(status == BibleCommentaryEvidenceStatus.DRAFT) { "초안 근거만 승인할 수 있습니다." }
+        status = BibleCommentaryEvidenceStatus.APPROVED
+        approvedBy = adminId
+        approvedAt = now
+        updatedAt = now
+    }
+
+    /** 더 이상 신뢰할 수 없거나 사용권이 만료된 근거를 생성 입력에서 제외합니다. */
+    fun retire(now: Instant) {
+        check(status != BibleCommentaryEvidenceStatus.RETIRED) { "이미 폐기된 근거입니다." }
+        status = BibleCommentaryEvidenceStatus.RETIRED
+        updatedAt = now
+    }
+}
+
+/** 해설 수정·게시·거절의 담당자와 사유를 보존하는 감사 JPA entity입니다. */
+@Entity
+@Table(name = "bible_commentary_review_events")
+class BibleCommentaryReviewEventEntity(
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    val id: Long? = null,
+    val commentaryId: UUID,
+    val previousCommentaryId: UUID? = null,
+    @Enumerated(EnumType.STRING)
+    val action: BibleCommentaryReviewAction,
+    val reviewerId: UUID,
+    @Column(columnDefinition = "text")
+    val notes: String,
+    val createdAt: Instant = Instant.now(),
+)
 
 /** 한 장 안에서 연속된 절 범위를 설명하는 해설 구간 entity입니다. */
 @Entity

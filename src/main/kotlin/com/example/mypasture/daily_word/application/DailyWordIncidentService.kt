@@ -47,7 +47,7 @@ class DailyWordIncidentService(
 
     /** 현재 운영 상태를 날짜·유형별 incident로 반영하고 해소된 조건은 자동 종료합니다. */
     @Transactional
-    fun scan(now: Instant = Instant.now(clock)) {
+    fun scan(now: Instant) {
         val zone = ZoneId.of(properties.generationZone)
         val today = LocalDate.ofInstant(now, zone)
         detect(today, DailyWordIncidentSeverity.CRITICAL, now)

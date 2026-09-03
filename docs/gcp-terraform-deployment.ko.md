@@ -2,15 +2,18 @@
 
 ## 1. 현재 배포 모델
 
-My Pasture 서버는 같은 불변 Docker 이미지를 세 가지 실행 단위에서 사용합니다.
+My Pasture 백엔드는 같은 불변 Docker 이미지를 네 가지 실행 단위에서 사용하고, Admin은 별도 Next.js 이미지를 사용합니다.
 
 | 실행 단위 | 역할 | 확장 정책 |
 |---|---|---|
 | Cloud Run API | REST, AI streaming, QT SSE | 요청량에 따라 자동 확장 |
 | Cloud Run worker | 알림, 이메일 outbox, 오늘의 말씀, 정리 작업 | 최소/최대 1개 |
-| Cloud Run migration Job | Flyway와 JPA schema 검증 후 종료 | 배포마다 먼저 1회 실행 |
+| Cloud Run migration Job | Flyway, JPA schema 검증, 1910 성경 멱등 적재 후 종료 | 배포마다 먼저 1회 실행 |
+| Cloud Run embedding-backfill Job | 전체 성경 절의 pgvector embedding 생성 | 최초 적재 또는 모델 변경 시 명시적으로 실행 |
+| Cloud Run Admin | Next.js 관리자 화면과 BFF | direct IAP, 최소 0개, 최대 1~2개 |
 
 운영 데이터는 Cloud SQL PostgreSQL 17과 pgvector에 저장합니다. Redis 캐시, rate limit, Pub/Sub은 외부 IP가 없는 Compute Engine VM의 TLS Docker Redis를 사용합니다. 운영 API는 외부 HTTPS Load Balancer와 Cloud Armor를 통과하고 Cloud Run 기본 URL 직접 접근은 차단합니다.
+Admin은 DB와 Redis에 직접 접근하지 않고 HTTPS API만 호출하며, Cloud Run direct IAP와 백엔드 `ADMIN` 역할로 이중 보호합니다.
 
 ## 2. 배포 전 준비
 
@@ -73,7 +76,7 @@ terraform plan -out=bootstrap.tfplan
 terraform apply bootstrap.tfplan
 ```
 
-이 단계는 VPC, Cloud SQL, Redis VM, Artifact Registry, secret container, runtime service account를 생성하지만 아직 Cloud Run을 만들지 않습니다.
+이 단계는 VPC, Cloud SQL, Redis VM, backend/admin Artifact Registry, secret container, runtime service account를 생성하지만 아직 Cloud Run을 만들지 않습니다.
 
 ## 5. DB 계정과 extension 준비
 
@@ -112,7 +115,7 @@ Terraform output의 `secret_ids` 목록을 기준으로 값을 등록합니다. 
 gcloud secrets versions add SECRET_ID --data-file=-
 ```
 
-입력 후 `Ctrl+D`로 종료합니다. 필수 secret은 application/migration DB password, Redis password, JWT secret, OpenAI API key, AI privacy hash secret, SMTP 계정, email verification HMAC secret입니다. FCM을 켠 경우 Firebase service account JSON도 필요합니다.
+입력 후 `Ctrl+D`로 종료합니다. 필수 secret은 application/migration DB password, Redis password, JWT secret, OpenAI API key, AI privacy hash secret, 쿠폰 코드 pepper, SMTP 계정, email verification HMAC secret입니다. FCM을 켠 경우 Firebase service account JSON도 필요합니다.
 
 실제 SMTP가 준비되지 않은 staging은 이메일 인증과 비밀번호 재설정을 `log`, 오늘의 말씀 장애 메일을 `disabled`로 배포합니다. 이 경우 SMTP username/password version은 필요하지 않으며, production은 기본값인 `smtp`와 검증된 발신자 및 실제 Secret version을 사용해야 합니다. 로그 전달은 인증 코드를 애플리케이션 로그에 남기므로 staging 접근 권한도 운영자에게만 제한합니다.
 
@@ -161,14 +164,53 @@ terraform apply runtime.tfplan
 
 운영 환경은 output의 `load_balancer_ip`를 `api.mypasture.app` A record로 연결합니다. DNS 전파 후 Google managed certificate가 `ACTIVE`가 되었는지 확인해야 합니다.
 
-## 8. 최초 migration과 검증
+### API 사용자 도메인 연결
+
+staging에서 외부 Load Balancer를 검증할 때도 환경 입력으로 기능을 명시적으로 켭니다.
+
+```hcl
+enable_external_load_balancer = true
+api_domain                    = "api.mypasture.app"
+```
+
+적용 후 Terraform output에서 고정 IP를 확인합니다.
+
+```bash
+terraform output -json | jq -r '.deployment.value.load_balancer_ip'
+```
+
+Cloudflare DNS에는 다음 A record를 생성합니다.
+
+| Type | Name | IPv4 address | Proxy status | TTL |
+|---|---|---|---|---|
+| `A` | `api` | Terraform output의 `load_balancer_ip` | `DNS only` | `Auto` |
+
+Google 관리형 인증서는 공개 DNS가 Load Balancer 고정 IP를 직접 반환해야 검증할 수 있으므로 인증서가
+`ACTIVE`가 될 때까지 Cloudflare Proxy를 켜지 않습니다. API는 GCP Load Balancer와 Cloud Armor를
+보안 경계로 사용하므로 활성화 후에도 기본 정책은 `DNS only`입니다.
+
+```bash
+gcloud compute ssl-certificates describe mypasture-staging-api \
+  --project=my-pasture --global \
+  --format='yaml(managed.status,managed.domainStatus,expireTime)'
+
+curl --fail --silent --show-error \
+  https://api.mypasture.app/actuator/health/readiness | jq -e '.status == "UP"'
+```
+
+Serverless NEG를 사용하는 global Backend Service에는 `timeout_sec`를 지정하지 않습니다. 요청 제한은
+Cloud Run 서비스의 timeout과 애플리케이션의 streaming/timeout 정책에서 관리합니다.
+
+## 8. 최초 migration, 성경 적재와 검증
 
 ```bash
 gcloud run jobs execute mypasture-staging-migration \
   --region=asia-northeast3 --wait
 ```
 
-마이그레이션 성공 후에만 API와 worker를 생성합니다. API와 worker에서는 Flyway가 비활성화되고 migration Job에서만 실행됩니다.
+마이그레이션 Job은 schema 변경 후 이미지에 포함된 1910 성경을 동기화합니다. 완료 로그에서 `books=66`,
+`chapters=1189`, `verses=30991`, `empty=1`을 확인합니다. 마이그레이션 성공 후에만 API와 worker를 생성합니다.
+API와 worker에서는 Flyway와 성경 import가 비활성화됩니다.
 
 ```hcl
 deploy_runtime  = true
@@ -184,17 +226,52 @@ gcloud run services describe mypasture-staging-api --region=asia-northeast3
 curl --fail https://STAGING_API/actuator/health/readiness
 ```
 
+OpenAI embedding 비용을 승인한 뒤 전용 Job을 한 번 실행합니다. migration Job과 달리 이 단계는 일반 배포마다
+자동 실행하지 않습니다.
+
+```bash
+gcloud run jobs execute mypasture-staging-embedding-backfill \
+  --region=asia-northeast3 --wait
+```
+
+관리자 API `GET /api/v1/admin/ai/embeddings`에서 `indexedVerses == totalVerses`와
+`remainingVerses == 0`을 확인한 다음 자유 질문 RAG를 검증합니다. Job은 동일 모델·차원·본문 hash가 이미
+저장된 절을 건너뛰며, 로그에 embedding token과 예상 비용 합계를 남깁니다.
+
 로그인, JWT 갱신, 이메일, FCM 실제 기기, AI RAG streaming, QT 참여와 SSE를 순서대로 검증합니다.
 
 ## 9. GitHub Actions 배포
 
-Google service account JSON key는 저장하지 않습니다. GitHub OIDC를 신뢰하는 Workload Identity Federation provider와 GitHub Environment 승인 정책을 사용합니다.
+Google service account JSON key는 저장하지 않습니다. `bootstrap/github-actions` Terraform root가 GitHub
+OIDC를 신뢰하는 Workload Identity Federation provider와 환경별 배포 service account를 생성합니다.
+repository 이름과 함께 GitHub의 변경 불가능한 repository ID, owner ID, `refs/heads/main`을 검증하므로
+repository 이름이 다른 계정에서 재사용되어도 배포 권한을 얻을 수 없습니다.
+
+Admin 저장소는 별도 WIF provider와 deploy service account를 사용합니다. 최초 이미지와 IAP 적용 순서는
+[`admin-cloud-run-operations.ko.md`](admin-cloud-run-operations.ko.md)를 따릅니다.
 
 배포 service account의 기본 권한은 다음 범위로 제한합니다.
 
 - `roles/artifactregistry.writer`
-- `roles/run.admin`
+- `roles/run.developer`
 - runtime service account에 대한 `roles/iam.serviceAccountUser`
+
+플랫폼 Terraform에서 Artifact Registry와 runtime service account를 먼저 만든 뒤 OIDC bootstrap을 적용합니다.
+
+```bash
+cd infra/terraform/bootstrap/github-actions
+cp terraform.tfvars.example terraform.tfvars
+
+gh api repos/ByeongDoo-Han/mypasture-backend --jq '.id'
+gh api users/ByeongDoo-Han --jq '.id'
+
+terraform init \
+  -backend-config="bucket=YOUR_STATE_BUCKET" \
+  -backend-config="prefix=mypasture/bootstrap/github-actions"
+terraform plan -out=github-actions.tfplan
+terraform apply github-actions.tfplan
+terraform output github_environment_variables
+```
 
 GitHub의 `staging`, `prod` Environment에 다음 variables를 등록합니다.
 
@@ -207,7 +284,20 @@ GitHub의 `staging`, `prod` Environment에 다음 variables를 등록합니다.
 | `GCP_DEPLOY_SERVICE_ACCOUNT` | 배포 service account email |
 | `API_HEALTH_URL` | 배포 후 검사할 HTTPS API 주소 |
 
-`Deploy Server to GCP` workflow는 이미지를 push하고 migration Job 성공을 확인한 뒤 worker, API 순으로 배포합니다. `prod` GitHub Environment에는 required reviewer를 설정합니다.
+`Deploy Server to GCP` workflow는 `Server CI`가 `main` push를 성공 처리한 경우 staging에 자동 배포합니다.
+production은 `main`에서 수동 실행하며 `prod` GitHub Environment에는 required reviewer를 설정합니다.
+
+워크플로는 Linux amd64 이미지를 commit SHA로 build하고 digest로 고정한 뒤 다음 순서를 지킵니다.
+
+1. 현재 API, worker, migration, embedding Job 이미지를 기록합니다.
+2. migration Job 이미지를 갱신하고 성공할 때까지 기다립니다.
+3. 유료 embedding backfill은 실행하지 않고 Job 이미지만 갱신합니다.
+4. worker와 API를 순서대로 배포합니다.
+5. readiness, 성경 번역본, 66권 목록을 smoke test합니다.
+6. 배포 단계가 실패하면 기록한 이미지로 API, worker와 두 Job을 복구합니다.
+
+DB migration은 자동 롤백되지 않습니다. Flyway 변경은 반드시 이전·신규 애플리케이션이 함께 사용할 수 있는
+expand/contract 방식으로 작성해야 합니다. migration 자체가 실패하면 API와 worker는 갱신되지 않습니다.
 
 ## 10. 롤백과 DB 변경 정책
 
@@ -222,6 +312,8 @@ GitHub의 `staging`, `prod` Environment에 다음 variables를 등록합니다.
 - [ ] staging Terraform plan/apply 및 E2E 통과
 - [ ] Artifact Registry 취약점 검사 결과 검토
 - [ ] secret version과 runtime IAM 최소 권한 확인
+- [ ] Admin direct IAP 활성화, 운영자 member와 비ADMIN 접근 거부 확인
+- [ ] Admin runtime service account에 DB·Redis·Secret 권한이 없는지 확인
 - [ ] Cloud SQL HA, backup, PITR, deletion protection 확인
 - [ ] Redis VM 외부 IP 없음, TLS/AUTH, private network와 IAP 접근만 허용 확인
 - [ ] Redis AOF, 디스크 스냅샷, 인증서 교체와 VM 재생성 복구 훈련 확인
@@ -229,6 +321,8 @@ GitHub의 `staging`, `prod` Environment에 다음 variables를 등록합니다.
 - [ ] Cloud Armor와 애플리케이션 rate limit 동시 검증
 - [ ] 5xx 알림, 예산 알림, 로그 민감정보 마스킹 확인
 - [ ] 실제 기기 FCM/APNs와 SMTP 전달 확인
+- [ ] 성경 66권, 1,189장, 30,991절 적재 및 빈 베드로전서 5장 정책 확인
+- [ ] embedding Job 완료, 전체 index 수와 token 및 예상 비용 확인
 - [ ] AI 비용 제한, timeout, streaming 재연결 확인
 - [ ] 부하 테스트에서 DB connection과 Cloud Run max instance 한도 확인
 - [ ] rollback 및 DB restore 훈련 완료

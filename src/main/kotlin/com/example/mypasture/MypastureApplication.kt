@@ -4,6 +4,7 @@ import com.example.mypasture.config.AiProperties
 import com.example.mypasture.config.AuthSecurityProperties
 import com.example.mypasture.config.BibleProperties
 import com.example.mypasture.config.CorsProperties
+import com.example.mypasture.config.CouponProperties
 import com.example.mypasture.config.DailyWordProperties
 import com.example.mypasture.config.EmailVerificationProperties
 import com.example.mypasture.config.FirebaseProperties
@@ -28,6 +29,7 @@ import kotlin.system.exitProcess
     AuthSecurityProperties::class,
     BibleProperties::class,
     CorsProperties::class,
+    CouponProperties::class,
     DailyWordProperties::class,
     EmailVerificationProperties::class,
     FirebaseProperties::class,
@@ -42,13 +44,15 @@ class MypastureApplication
 
 fun main(args: Array<String>) {
     val migrationOnly = System.getenv("APP_MIGRATION_ONLY").toBoolean()
-    val application = createMypastureApplication(migrationOnly)
+    val embeddingBackfillOnly = System.getenv("APP_EMBEDDING_BACKFILL_ONLY").toBoolean()
+    val batchOnly = migrationOnly || embeddingBackfillOnly
+    val application = createMypastureApplication(batchOnly)
     val context = application.run(*args)
-    if (migrationOnly) exitProcess(SpringApplication.exit(context))
+    if (batchOnly) exitProcess(SpringApplication.exit(context))
 }
 
-/** Cloud Run migration Job에서는 HTTP 서버를 열지 않고 Flyway와 JPA 검증 후 종료하도록 실행 형태를 분리합니다. */
-internal fun createMypastureApplication(migrationOnly: Boolean) =
+/** Cloud Run migration 및 embedding Job에서는 HTTP 서버 없이 작업 완료 후 종료하도록 실행 형태를 분리합니다. */
+internal fun createMypastureApplication(batchOnly: Boolean) =
     SpringApplication(MypastureApplication::class.java).apply {
-        if (migrationOnly) webApplicationType = WebApplicationType.NONE
+        if (batchOnly) webApplicationType = WebApplicationType.NONE
     }

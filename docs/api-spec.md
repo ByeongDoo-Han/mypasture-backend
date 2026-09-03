@@ -37,6 +37,8 @@ POST /api/v1/auth/social-login/challenges
 POST /api/v1/auth/refresh
 POST /api/v1/auth/password-reset/requests
 POST /api/v1/auth/password-reset/confirm
+GET  /api/v1/policies/current
+GET  /api/v1/policies/{type}/{version}
 ```
 
 ### Content Type
@@ -187,7 +189,12 @@ Content-Type: application/json
   "email": "user@example.com",
   "password": "password123!",
   "displayName": "홍길동",
-  "verificationToken": "one-time-signup-token"
+  "verificationToken": "one-time-signup-token",
+  "policyConsents": [
+    { "type": "TERMS_OF_SERVICE", "version": "1.0.0", "agreed": true },
+    { "type": "PRIVACY_COLLECTION", "version": "1.0.0", "agreed": true },
+    { "type": "MARKETING_NOTIFICATIONS", "version": "1.0.0", "agreed": false }
+  ]
 }
 ```
 
@@ -209,7 +216,7 @@ Response `201`:
 }
 ```
 
-Errors: `400 EMAIL_VERIFICATION_REQUIRED`, `409 EMAIL_ALREADY_REGISTERED`.
+Errors: `400 EMAIL_VERIFICATION_REQUIRED`, `400 POLICY_CONSENT_REQUIRED`, `409 EMAIL_ALREADY_REGISTERED`.
 
 ### 1.5 Email login
 
@@ -318,7 +325,23 @@ Authorization: Bearer <access-token>
 
 Response `200`: current user profile.
 
-### 1.10 Delete account
+### 1.10 Update current user profile
+
+Status: `IMPLEMENTED`
+
+```http
+PATCH /api/v1/auth/me
+Authorization: Bearer <access-token>
+Content-Type: application/json
+
+{
+  "displayName": "새 이름"
+}
+```
+
+Response `200`: 변경된 current user profile. 표시 이름의 앞뒤 및 연속 공백을 정리하며 최대 40자까지 허용한다. 이메일 변경은 재인증, 중복 확인, 이메일 인증 및 소셜 계정 연결 정책이 필요하므로 이 API에서 제공하지 않는다. 프로필 변경만으로 기존 JWT를 폐기하지 않는다.
+
+### 1.11 Delete account
 
 Status: `IMPLEMENTED`
 
@@ -335,7 +358,7 @@ Content-Type: application/json
 
 EMAIL 계정은 현재 비밀번호가 필수다. 소셜 전용 계정은 `currentPassword`를 생략한다. Response `204`.
 
-탈퇴 시 로그인 제공자 연결과 활성 재설정 토큰을 폐기하고 사용자 개인정보를 익명화한다. 기존 JWT는 즉시 무효화되며 동일 이메일로 재가입할 수 있다.
+탈퇴 시 로그인 제공자 연결, token, AI·개인 신앙 기록, 말씀 이용 기록과 알림 정보를 물리 삭제한다. 공동 QT 모임은 유지하되 작성자·기기 정보를 익명화하고, 사용자 행은 참조 무결성용 익명 tombstone으로 남긴다. 전체 DB 처리는 한 트랜잭션이며 기존 JWT는 즉시 무효화되고 동일 이메일로 재가입할 수 있다. 상세 정책은 `docs/account-erasure-policy.ko.md`를 따른다.
 
 Errors:
 
@@ -345,7 +368,7 @@ Errors:
 | 401 | `REAUTHENTICATION_FAILED` |
 | 401 | `UNAUTHORIZED` |
 
-### 1.11 Refresh token / logout
+### 1.12 Refresh token / logout
 
 Status: `IMPLEMENTED`
 
@@ -707,12 +730,16 @@ Rules:
 - Resolve an explicit book/chapter/verse from the Bible DB before semantic search
 - Store prompt tokens, completion tokens, estimated cost
 - Redis cache should be checked before OpenAI call
+- Response contract: `assistant-response-v2`
+- Free: one-shot answer, verified scripture blocks, and a recommended prayer
+- Premium: the same response contract plus an encrypted, expiring guided conversation and one focused follow-up question
 
 Request:
 
 ```json
 {
-  "question": "불안합니다. 어떤 말씀을 묵상하면 좋을까요?"
+  "question": "불안합니다. 어떤 말씀을 묵상하면 좋을까요?",
+  "conversationId": null
 }
 ```
 
@@ -726,6 +753,7 @@ Response `200`:
       "verseId": 1001,
       "version": "KRV",
       "book": "시편",
+      "bookCode": "PSA",
       "chapter": 23,
       "verse": 1,
       "text": "..."
@@ -738,9 +766,24 @@ Response `200`:
   "embeddingCostUsd": 0.00000036,
   "retrievalStrategy": "PGVECTOR",
   "questionIntent": "PASTORAL_COUNSELING",
-  "cacheHit": false
+  "cacheHit": false,
+  "schemaVersion": "assistant-response-v2",
+  "conversationId": null,
+  "turnId": "uuid",
+  "status": "COMPLETED",
+  "interactionMode": "ONE_SHOT",
+  "blocks": [
+    { "type": "ANSWER", "text": "..." },
+    { "type": "SCRIPTURE", "verseId": 1001, "version": "KOR1910", "bookCode": "PSA", "reference": "시편 23:1", "text": "...", "action": "OPEN_BIBLE" },
+    { "type": "PRAYER", "title": "불안을 맡기는 기도", "content": "..." }
+  ],
+  "nextAction": "COMPLETE"
 }
 ```
+
+프리미엄 응답에는 `conversationId`, `interactionMode=GUIDED_DIALOGUE`, `FOLLOW_UP_QUESTION` block과
+`nextAction=WAIT_USER_INPUT`이 포함됩니다. 다음 요청에 같은 `conversationId`를 보내면 최근 최대 4개 turn을
+문맥으로 사용합니다. 문맥은 AES-GCM으로 암호화하고 30일 뒤 삭제하며, 다른 사용자의 ID는 `404`로 처리합니다.
 
 ### 4.2 Bible Embedding Index Admin
 
@@ -778,6 +821,9 @@ data: {"stage":"GENERATING_ANSWER"}
 event: delta
 data: 근거: [1001] 주님은
 
+event: response
+data: {"schemaVersion":"assistant-response-v2","blocks":[...],"nextAction":"COMPLETE"}
+
 event: citations
 data: [{"verseId":1001,"book":"시편","chapter":23,"verse":1}]
 
@@ -788,16 +834,12 @@ event: done
 data: {"status":"completed"}
 ```
 
-### 4.4 AI Conversations
+### 4.4 Premium Guided Conversations
 
-Status: `PLANNED`
+Status: `IMPLEMENTED`
 
-```http
-GET    /api/v1/ai/conversations
-POST   /api/v1/ai/conversations
-GET    /api/v1/ai/conversations/{conversationId}
-DELETE /api/v1/ai/conversations/{conversationId}
-```
+첫 프리미엄 `/chat` 또는 `/chat/stream` 요청은 대화를 자동 생성합니다. 후속 요청은 응답의
+`conversationId`를 그대로 전달합니다. 대화 목록·장기 보관·내보내기 API는 개인정보 정책 확정 전까지 제공하지 않습니다.
 
 ### 4.5 Daily Meditation AI Batch
 
@@ -809,6 +851,24 @@ Status: `IMPLEMENTED`
 POST /api/v1/admin/daily-words/{date}/generation-jobs
 GET  /api/v1/admin/daily-words/generation-jobs
 ```
+
+### 4.6 Answer Feedback and Improvement
+
+Status: `IMPLEMENTED`
+
+```http
+POST /api/v1/ai/feedback
+POST /api/v1/ai/feedback/{turnId}/regenerate
+GET  /api/v1/admin/ai/feedback/summary
+GET  /api/v1/admin/ai/feedback/priority?limit=20
+```
+
+- `HELPFUL`은 사유 없이, `NOT_HELPFUL`은 1~3개 사유와 선택 의견 300자 이하로 보냅니다.
+- 같은 사용자와 `turnId`의 최종 평가는 한 건으로 갱신됩니다.
+- 피드백 제출은 AI 사용량을 차감하지 않습니다.
+- 원래 질문과 HMAC이 일치하고 `NOT_HELPFUL`인 답변만 한 번 무료로 개선 생성할 수 있습니다.
+- 개선 생성의 토큰·비용은 별도 usage log에 기록하지만 `quota_counted=false`입니다.
+- 관리자 조회에는 질문, 답변, 자유 의견을 반환하지 않고 집계와 잘못된 구절 신고의 추적 ID만 제공합니다.
 
 ## 5. Today's Word API
 
@@ -1065,15 +1125,18 @@ QT 세션은 고정 목장 소속 `PASTURE`와 목장 없이 생성자에게 귀
 - POST /api/v1/quiet-time/pastures/{pastureId}/sessions
 - POST /api/v1/quiet-time/sessions/standalone
 
-응답에는 `scope`, nullable `pasture`, `hostDisplayName`, offlineCode, inviteUrl, joinStartsAt, expiresAt, qrStatus가 포함됩니다. expiresAt은 기본적으로 모임 종료 30분 후이며 QR 이미지는 프론트에서 inviteUrl을 기반으로 생성합니다.
+응답에는 `scope`, nullable `pasture`, `hostDisplayName`, `offlineCode`, `joinCode`, `inviteUrl`, `joinStartsAt`, `expiresAt`, `qrStatus`가 포함됩니다. `offlineCode`는 QR 링크용 10자리 토큰이고 `joinCode`는 사람이 입력하는 6자리 코드입니다. `expiresAt`은 기본적으로 모임 종료 30분 후이며 QR 이미지는 프론트에서 `inviteUrl`을 기반으로 생성합니다.
 
 - GET /api/v1/quiet-time/offline/{offlineCode}
+- POST /api/v1/quiet-time/join-codes/resolve
 - POST /api/v1/quiet-time/offline/{offlineCode}/join
 - POST /api/v1/quiet-time/sessions/{sessionId}/qr/reissue
 - DELETE /api/v1/quiet-time/sessions/{sessionId}/qr
 - POST /api/v1/quiet-time/sessions/{sessionId}/close
 
 QR 상태는 SCHEDULED, OPEN, EXPIRED, REVOKED, CLOSED입니다.
+
+`POST /api/v1/quiet-time/join-codes/resolve`는 JWT가 필요하며 `{"joinCode":"ABC234"}`를 받아 기존 `QuietTimeSessionResponse`를 반환합니다. 서버는 앞뒤 공백과 소문자를 정규화하고 사용자별 Redis rate limit으로 코드 추측을 제한합니다.
 
 상세 정책: [큐티 모임 QR 만료 및 폐기 정책](quiet-time-qr-policy.ko.md)
 
@@ -1648,7 +1711,79 @@ POST /api/v1/admin/ai/runtime-config/rollback
 
 롤백은 과거 행을 수정하지 않고 대상 설정을 복제한 새 버전을 생성합니다. 모든 변경은 관리자 ID, 사유, 요청 지문과 함께 감사 로그에 남습니다.
 
-## 15. Implementation Status Summary
+## 15. Policy and Consent API
+
+Status: `IMPLEMENTED`
+
+```http
+GET  /api/v1/policies/current?scope=ACCOUNT
+GET  /api/v1/policies/{type}/{version}
+GET  /api/v1/policies/consent-status?scopes=ACCOUNT,AI
+POST /api/v1/policies/consents
+```
+
+정책 원문과 현재 버전은 공개 조회할 수 있습니다. 동의 상태와 변경은 Bearer JWT가 필요합니다. `REQUIRED` 문서는 현재 버전에 동의해야 해당 기능을 이용할 수 있고, `OPTIONAL` 문서는 설정에서 철회할 수 있습니다. 현재 상태는 `user_policy_consents`, 변경 이력은 추가 전용 `user_policy_consent_events`에 저장합니다.
+
+## 16. Moderation and Event Reward API
+
+### 16.1 사용자 신고·차단
+
+Status: `IMPLEMENTED`
+
+```http
+POST   /api/v1/moderation/reports
+GET    /api/v1/moderation/blocks
+PUT    /api/v1/moderation/blocks/{blockedUserId}
+DELETE /api/v1/moderation/blocks/{blockedUserId}
+```
+
+신고 대상은 현재 `AI_ANSWER`, `QUIET_TIME_ANSWER`입니다. 서버는 AI 답변 소유권 또는 QT 참여 권한을 검증하고, 같은 사용자의 같은 대상 신고는 기존 행을 다시 `OPEN` 처리합니다. QT 작성자 차단은 개인 조회와 SSE 전달에 즉시 적용됩니다.
+
+```json
+{
+  "targetType": "QUIET_TIME_ANSWER",
+  "targetId": "f922ce9c-e54a-4279-82b2-9ac7ebc4089e",
+  "reason": "HARASSMENT",
+  "details": "다른 참여자를 공격하는 표현입니다."
+}
+```
+
+### 16.2 관리자 신고 검토
+
+Status: `IMPLEMENTED`
+
+```http
+GET   /api/v1/admin/moderation/reports?status=OPEN&targetType=QUIET_TIME_ANSWER&page=0&size=20
+PATCH /api/v1/admin/moderation/reports/{reportId}
+```
+
+`CONTENT_HIDDEN` 조치는 해당 QT 답변을 모든 조회와 실시간 전달에서 숨깁니다. 관리자 요청은 `operationId`와 요청 지문으로 멱등 처리하며, 다른 요청에서 같은 ID를 재사용하면 `409 MODERATION_OPERATION_CONFLICT`를 반환합니다.
+
+### 16.3 무료 이벤트 꾸미기 보상
+
+Status: `IMPLEMENTED`
+
+```http
+POST /api/v1/coupons/redeem
+GET  /api/v1/coupons/rewards
+GET  /api/v1/admin/coupon-campaigns?page=0&size=20
+POST /api/v1/admin/coupon-campaigns
+POST /api/v1/admin/coupon-campaigns/{campaignId}/deactivate
+```
+
+자체 코드는 `PASTURE_DECORATION_ITEM`만 지급하며 구독 등급, AI 한도, 유료 기능을 변경하지 않습니다.
+
+### 16.4 소셜 제공자 준비 상태
+
+Status: `IMPLEMENTED`
+
+```http
+GET /api/v1/auth/social-login/providers
+```
+
+비인증 공개 응답은 서버에 검증 설정이 존재하는 제공자만 `true`로 반환하며 비밀값이나 Client ID 원문은 노출하지 않습니다. 모바일은 로컬 네이티브 설정과 이 응답을 함께 확인해 실패가 확정된 버튼을 숨깁니다.
+
+## 17. Implementation Status Summary
 
 | Domain | API status |
 |---|---|
@@ -1667,7 +1802,7 @@ POST /api/v1/admin/ai/runtime-config/rollback
 | File/R2 | planned |
 | Admin | 인증, 성경 해설·embedding, QT 운영, AI 모델 및 오늘의 말씀 검수·감사 로그 구현 |
 
-## 16. Next API Implementation Order
+## 18. Next API Implementation Order
 
 추천 구현 순서:
 

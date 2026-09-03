@@ -1,0 +1,66 @@
+### 무료 이벤트 꾸미기 보상 코드 흐름
+### 코드는 판매하거나 유료 기능·AI 한도 해제 수단으로 사용하지 않습니다.
+@operationId = {{$uuid}}
+@couponCode = PASTURE-SPROUT-2026
+
+### 1. 공유형 꾸미기 보상 캠페인 생성
+POST {{baseUrl}}/api/v1/admin/coupon-campaigns
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "operationId": "{{operationId}}",
+  "name": "새싹 목장 꾸미기 이벤트",
+  "eligibilityKey": "pasture-sprout-event-2026",
+  "codeType": "SHARED",
+  "redeemStartsAt": "2026-09-01T00:00:00Z",
+  "redeemEndsAt": "2026-12-31T23:59:59Z",
+  "maxRedemptions": 1000,
+  "sharedCode": "{{couponCode}}",
+  "rewardType": "PASTURE_DECORATION_ITEM",
+  "rewardItemCode": "PASTURE_SPROUT",
+  "rewardQuantity": 1,
+  "reason": "무료 출시 기념 꾸미기 아이템 지급"
+}
+
+> {%
+client.test("Campaign grants decoration items only", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.campaign.rewardType === "PASTURE_DECORATION_ITEM", "Expected decoration reward");
+});
+%}
+
+### 2. 사용자 보상 코드 등록
+POST {{baseUrl}}/api/v1/coupons/redeem
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "code": "{{couponCode}}"
+}
+
+> {%
+client.test("Coupon grants a collectible and no entitlement", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.reward.type === "PASTURE_DECORATION_ITEM", "Expected decoration reward");
+});
+%}
+
+### 3. 받은 꾸미기 아이템 조회
+GET {{baseUrl}}/api/v1/coupons/rewards
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Collectible inventory is returned", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(Array.isArray(response.body), "Expected reward array");
+});
+%}
+
+### 4. AI 사용 정책이 쿠폰과 무관하게 유지되는지 확인
+GET {{baseUrl}}/api/v1/ai/usage/today
+Authorization: Bearer {{accessToken}}
+
+### 5. 캠페인 목록
+GET {{baseUrl}}/api/v1/admin/coupon-campaigns?page=0&size=20
+Authorization: Bearer {{adminAccessToken}}

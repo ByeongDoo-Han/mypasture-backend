@@ -24,6 +24,69 @@ variable "container_image" {
   type        = string
 }
 
+variable "admin_enabled" {
+  description = "Create the IAP-protected Next.js admin Cloud Run service."
+  type        = bool
+  default     = false
+}
+
+variable "admin_container_image" {
+  description = "Immutable admin image reference including a digest or commit SHA tag."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.admin_enabled || trimspace(var.admin_container_image) != ""
+    error_message = "admin_container_image is required when admin_enabled is true."
+  }
+}
+
+variable "admin_api_base_url" {
+  description = "HTTPS backend base URL used only by the server-side admin BFF."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.admin_enabled || can(regex("^https://[^/]+", var.admin_api_base_url))
+    error_message = "admin_api_base_url must be an HTTPS URL when admin_enabled is true."
+  }
+}
+
+variable "admin_iap_members" {
+  description = "Users or groups allowed through IAP, such as user:operator@example.com."
+  type        = set(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for member in var.admin_iap_members : can(regex("^(user|group):[^[:space:]]+$", member))
+    ])
+    error_message = "admin_iap_members accepts only user: or group: principals."
+  }
+}
+
+variable "admin_min_instances" {
+  description = "Warm admin instances. Keep zero until cold-start latency becomes operationally costly."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.admin_min_instances >= 0 && floor(var.admin_min_instances) == var.admin_min_instances
+    error_message = "admin_min_instances must be a non-negative integer."
+  }
+}
+
+variable "admin_max_instances" {
+  description = "Maximum admin instances used to cap cost and backend load."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.admin_max_instances >= var.admin_min_instances && floor(var.admin_max_instances) == var.admin_max_instances
+    error_message = "admin_max_instances must be an integer greater than or equal to admin_min_instances."
+  }
+}
+
 variable "enable_external_load_balancer" {
   description = "Expose the API through an external HTTPS load balancer and Cloud Armor."
   type        = bool
@@ -185,8 +248,14 @@ variable "worker_enabled" {
   default     = true
 }
 
-variable "worker_enable_ai_jobs" {
-  description = "Enable paid AI indexing/commentary workers after an explicit operational decision."
+variable "worker_enable_embedding_indexing" {
+  description = "Enable continuous paid embedding indexing in the singleton worker. Initial backfill uses a separate job."
+  type        = bool
+  default     = false
+}
+
+variable "worker_enable_commentary_generation" {
+  description = "Enable paid chapter commentary generation in the singleton worker."
   type        = bool
   default     = false
 }

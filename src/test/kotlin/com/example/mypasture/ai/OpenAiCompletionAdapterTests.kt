@@ -36,18 +36,16 @@ class OpenAiCompletionAdapterTests {
             exchange.responseHeaders.add("Content-Type", "text/event-stream")
             exchange.sendResponseHeaders(200, 0)
             exchange.responseBody.bufferedWriter().use { writer ->
-                writer.write("data: {\"type\":\"response.output_text.delta\",\"delta\":\"말씀 \"}\n\n")
+                writer.write("data: ${streamDelta("structured-json-fragment")}\n\n")
                 writer.flush()
-                writer.write("data: {\"type\":\"response.output_text.delta\",\"delta\":\"[42]\"}\n\n")
-                writer.flush()
-                writer.write("data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":11,\"output_tokens\":7}}}\n\n")
+                writer.write("data: ${streamCompleted("말씀 [42]", listOf(42), 11, 7)}\n\n")
             }
         }
         val deltas = mutableListOf<String>()
 
         val answer = adapter(port).answerWithCitations("불안합니다", listOf(citation())) { deltas += it }
 
-        assertEquals(listOf("말씀 [42]"), deltas)
+        assertEquals("말씀 [42]", deltas.joinToString(""))
         assertEquals("말씀 [42]", answer.answer)
         assertEquals(11, answer.promptTokens)
         assertEquals(7, answer.completionTokens)
@@ -63,7 +61,7 @@ class OpenAiCompletionAdapterTests {
             exchange.responseHeaders.add("Content-Type", "application/json")
             exchange.sendResponseHeaders(200, 0)
             exchange.responseBody.bufferedWriter().use { writer ->
-                writer.write("""{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"근거: [42] 답변"}]}],"usage":{}}""")
+                writer.write(responseBody("근거: [42] 답변", listOf(42)))
             }
         }
 
@@ -106,7 +104,7 @@ class OpenAiCompletionAdapterTests {
                 exchange.responseHeaders.add("Content-Type", "application/json")
                 exchange.sendResponseHeaders(200, 0)
                 exchange.responseBody.bufferedWriter().use { writer ->
-                    writer.write("""{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"근거: [42] 답변"}]}],"usage":{}}""")
+                    writer.write(responseBody("근거: [42] 답변", listOf(42)))
                 }
             }
         }
@@ -141,9 +139,9 @@ class OpenAiCompletionAdapterTests {
             exchange.responseHeaders.add("Content-Type", "text/event-stream")
             exchange.sendResponseHeaders(200, 0)
             exchange.responseBody.bufferedWriter().use { writer ->
-                writer.write("data: {\"type\":\"response.output_text.delta\",\"delta\":\"근거 없는 답 [999]\"}\n\n")
+                writer.write("data: ${streamDelta("structured-json-fragment")}\n\n")
                 writer.flush()
-                writer.write("data: {\"type\":\"response.completed\",\"response\":{\"usage\":{}}}\n\n")
+                writer.write("data: ${streamCompleted("근거 없는 답 [999]", listOf(999), 0, 0)}\n\n")
             }
         }
         val delivered = mutableListOf<String>()
@@ -165,6 +163,43 @@ class OpenAiCompletionAdapterTests {
         OpenAiCompletionAdapter(properties(port).copy(model = model), AiCitationValidator(), jacksonObjectMapper())
 
     private fun citation() = BibleCitation(42, "KOR1910", "시편", 23, 1, "여호와는 나의 목자시니")
+
+    private fun generatedContent(answer: String, usedVerseIds: List<Int>) = jacksonObjectMapper().writeValueAsString(
+        mapOf(
+            "answer" to answer,
+            "used_verse_ids" to usedVerseIds,
+            "prayer_title" to "추천 기도문",
+            "prayer" to "하나님, 이 말씀을 붙들게 해 주세요. 아멘.",
+            "follow_up_question" to "",
+            "follow_up_options" to emptyList<String>(),
+        ),
+    )
+
+    private fun responseBody(answer: String, usedVerseIds: List<Int>, inputTokens: Int = 0, outputTokens: Int = 0): String =
+        jacksonObjectMapper().writeValueAsString(
+            mapOf(
+                "status" to "completed",
+                "output" to listOf(
+                    mapOf(
+                        "type" to "message",
+                        "content" to listOf(mapOf("type" to "output_text", "text" to generatedContent(answer, usedVerseIds))),
+                    ),
+                ),
+                "usage" to mapOf("input_tokens" to inputTokens, "output_tokens" to outputTokens),
+            ),
+        )
+
+    private fun streamDelta(delta: String): String = jacksonObjectMapper().writeValueAsString(
+        mapOf("type" to "response.output_text.delta", "delta" to delta),
+    )
+
+    private fun streamCompleted(answer: String, usedVerseIds: List<Int>, inputTokens: Int, outputTokens: Int): String =
+        jacksonObjectMapper().writeValueAsString(
+            mapOf(
+                "type" to "response.completed",
+                "response" to jacksonObjectMapper().readTree(responseBody(answer, usedVerseIds, inputTokens, outputTokens)),
+            ),
+        )
 
     private fun runtimeConfig() = AiRuntimeConfigSnapshot(
         id = null,

@@ -133,8 +133,48 @@ Content-Type: application/json
 client.test("AI answer contains verified Bible citations", function () {
   client.assert(response.status === 200, "Expected HTTP 200");
   client.assert(response.body.citations.length > 0, "Expected grounded citations");
+  client.assert(response.body.schemaVersion === "assistant-response-v2", "Expected versioned response contract");
+  client.assert(response.body.blocks.some(function(block) { return block.type === "PRAYER"; }), "Expected prayer block");
   client.assert(!!response.body.retrievalStrategy, "Expected retrieval strategy");
   client.assert(response.body.questionIntent === "BIBLE_EXPLANATION", "Expected explanation intent");
+});
+client.global.set("aiTurnId", response.body.turnId);
+%}
+
+### 06-1-a. Submit answer feedback without consuming AI quota
+POST {{baseUrl}}/api/v1/ai/feedback
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "turnId": "{{aiTurnId}}",
+  "rating": "NOT_HELPFUL",
+  "reasons": ["IRRELEVANT_SCRIPTURE"],
+  "comment": "질문과 더 직접적으로 연결된 말씀을 보고 싶어요."
+}
+
+> {%
+client.test("AI feedback is stored", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.turnId === client.global.get("aiTurnId"), "Expected same turn");
+  client.assert(response.body.regenerationStatus === "NONE", "Expected regeneration not started");
+});
+%}
+
+### 06-1-b. Regenerate one improved answer without consuming daily quota
+POST {{baseUrl}}/api/v1/ai/feedback/{{aiTurnId}}/regenerate
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "창세기 말씀을 설명해주세요"
+}
+
+> {%
+client.test("Improved answer has a new tracked turn", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.turnId !== client.global.get("aiTurnId"), "Expected new turn");
+  client.assert(response.body.citations.length > 0, "Expected grounded citations");
 });
 %}
 
@@ -174,6 +214,7 @@ client.test("AI stream completes with citations and usage", function () {
   client.assert(response.body.indexOf("event:status") >= 0, "Expected question processing status event");
   client.assert(response.body.indexOf("UNDERSTANDING_QUESTION") >= 0, "Expected question understanding stage");
   client.assert(response.body.indexOf("event:delta") >= 0, "Expected delta event");
+  client.assert(response.body.indexOf("event:response") >= 0, "Expected structured response event");
   client.assert(response.body.indexOf("event:citations") >= 0, "Expected citations event");
   client.assert(response.body.indexOf("event:usage") >= 0, "Expected usage event");
   client.assert(response.body.indexOf("event:done") >= 0, "Expected done event");
@@ -334,6 +375,37 @@ client.test("Quiet time recommendations are returned", function () {
 client.global.set("passageId", response.body[0].id);
 %}
 
+### 12-1. Get weighted themes for the selected passage
+GET {{baseUrl}}/api/v1/quiet-time/passages/{{passageId}}/themes
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("The passage has primary and secondary themes", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.length > 1, "Expected multiple themes");
+  client.assert(response.body[0].primary === true, "Expected primary theme first");
+});
+client.global.set("focusThemeCode", response.body[0].code);
+%}
+
+### 12-2. Preview the frozen question set
+POST {{baseUrl}}/api/v1/quiet-time/passages/{{passageId}}/question-preview
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "focusThemeCode": "{{focusThemeCode}}",
+  "questionStyle": "BALANCED"
+}
+
+> {%
+client.test("Question set preview is grounded in the selected theme", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.focusTheme.code === client.global.get("focusThemeCode"), "Expected selected focus theme");
+  client.assert(response.body.meditationQuestions.length > 0, "Expected meditation questions");
+});
+%}
+
 ### 13. Create quiet time pasture
 POST {{baseUrl}}/api/v1/quiet-time/pastures
 Authorization: Bearer {{accessToken}}
@@ -361,19 +433,41 @@ Content-Type: application/json
 {
   "title": "토요 오프라인 큐티",
   "passageId": "{{passageId}}",
-  "theme": "불안"
+  "focusThemeCode": "{{focusThemeCode}}",
+  "questionStyle": "BALANCED"
 }
 
 > {%
 client.test("Offline quiet time session has frontend invite URL", function () {
   client.assert(response.status === 200, "Expected HTTP 200");
   client.assert(!!response.body.offlineCode, "Expected offline code");
+  client.assert(/^[A-HJ-NP-Z2-9]{6}$/.test(response.body.joinCode), "Expected six character join code");
   client.assert(response.body.inviteUrl.includes(response.body.offlineCode), "Invite URL should contain offline code");
   client.assert(response.body.qrStatus === "OPEN", "Expected open QR");
   client.assert(!!response.body.expiresAt, "Expected QR expiry");
+  client.assert(response.body.questionSet.focusTheme.code === client.global.get("focusThemeCode"), "Expected frozen focus theme");
+  client.assert(!!response.body.questionSet.lockedAt, "Expected locked question set");
 });
 client.global.set("quietTimeSessionId", response.body.id);
 client.global.set("offlineCode", response.body.offlineCode);
+client.global.set("joinCode", response.body.joinCode);
+%}
+
+### 14-1. Resolve offline session with the short join code
+POST {{baseUrl}}/api/v1/quiet-time/join-codes/resolve
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "joinCode": "{{joinCode}}"
+}
+
+> {%
+client.test("Short join code resolves the same session", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.offlineCode === client.global.get("offlineCode"), "Expected same offline code");
+  client.assert(response.body.joinCode === client.global.get("joinCode"), "Expected same join code");
+});
 %}
 
 ### 15. Simulate QR scan and load offline session

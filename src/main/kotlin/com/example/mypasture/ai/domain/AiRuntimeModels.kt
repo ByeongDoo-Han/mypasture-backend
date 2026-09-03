@@ -7,6 +7,7 @@ import java.util.UUID
 enum class AiUseCase {
     AI_PASTOR,
     DAILY_WORD,
+    BIBLE_COMMENTARY,
 }
 
 /** OpenAI 모델에 전달할 수 있는 검증된 추론 강도입니다. */

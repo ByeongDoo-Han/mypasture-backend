@@ -76,6 +76,12 @@ class AiUsageLogEntity(
     var estimatedCostUsd: BigDecimal = BigDecimal.ZERO,
     @Column(name = "cache_hit", nullable = false)
     var cacheHit: Boolean = false,
+    @Column(name = "quota_counted", nullable = false)
+    val quotaCounted: Boolean = true,
+    @Column(name = "parent_turn_id")
+    val parentTurnId: UUID? = null,
+    @Column(name = "citation_verse_ids", columnDefinition = "text")
+    var citationVerseIds: String? = null,
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     var status: AiUsageStatus = AiUsageStatus.PENDING,
@@ -105,6 +111,7 @@ class AiUsageLogEntity(
         questionIntent = answer.questionIntent.name
         estimatedCostUsd = answer.estimatedCostUsd
         cacheHit = answer.cacheHit
+        citationVerseIds = answer.citations.joinToString(",") { it.verseId.toString() }.takeIf { it.isNotBlank() }
         status = AiUsageStatus.COMPLETED
         errorCode = null
     }

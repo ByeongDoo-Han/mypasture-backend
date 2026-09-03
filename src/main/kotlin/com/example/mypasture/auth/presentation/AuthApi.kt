@@ -17,19 +17,29 @@ import com.example.mypasture.auth.presentation.dto.UserLoginRequest
 import com.example.mypasture.auth.presentation.dto.UserLoginResponse
 import com.example.mypasture.auth.presentation.dto.UserSignupRequest
 import com.example.mypasture.auth.presentation.dto.UserSignupResponse
+import com.example.mypasture.auth.presentation.dto.UpdateMyProfileRequest
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.ResponseStatus
+
+/** 비밀값을 노출하지 않고 서버가 검증 가능한 소셜 제공자를 앱에 알려주는 응답입니다. */
+data class SocialProviderReadinessResponse(
+    val providers: Map<String, Boolean>,
+)
 
 /** Swagger/OpenAPI 문서화를 controller 구현과 분리하기 위한 인증 API contract입니다. */
 interface AuthApi {
     @GetMapping("/health")
     fun health(): Map<String, String>
+
+    @GetMapping("/social-login/providers")
+    fun socialProviderReadiness(): SocialProviderReadinessResponse
 
     @PostMapping("/email-verifications")
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -72,6 +82,12 @@ interface AuthApi {
 
     @GetMapping("/me")
     fun me(@AuthenticationPrincipal principal: JwtPrincipal): UserDto
+
+    @PatchMapping("/me")
+    fun updateMe(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @Valid @RequestBody request: UpdateMyProfileRequest,
+    ): UserDto
 
     @DeleteMapping("/me")
     @ResponseStatus(HttpStatus.NO_CONTENT)

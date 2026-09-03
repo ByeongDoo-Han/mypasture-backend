@@ -43,6 +43,8 @@ server:
   forward-headers-strategy: framework
 
 app:
+  coupon:
+    code-pepper: ${COUPON_CODE_PEPPER}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
   auth:
@@ -71,7 +73,7 @@ app:
     api-key: ${OPENAI_API_KEY}
     privacy-hash-secret: ${AI_PRIVACY_HASH_SECRET}
     embedding-indexing-enabled: ${AI_EMBEDDING_INDEXING_ENABLED:false}
-    rag-lexical-fallback-enabled: ${AI_RAG_LEXICAL_FALLBACK_ENABLED:false}
+    rag-lexical-fallback-enabled: ${AI_RAG_LEXICAL_FALLBACK_ENABLED:true}
   security:
     rate-limit:
       enabled: true

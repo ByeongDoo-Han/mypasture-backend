@@ -7,13 +7,13 @@ import com.example.mypasture.coupon.application.CouponCampaignAdminService
 import com.example.mypasture.coupon.application.CouponExhaustedException
 import com.example.mypasture.coupon.application.CouponRedemptionService
 import com.example.mypasture.coupon.application.CreateCouponCampaignCommand
-import com.example.mypasture.coupon.application.UserEntitlementService
 import com.example.mypasture.coupon.domain.CouponCodeType
+import com.example.mypasture.coupon.domain.CouponRewardType
 import com.example.mypasture.user.domain.SubscriptionTier
 import com.example.mypasture.user.domain.UserEntity
 import com.example.mypasture.user.domain.UserRole
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -24,17 +24,16 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 
-/** 쿠폰 등록의 중복·동시성 정책과 AI 체험 권한 연결을 실제 Spring 트랜잭션으로 검증합니다. */
+/** 이벤트 보상 코드의 중복·동시성 정책과 AI 권한 미변경을 실제 Spring 트랜잭션으로 검증합니다. */
 @SpringBootTest
 class CouponFlowTests(
     @Autowired private val users: UserRepository,
     @Autowired private val campaignService: CouponCampaignAdminService,
     @Autowired private val redemptionService: CouponRedemptionService,
-    @Autowired private val entitlementService: UserEntitlementService,
     @Autowired private val aiAccessPolicyResolver: AiAccessPolicyResolver,
 ) {
     @Test
-    fun `shared coupon grants expiring premium AI trial only once per eligibility key`() {
+    fun `shared code grants a decoration item without changing AI access`() {
         val admin = admin()
         val user = user()
         val code = "TRIAL-${UUID.randomUUID().toString().take(8)}"
@@ -42,14 +41,15 @@ class CouponFlowTests(
 
         val redeemed = redemptionService.redeem(user.id, code)
 
-        assertEquals("7일 프리미엄 AI 체험", redeemed.campaignName)
-        assertEquals(30, redeemed.entitlement.aiDailyLimit)
-        assertNotNull(entitlementService.activePremiumAiTrial(user.id))
-        val policy = aiAccessPolicyResolver.resolve(user.id, SubscriptionTier.FREE)
-        assertEquals(SubscriptionTier.PREMIUM, policy.effectiveTier)
-        assertEquals(30L, policy.reservationDailyLimit)
+        assertEquals("새싹 목장 꾸미기 보상", redeemed.campaignName)
+        assertEquals("PASTURE_SPROUT", redeemed.reward.itemCode)
+        assertEquals(2, redeemed.reward.grantedQuantity)
+        assertEquals(2, redeemed.reward.quantity)
+        val policy = aiAccessPolicyResolver.resolve(SubscriptionTier.FREE)
+        assertEquals(SubscriptionTier.FREE, policy.effectiveTier)
+        assertEquals(10L, policy.reservationDailyLimit)
         assertEquals(false, policy.unlimited)
-        assertNotNull(policy.entitlementExpiresAt)
+        assertNull(policy.entitlementExpiresAt)
 
         assertThrows(CouponAlreadyRedeemedException::class.java) {
             redemptionService.redeem(user.id, code)
@@ -57,7 +57,7 @@ class CouponFlowTests(
     }
 
     @Test
-    fun `concurrent redemption of last shared slot grants exactly one entitlement`() {
+    fun `concurrent redemption of last shared slot grants exactly one reward`() {
         val admin = admin()
         val first = user()
         val second = user()
@@ -88,17 +88,18 @@ class CouponFlowTests(
     private fun command(type: CouponCodeType, sharedCode: String, maxRedemptions: Long) =
         CreateCouponCampaignCommand(
             operationId = UUID.randomUUID(),
-            name = "7일 프리미엄 AI 체험",
-            eligibilityKey = "premium-ai-trial-lifetime-${UUID.randomUUID()}",
+            name = "새싹 목장 꾸미기 보상",
+            eligibilityKey = "pasture-sprout-event-${UUID.randomUUID()}",
             codeType = type,
             redeemStartsAt = Instant.now().minus(1, ChronoUnit.HOURS),
             redeemEndsAt = Instant.now().plus(7, ChronoUnit.DAYS),
             maxRedemptions = maxRedemptions,
             codeCount = null,
             sharedCode = sharedCode,
-            entitlementDurationDays = 7,
-            aiDailyLimit = 30,
-            reason = "통합 테스트용 체험 쿠폰 발급",
+            rewardType = CouponRewardType.PASTURE_DECORATION_ITEM,
+            rewardItemCode = "PASTURE_SPROUT",
+            rewardQuantity = 2,
+            reason = "통합 테스트용 꾸미기 보상 코드 발급",
         )
 
     private fun admin() = users.save(

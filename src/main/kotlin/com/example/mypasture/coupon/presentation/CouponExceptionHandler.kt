@@ -21,8 +21,8 @@ enum class CouponErrorCode(override val code: String, override val defaultMessag
     INVALID("COUPON_INVALID", "유효한 쿠폰 코드를 확인해 주세요."),
     NOT_STARTED("COUPON_NOT_STARTED", "아직 등록 기간이 시작되지 않은 쿠폰입니다."),
     EXPIRED("COUPON_EXPIRED", "등록 기간이 끝난 쿠폰입니다."),
-    EXHAUSTED("COUPON_EXHAUSTED", "모든 체험 수량이 사용된 쿠폰입니다."),
-    ALREADY_REDEEMED("COUPON_ALREADY_REDEEMED", "이미 이 프리미엄 체험을 사용했습니다."),
+    EXHAUSTED("COUPON_EXHAUSTED", "모든 이벤트 보상 수량이 사용된 코드입니다."),
+    ALREADY_REDEEMED("COUPON_ALREADY_REDEEMED", "이미 이 이벤트 보상을 받았습니다."),
     CAMPAIGN_NOT_FOUND("COUPON_CAMPAIGN_NOT_FOUND", "쿠폰 캠페인을 찾을 수 없습니다."),
     CAMPAIGN_INVALID("COUPON_CAMPAIGN_INVALID", "쿠폰 캠페인 설정을 확인해 주세요."),
 }

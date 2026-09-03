@@ -49,8 +49,9 @@ class CouponCampaignAdminService(
                 redeemStartsAt = command.redeemStartsAt,
                 redeemEndsAt = command.redeemEndsAt,
                 maxRedemptions = maxRedemptions,
-                entitlementDurationDays = command.entitlementDurationDays,
-                aiDailyLimit = command.aiDailyLimit,
+                rewardType = command.rewardType,
+                rewardItemCode = command.rewardItemCode.trim().uppercase(),
+                rewardQuantity = command.rewardQuantity,
                 createdBy = adminUserId,
                 createdAt = now,
                 updatedAt = now,
@@ -75,7 +76,7 @@ class CouponCampaignAdminService(
                 targetType = "COUPON_CAMPAIGN",
                 targetId = campaign.id,
                 reason = command.reason.trim(),
-                details = "codeType=${command.codeType},maxRedemptions=$maxRedemptions,durationDays=${command.entitlementDurationDays}",
+                details = "codeType=${command.codeType},maxRedemptions=$maxRedemptions,rewardType=${command.rewardType},rewardItemCode=${command.rewardItemCode.trim().uppercase()},rewardQuantity=${command.rewardQuantity}",
             ),
         )
         return CreatedCouponCampaign(campaign.toView(), rawCodes.map(::formatCode))
@@ -107,11 +108,11 @@ class CouponCampaignAdminService(
     }
 
     private fun validate(command: CreateCouponCampaignCommand, now: Instant) {
-        if (command.name.isBlank() || command.eligibilityKey.isBlank()) throw CouponCampaignInvalidException("캠페인 이름과 체험 자격 키를 입력해 주세요.")
-        if (!command.eligibilityKey.trim().matches(Regex("[a-zA-Z0-9-]{2,80}"))) throw CouponCampaignInvalidException("체험 자격 키는 영문, 숫자와 하이픈만 사용할 수 있습니다.")
+        if (command.name.isBlank() || command.eligibilityKey.isBlank()) throw CouponCampaignInvalidException("캠페인 이름과 중복 방지 키를 입력해 주세요.")
+        if (!command.eligibilityKey.trim().matches(Regex("[a-zA-Z0-9-]{2,80}"))) throw CouponCampaignInvalidException("중복 방지 키는 영문, 숫자와 하이픈만 사용할 수 있습니다.")
         if (!command.redeemEndsAt.isAfter(command.redeemStartsAt) || !command.redeemEndsAt.isAfter(now)) throw CouponCampaignInvalidException("등록 종료 시각은 시작 시각과 현재보다 뒤여야 합니다.")
-        if (command.entitlementDurationDays !in 1..90) throw CouponCampaignInvalidException("체험 기간은 1~90일이어야 합니다.")
-        if (command.aiDailyLimit !in 1..500) throw CouponCampaignInvalidException("AI 일일 한도는 1~500회여야 합니다.")
+        if (!command.rewardItemCode.trim().matches(Regex("[a-zA-Z0-9_-]{2,80}"))) throw CouponCampaignInvalidException("꾸미기 아이템 코드는 영문, 숫자, 하이픈과 밑줄만 사용할 수 있습니다.")
+        if (command.rewardQuantity !in 1..100) throw CouponCampaignInvalidException("꾸미기 아이템 지급 수량은 1~100개여야 합니다.")
         if (command.reason.trim().length !in 5..500) throw CouponCampaignInvalidException("발급 사유는 5~500자로 입력해 주세요.")
         when (command.codeType) {
             CouponCodeType.SHARED -> if (command.maxRedemptions == null || command.maxRedemptions !in 1..1_000_000) throw CouponCampaignInvalidException("공유 쿠폰의 전체 등록 한도를 확인해 주세요.")
@@ -130,5 +131,5 @@ class CouponCampaignAdminService(
 
 internal fun CouponCampaignEntity.toView() = CouponCampaignView(
     id, name, eligibilityKey, codeType, status, redeemStartsAt, redeemEndsAt, maxRedemptions,
-    redeemedCount, entitlementDurationDays, aiDailyLimit, createdAt,
+    redeemedCount, rewardType, rewardItemCode, rewardQuantity, createdAt,
 )

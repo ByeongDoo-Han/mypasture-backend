@@ -1724,7 +1724,66 @@ POST /api/v1/policies/consents
 
 정책 원문과 현재 버전은 공개 조회할 수 있습니다. 동의 상태와 변경은 Bearer JWT가 필요합니다. `REQUIRED` 문서는 현재 버전에 동의해야 해당 기능을 이용할 수 있고, `OPTIONAL` 문서는 설정에서 철회할 수 있습니다. 현재 상태는 `user_policy_consents`, 변경 이력은 추가 전용 `user_policy_consent_events`에 저장합니다.
 
-## 16. Implementation Status Summary
+## 16. Moderation and Event Reward API
+
+### 16.1 사용자 신고·차단
+
+Status: `IMPLEMENTED`
+
+```http
+POST   /api/v1/moderation/reports
+GET    /api/v1/moderation/blocks
+PUT    /api/v1/moderation/blocks/{blockedUserId}
+DELETE /api/v1/moderation/blocks/{blockedUserId}
+```
+
+신고 대상은 현재 `AI_ANSWER`, `QUIET_TIME_ANSWER`입니다. 서버는 AI 답변 소유권 또는 QT 참여 권한을 검증하고, 같은 사용자의 같은 대상 신고는 기존 행을 다시 `OPEN` 처리합니다. QT 작성자 차단은 개인 조회와 SSE 전달에 즉시 적용됩니다.
+
+```json
+{
+  "targetType": "QUIET_TIME_ANSWER",
+  "targetId": "f922ce9c-e54a-4279-82b2-9ac7ebc4089e",
+  "reason": "HARASSMENT",
+  "details": "다른 참여자를 공격하는 표현입니다."
+}
+```
+
+### 16.2 관리자 신고 검토
+
+Status: `IMPLEMENTED`
+
+```http
+GET   /api/v1/admin/moderation/reports?status=OPEN&targetType=QUIET_TIME_ANSWER&page=0&size=20
+PATCH /api/v1/admin/moderation/reports/{reportId}
+```
+
+`CONTENT_HIDDEN` 조치는 해당 QT 답변을 모든 조회와 실시간 전달에서 숨깁니다. 관리자 요청은 `operationId`와 요청 지문으로 멱등 처리하며, 다른 요청에서 같은 ID를 재사용하면 `409 MODERATION_OPERATION_CONFLICT`를 반환합니다.
+
+### 16.3 무료 이벤트 꾸미기 보상
+
+Status: `IMPLEMENTED`
+
+```http
+POST /api/v1/coupons/redeem
+GET  /api/v1/coupons/rewards
+GET  /api/v1/admin/coupon-campaigns?page=0&size=20
+POST /api/v1/admin/coupon-campaigns
+POST /api/v1/admin/coupon-campaigns/{campaignId}/deactivate
+```
+
+자체 코드는 `PASTURE_DECORATION_ITEM`만 지급하며 구독 등급, AI 한도, 유료 기능을 변경하지 않습니다.
+
+### 16.4 소셜 제공자 준비 상태
+
+Status: `IMPLEMENTED`
+
+```http
+GET /api/v1/auth/social-login/providers
+```
+
+비인증 공개 응답은 서버에 검증 설정이 존재하는 제공자만 `true`로 반환하며 비밀값이나 Client ID 원문은 노출하지 않습니다. 모바일은 로컬 네이티브 설정과 이 응답을 함께 확인해 실패가 확정된 버튼을 숨깁니다.
+
+## 17. Implementation Status Summary
 
 | Domain | API status |
 |---|---|
@@ -1743,7 +1802,7 @@ POST /api/v1/policies/consents
 | File/R2 | planned |
 | Admin | 인증, 성경 해설·embedding, QT 운영, AI 모델 및 오늘의 말씀 검수·감사 로그 구현 |
 
-## 17. Next API Implementation Order
+## 18. Next API Implementation Order
 
 추천 구현 순서:
 

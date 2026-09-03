@@ -193,8 +193,9 @@ resource "google_compute_instance" "redis" {
     requirepass $REDIS_PASSWORD
     appendonly yes
     appendfsync everysec
-    maxmemory 1gb
+    maxmemory ${var.redis_maxmemory_mb}mb
     maxmemory-policy allkeys-lru
+    maxclients ${var.redis_maxclients}
     rename-command FLUSHALL ""
     rename-command FLUSHDB ""
     rename-command CONFIG ""
@@ -226,6 +227,12 @@ resource "google_compute_instance" "redis" {
       "$REDIS_IMAGE" redis-server /usr/local/etc/redis/redis.conf
 
   EOT
+
+  # Redis AOF data is stored on the boot disk. Avoid replacing the VM for script-only changes.
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [metadata_startup_script]
+  }
 
   shielded_instance_config {
     enable_secure_boot          = true

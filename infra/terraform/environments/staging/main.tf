@@ -22,6 +22,9 @@ module "platform" {
   redis_backend                      = var.redis_backend
   provision_redis_vm                 = var.provision_redis_vm
   retain_memorystore                 = var.retain_memorystore
+  redis_machine_type                 = var.redis_machine_type
+  redis_maxmemory_mb                 = var.redis_maxmemory_mb
+  redis_maxclients                   = var.redis_maxclients
   redis_container_image              = "mirror.gcr.io/library/redis:7.2-alpine"
   redis_tier                         = "BASIC"
   redis_memory_size_gb               = 1

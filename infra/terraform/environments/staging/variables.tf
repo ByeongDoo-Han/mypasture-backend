@@ -85,6 +85,24 @@ variable "retain_memorystore" {
   default     = false
 }
 
+variable "redis_machine_type" {
+  description = "Staging Redis VM machine type."
+  type        = string
+  default     = "e2-micro"
+}
+
+variable "redis_maxmemory_mb" {
+  description = "Staging Redis data memory limit in MiB."
+  type        = number
+  default     = 384
+}
+
+variable "redis_maxclients" {
+  description = "Staging Redis maximum simultaneous clients."
+  type        = number
+  default     = 500
+}
+
 variable "cors_allowed_origins" {
   description = "Exact staging browser origins."
   type        = string

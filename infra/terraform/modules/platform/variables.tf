@@ -214,6 +214,28 @@ variable "redis_machine_type" {
   default     = "e2-small"
 }
 
+variable "redis_maxmemory_mb" {
+  description = "Redis data memory limit in MiB. Leave headroom for the OS, Docker, TLS, and AOF rewrites."
+  type        = number
+  default     = 1024
+
+  validation {
+    condition     = var.redis_maxmemory_mb >= 64 && floor(var.redis_maxmemory_mb) == var.redis_maxmemory_mb
+    error_message = "redis_maxmemory_mb must be an integer of at least 64 MiB."
+  }
+}
+
+variable "redis_maxclients" {
+  description = "Maximum simultaneous Redis clients. Bound this to protect small VM memory."
+  type        = number
+  default     = 10000
+
+  validation {
+    condition     = var.redis_maxclients >= 100 && var.redis_maxclients <= 10000 && floor(var.redis_maxclients) == var.redis_maxclients
+    error_message = "redis_maxclients must be an integer between 100 and 10000."
+  }
+}
+
 variable "redis_internal_ip" {
   description = "Reserved private IPv4 address for the Redis VM."
   type        = string

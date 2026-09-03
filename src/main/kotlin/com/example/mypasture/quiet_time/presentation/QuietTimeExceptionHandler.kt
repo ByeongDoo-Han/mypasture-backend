@@ -9,6 +9,7 @@ import com.example.mypasture.quiet_time.application.QuietTimeQrExpiredException
 import com.example.mypasture.quiet_time.application.QuietTimeQrNotOpenException
 import com.example.mypasture.quiet_time.application.QuietTimeQrRevokedException
 import com.example.mypasture.quiet_time.application.QuietTimeSessionClosedException
+import com.example.mypasture.moderation.application.UserGeneratedContentRejectedException
 import com.example.mypasture.common.error.ErrorCode
 import com.example.mypasture.common.error.toResponse
 import jakarta.servlet.http.HttpServletRequest
@@ -68,6 +69,11 @@ class QuietTimeExceptionHandler {
     fun handlePassageLocked(request: HttpServletRequest) =
         QuietTimeErrorCode.PASSAGE_LOCKED.toResponse(request)
 
+    @ExceptionHandler(UserGeneratedContentRejectedException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun handleRejectedContent(exception: UserGeneratedContentRejectedException, request: HttpServletRequest) =
+        QuietTimeErrorCode.CONTENT_REJECTED.toResponse(request, exception.message ?: QuietTimeErrorCode.CONTENT_REJECTED.defaultMessage)
+
     @ExceptionHandler(IllegalArgumentException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleBadRequest(exception: IllegalArgumentException, request: HttpServletRequest) =
@@ -88,5 +94,6 @@ enum class QuietTimeErrorCode(
     SESSION_CLOSED("QUIET_TIME_SESSION_CLOSED", "종료된 큐티 모임입니다."),
     PASSAGE_LOCKED("QUIET_TIME_PASSAGE_LOCKED", "참여·답변·묵상이 시작된 이후에는 주제 말씀을 변경할 수 없습니다."),
     ADMIN_OPERATION_CONFLICT("QUIET_TIME_ADMIN_OPERATION_CONFLICT", "이미 다른 관리자 작업에 사용된 operationId입니다."),
+    CONTENT_REJECTED("QUIET_TIME_CONTENT_REJECTED", "공동체 운영 정책에 따라 게시할 수 없는 표현이 포함되어 있습니다."),
     INVALID_REQUEST("INVALID_QUIET_TIME_REQUEST", "큐티목장 요청이 올바르지 않습니다."),
 }

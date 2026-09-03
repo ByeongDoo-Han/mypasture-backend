@@ -25,6 +25,7 @@ enum class AdminAuditAction {
     DAILY_WORD_INCIDENT_EMAIL_REQUEUED,
     COUPON_CAMPAIGN_CREATED,
     COUPON_CAMPAIGN_DEACTIVATED,
+    MODERATION_REPORT_REVIEWED,
 }
 
 /** 관리자 변경 요청의 주체, 대상, 사유와 멱등 키를 영구 보존하는 JPA entity입니다. */

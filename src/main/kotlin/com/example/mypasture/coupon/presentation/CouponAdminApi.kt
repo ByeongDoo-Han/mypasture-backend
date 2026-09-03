@@ -3,6 +3,7 @@ package com.example.mypasture.coupon.presentation
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.coupon.domain.CouponCampaignStatus
 import com.example.mypasture.coupon.domain.CouponCodeType
+import com.example.mypasture.coupon.domain.CouponRewardType
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
@@ -26,8 +27,9 @@ data class CreateCouponCampaignRequest(
     @field:Min(1) @field:Max(1_000_000) val maxRedemptions: Long? = null,
     @field:Min(1) @field:Max(1_000) val codeCount: Int? = null,
     @field:Size(min = 8, max = 40) val sharedCode: String? = null,
-    @field:Min(1) @field:Max(90) val entitlementDurationDays: Int,
-    @field:Min(1) @field:Max(500) val aiDailyLimit: Int,
+    val rewardType: CouponRewardType = CouponRewardType.PASTURE_DECORATION_ITEM,
+    @field:Size(min = 2, max = 80) val rewardItemCode: String,
+    @field:Min(1) @field:Max(100) val rewardQuantity: Int,
     @field:Size(min = 5, max = 500) val reason: String,
 )
 
@@ -46,8 +48,9 @@ data class CouponCampaignResponse(
     val redeemEndsAt: Instant,
     val maxRedemptions: Long,
     val redeemedCount: Long,
-    val entitlementDurationDays: Int,
-    val aiDailyLimit: Int,
+    val rewardType: String,
+    val rewardItemCode: String,
+    val rewardQuantity: Int,
     val createdAt: Instant,
 )
 

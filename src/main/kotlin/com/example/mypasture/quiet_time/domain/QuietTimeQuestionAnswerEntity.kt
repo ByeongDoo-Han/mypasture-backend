@@ -31,8 +31,8 @@ class QuietTimeQuestionAnswerEntity(
     val id: UUID = UUID.randomUUID(),
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     val session: QuietTimeSessionEntity,
-    @Column(name = "user_id", nullable = false)
-    val userId: UUID,
+    @Column(name = "user_id")
+    val userId: UUID?,
     @Column(name = "author_display_name", nullable = false, length = 80)
     var authorDisplayName: String,
     @Enumerated(EnumType.STRING)

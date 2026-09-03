@@ -129,7 +129,7 @@ class QuietTimeController(
         answerService.list(sessionId, principal.userId).map { it.toResponse() }
 
     override fun streamQuestionAnswers(principal: JwtPrincipal, sessionId: UUID) =
-        answerService.requireReadAccess(sessionId, principal.userId).let { answerStreamRegistry.subscribe(sessionId) }
+        answerService.requireReadAccess(sessionId, principal.userId).let { answerStreamRegistry.subscribe(sessionId, principal.userId) }
 
     override fun reissueQr(
         principal: JwtPrincipal,

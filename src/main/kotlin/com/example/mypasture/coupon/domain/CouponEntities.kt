@@ -11,10 +11,9 @@ import java.util.UUID
 
 enum class CouponCodeType { SHARED, UNIQUE }
 enum class CouponCampaignStatus { ACTIVE, INACTIVE }
-enum class EntitlementType { PREMIUM_AI_TRIAL }
-enum class EntitlementSourceType { COUPON }
+enum class CouponRewardType { PASTURE_DECORATION_ITEM }
 
-/** 쿠폰 등록 기간, 전체 수량과 지급할 AI 체험 정책을 보관하는 캠페인입니다. */
+/** 이벤트 코드 등록 기간, 전체 수량과 지급할 비구매 꾸미기 보상을 보관하는 캠페인입니다. */
 @Entity
 @Table(name = "coupon_campaigns")
 class CouponCampaignEntity(
@@ -27,8 +26,13 @@ class CouponCampaignEntity(
     val redeemEndsAt: Instant,
     val maxRedemptions: Long,
     var redeemedCount: Long = 0,
-    val entitlementDurationDays: Int,
-    val aiDailyLimit: Int,
+    val entitlementDurationDays: Int? = null,
+    val aiDailyLimit: Int? = null,
+    @Enumerated(EnumType.STRING)
+    val rewardType: CouponRewardType,
+    @Column(length = 80)
+    val rewardItemCode: String,
+    val rewardQuantity: Int,
     val createdBy: UUID,
     val createdAt: Instant = Instant.now(),
     var updatedAt: Instant = Instant.now(),
@@ -59,7 +63,7 @@ class CouponCodeEntity(
     fun redeem() { redeemedCount += 1 }
 }
 
-/** 한 사용자가 같은 체험 자격을 여러 쿠폰으로 반복 획득하지 못하게 하는 영구 등록 이력입니다. */
+/** 한 사용자가 같은 이벤트 보상을 여러 코드로 반복 획득하지 못하게 하는 영구 등록 이력입니다. */
 @Entity
 @Table(name = "coupon_redemptions")
 class CouponRedemptionEntity(
@@ -71,18 +75,19 @@ class CouponRedemptionEntity(
     val redeemedAt: Instant = Instant.now(),
 )
 
-/** 구독 등급을 변경하지 않고 기간이 지나면 자동으로 사라지는 사용자 기능 권한입니다. */
+/** 사용자가 이벤트 코드로 받은 목장 꾸미기 아이템의 누적 보유량입니다. */
 @Entity
-@Table(name = "user_entitlements")
-class UserEntitlementEntity(
+@Table(name = "user_collectibles")
+class UserCollectibleEntity(
     @Id val id: UUID = UUID.randomUUID(),
     val userId: UUID,
-    @Enumerated(EnumType.STRING) val entitlementType: EntitlementType,
-    @Enumerated(EnumType.STRING) val sourceType: EntitlementSourceType,
-    val sourceId: UUID,
-    val startsAt: Instant,
-    val expiresAt: Instant,
-    val aiDailyLimit: Int?,
-    var revokedAt: Instant? = null,
-    val createdAt: Instant = Instant.now(),
-)
+    @Column(length = 80) val itemCode: String,
+    var quantity: Int,
+    val firstGrantedAt: Instant = Instant.now(),
+    var updatedAt: Instant = firstGrantedAt,
+) {
+    fun grant(quantity: Int, now: Instant) {
+        this.quantity += quantity
+        updatedAt = now
+    }
+}

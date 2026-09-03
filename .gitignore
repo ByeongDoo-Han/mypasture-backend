@@ -9,6 +9,7 @@ build/
 !.env.local.example
 !.env.prod.example
 http/http-client.private.env.json
+/secrets/
 
 ### STS ###
 .apt_generated

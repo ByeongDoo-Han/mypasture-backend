@@ -30,6 +30,8 @@ import java.util.UUID
 interface QuietTimePassageRepository : JpaRepository<QuietTimePassageEntity, UUID> {
     fun findByActiveTrue(): List<QuietTimePassageEntity>
 
+    fun findByIdAndActiveTrue(id: UUID): QuietTimePassageEntity?
+
     fun countByActiveTrue(): Long
 }
 
@@ -185,6 +187,8 @@ interface QuietTimeParticipantRepository : JpaRepository<QuietTimeParticipantEnt
 /** QT 묵상과 목장 공유 목록을 저장하는 repository입니다. */
 @Repository
 interface QuietTimeReflectionRepository : JpaRepository<QuietTimeReflectionEntity, UUID> {
+    fun countBySessionId(sessionId: UUID): Long
+
     fun findBySessionIdAndUserId(sessionId: UUID, userId: UUID): QuietTimeReflectionEntity?
     fun findAllBySessionIdAndSharedWithPastureTrueOrderByUpdatedAtDesc(sessionId: UUID): List<QuietTimeReflectionEntity>
 }

@@ -39,6 +39,13 @@ data class CreateQuietTimeSessionRequest(
     val joinStartsAt: Instant? = null,
 )
 
+/** 생성된 큐티 모임의 본문과 본문별 질문 구성을 변경하는 요청 DTO입니다. */
+data class ChangeQuietTimePassageRequest(
+    val passageId: UUID,
+    val focusThemeCode: String? = null,
+    val questionStyle: QuietTimeQuestionStyle? = null,
+)
+
 /** 선택한 본문과 초점 주제로 질문을 확정하기 전 미리 보는 요청입니다. */
 data class PreviewQuietTimeQuestionSetRequest(
     @field:NotBlank
@@ -177,7 +184,11 @@ fun QuietTimePassageEntity.toResponse(): QuietTimePassageResponse =
     QuietTimePassageResponse(
         id = id,
         title = title,
-        reference = "$bookName $startChapter:$startVerse-$endChapter:$endVerse",
+        reference = if (startChapter == endChapter) {
+            "$bookName $startChapter:$startVerse-$endVerse"
+        } else {
+            "$bookName $startChapter:$startVerse-$endChapter:$endVerse"
+        },
         bibleVersion = bibleVersion,
         bookCode = bookCode,
         bookName = bookName,

@@ -92,7 +92,7 @@ class QuietTimeSessionEntity(
     @ManyToOne(fetch = FetchType.LAZY)
     val pasture: QuietTimePastureEntity? = null,
     @ManyToOne(fetch = FetchType.LAZY)
-    val passage: QuietTimePassageEntity,
+    var passage: QuietTimePassageEntity,
     @Enumerated(EnumType.STRING)
     val scope: QuietTimeSessionScope,
     val hostUserId: UUID? = null,
@@ -101,22 +101,22 @@ class QuietTimeSessionEntity(
     val meetingDate: LocalDate,
     val meetingStartsAt: Instant,
     val meetingEndsAt: Instant,
-    val focusThemeCode: String,
-    val focusThemeName: String,
+    var focusThemeCode: String,
+    var focusThemeName: String,
     @Enumerated(EnumType.STRING)
-    val questionStyle: QuietTimeQuestionStyle,
-    val questionSetVersion: Int,
+    var questionStyle: QuietTimeQuestionStyle,
+    var questionSetVersion: Int,
     @Column(columnDefinition = "text")
-    val observationQuestions: String,
+    var observationQuestions: String,
     @Column(columnDefinition = "text")
-    val meditationQuestions: String,
+    var meditationQuestions: String,
     @Column(columnDefinition = "text")
-    val sharingQuestions: String,
+    var sharingQuestions: String,
     @Column(columnDefinition = "text")
-    val actionGuide: String,
+    var actionGuide: String,
     @Column(columnDefinition = "text")
-    val prayerGuide: String,
-    val questionSetLockedAt: Instant,
+    var prayerGuide: String,
+    var questionSetLockedAt: Instant,
     @Enumerated(EnumType.STRING)
     var status: QuietTimeSessionStatus = QuietTimeSessionStatus.OPEN,
     val createdAt: Instant = Instant.now(),
@@ -132,6 +132,33 @@ class QuietTimeSessionEntity(
             QuietTimeSessionScope.PASTURE -> pasture?.leaderName ?: hostDisplayName
             QuietTimeSessionScope.STANDALONE -> hostDisplayName
         }
+
+    /** 참여가 시작되기 전 새 본문과 그 본문에 맞는 질문 스냅샷을 원자적으로 교체합니다. */
+    fun changePassageAndQuestionSet(
+        nextPassage: QuietTimePassageEntity,
+        nextFocusThemeCode: String,
+        nextFocusThemeName: String,
+        nextQuestionStyle: QuietTimeQuestionStyle,
+        nextQuestionSetVersion: Int,
+        nextObservationQuestions: String,
+        nextMeditationQuestions: String,
+        nextSharingQuestions: String,
+        nextActionGuide: String,
+        nextPrayerGuide: String,
+        changedAt: Instant,
+    ) {
+        passage = nextPassage
+        focusThemeCode = nextFocusThemeCode
+        focusThemeName = nextFocusThemeName
+        questionStyle = nextQuestionStyle
+        questionSetVersion = nextQuestionSetVersion
+        observationQuestions = nextObservationQuestions
+        meditationQuestions = nextMeditationQuestions
+        sharingQuestions = nextSharingQuestions
+        actionGuide = nextActionGuide
+        prayerGuide = nextPrayerGuide
+        questionSetLockedAt = changedAt
+    }
 
     fun close() {
         status = QuietTimeSessionStatus.CLOSED

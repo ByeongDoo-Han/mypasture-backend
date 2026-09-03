@@ -373,6 +373,7 @@ client.test("Quiet time recommendations are returned", function () {
   client.assert(!!response.body[0].id, "Expected passage id");
 });
 client.global.set("passageId", response.body[0].id);
+client.global.set("alternatePassageId", response.body[1].id);
 %}
 
 ### 12-1. Get weighted themes for the selected passage
@@ -453,7 +454,26 @@ client.global.set("offlineCode", response.body.offlineCode);
 client.global.set("joinCode", response.body.joinCode);
 %}
 
-### 14-1. Resolve offline session with the short join code
+### 14-1. Change passage and regenerate the frozen question set before participation
+PUT {{baseUrl}}/api/v1/quiet-time/sessions/{{quietTimeSessionId}}/passage
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "passageId": "{{alternatePassageId}}",
+  "questionStyle": "REFLECTION"
+}
+
+> {%
+client.test("Leader can change passage before participation", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.passage.id === client.global.get("alternatePassageId"), "Expected changed passage");
+  client.assert(response.body.offlineCode === client.global.get("offlineCode"), "Invite code should stay unchanged");
+  client.assert(response.body.questionSet.style === "REFLECTION", "Expected regenerated questions");
+});
+%}
+
+### 14-2. Resolve offline session with the short join code
 POST {{baseUrl}}/api/v1/quiet-time/join-codes/resolve
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json

@@ -4,6 +4,7 @@ import com.example.mypasture.quiet_time.application.QuietTimeForbiddenException
 import com.example.mypasture.quiet_time.application.QuietTimeAdminOperationConflictException
 import com.example.mypasture.quiet_time.application.QuietTimeNotFoundException
 import com.example.mypasture.quiet_time.application.QuietTimeParticipationRequiredException
+import com.example.mypasture.quiet_time.application.QuietTimePassageLockedException
 import com.example.mypasture.quiet_time.application.QuietTimeQrExpiredException
 import com.example.mypasture.quiet_time.application.QuietTimeQrNotOpenException
 import com.example.mypasture.quiet_time.application.QuietTimeQrRevokedException
@@ -62,6 +63,11 @@ class QuietTimeExceptionHandler {
     fun handleSessionClosed(request: HttpServletRequest) =
         QuietTimeErrorCode.SESSION_CLOSED.toResponse(request)
 
+    @ExceptionHandler(QuietTimePassageLockedException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handlePassageLocked(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASSAGE_LOCKED.toResponse(request)
+
     @ExceptionHandler(IllegalArgumentException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleBadRequest(exception: IllegalArgumentException, request: HttpServletRequest) =
@@ -80,6 +86,7 @@ enum class QuietTimeErrorCode(
     QR_EXPIRED("QUIET_TIME_QR_EXPIRED", "참여 가능한 시간이 종료되었습니다."),
     QR_REVOKED("QUIET_TIME_QR_REVOKED", "폐기되었거나 새 QR로 교체된 코드입니다."),
     SESSION_CLOSED("QUIET_TIME_SESSION_CLOSED", "종료된 큐티 모임입니다."),
+    PASSAGE_LOCKED("QUIET_TIME_PASSAGE_LOCKED", "참여·답변·묵상이 시작된 이후에는 주제 말씀을 변경할 수 없습니다."),
     ADMIN_OPERATION_CONFLICT("QUIET_TIME_ADMIN_OPERATION_CONFLICT", "이미 다른 관리자 작업에 사용된 operationId입니다."),
     INVALID_REQUEST("INVALID_QUIET_TIME_REQUEST", "큐티목장 요청이 올바르지 않습니다."),
 }

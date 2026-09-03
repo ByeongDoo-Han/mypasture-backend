@@ -16,6 +16,8 @@ import com.example.mypasture.quiet_time.infrastructure.QuietTimePassageRepositor
 import com.example.mypasture.quiet_time.infrastructure.QuietTimePastureRepository
 import com.example.mypasture.quiet_time.infrastructure.QuietTimeParticipantRepository
 import com.example.mypasture.quiet_time.infrastructure.QuietTimeQrInvitationRepository
+import com.example.mypasture.quiet_time.infrastructure.QuietTimeQuestionAnswerRepository
+import com.example.mypasture.quiet_time.infrastructure.QuietTimeReflectionRepository
 import com.example.mypasture.quiet_time.infrastructure.QuietTimeSessionRepository
 import com.example.mypasture.config.QuietTimeQrProperties
 import java.time.Clock
@@ -35,6 +37,8 @@ class QuietTimeService(
     private val sessionRepository: QuietTimeSessionRepository,
     private val qrInvitationRepository: QuietTimeQrInvitationRepository,
     private val participantRepository: QuietTimeParticipantRepository,
+    private val reflectionRepository: QuietTimeReflectionRepository,
+    private val questionAnswerRepository: QuietTimeQuestionAnswerRepository,
     private val attendanceService: AttendanceService,
     private val questionSetService: QuietTimeQuestionSetService,
     private val qrProperties: QuietTimeQrProperties,
@@ -201,8 +205,8 @@ class QuietTimeService(
         require(normalizedTitle == null || normalizedTitle.length <= 120) { "Session title must not exceed 120 characters." }
 
         val passage = passageId?.let {
-            passageRepository.findById(it)
-                .orElseThrow { QuietTimeNotFoundException("Quiet time passage was not found: $it") }
+            passageRepository.findByIdAndActiveTrue(it)
+                ?: throw QuietTimeNotFoundException("Active quiet time passage was not found: $it")
         } ?: recommendPassages(theme = theme, beginnerOnly = true, size = 1).firstOrNull()
             ?: throw QuietTimeNotFoundException("Recommended quiet time passage was not found.")
 
@@ -237,6 +241,54 @@ class QuietTimeService(
             ),
         )
         val invitation = createInvitation(session, participationStartsAt, expiresAt, now)
+        return QuietTimeSessionQrView(session, invitation, invitation.statusAt(now))
+    }
+
+    /** 참여나 기록이 시작되기 전 리더가 본문과 본문별 질문 스냅샷을 함께 변경합니다. */
+    @Transactional
+    fun changeSessionPassage(
+        managerUserId: UUID,
+        sessionId: UUID,
+        passageId: UUID,
+        focusThemeCode: String?,
+        questionStyle: QuietTimeQuestionStyle?,
+    ): QuietTimeSessionQrView {
+        val now = Instant.now(clock)
+        val session = sessionRepository.findByIdForUpdate(sessionId)
+            ?: throw QuietTimeNotFoundException("Quiet time session was not found: $sessionId")
+        requireSessionManager(session, managerUserId)
+        if (session.status == QuietTimeSessionStatus.CLOSED) throw QuietTimeSessionClosedException()
+        if (
+            participantRepository.countBySessionId(session.id) > 0 ||
+            reflectionRepository.countBySessionId(session.id) > 0 ||
+            questionAnswerRepository.countBySessionId(session.id) > 0
+        ) {
+            throw QuietTimePassageLockedException()
+        }
+
+        val passage = passageRepository.findByIdAndActiveTrue(passageId)
+            ?: throw QuietTimeNotFoundException("Active quiet time passage was not found: $passageId")
+        val questionSet = questionSetService.selectForSession(
+            passage = passage,
+            focusThemeCode = focusThemeCode,
+            legacyTheme = null,
+            style = questionStyle ?: session.questionStyle,
+        )
+        session.changePassageAndQuestionSet(
+            nextPassage = passage,
+            nextFocusThemeCode = questionSet.focusTheme.code,
+            nextFocusThemeName = questionSet.focusTheme.name,
+            nextQuestionStyle = questionSet.style,
+            nextQuestionSetVersion = questionSet.version,
+            nextObservationQuestions = questionSet.observationQuestions.joinToString("|"),
+            nextMeditationQuestions = questionSet.meditationQuestions.joinToString("|"),
+            nextSharingQuestions = questionSet.sharingQuestions.joinToString("|"),
+            nextActionGuide = questionSet.actionGuide,
+            nextPrayerGuide = questionSet.prayerGuide,
+            changedAt = now,
+        )
+        val invitation = qrInvitationRepository.findTopBySessionIdOrderByCreatedAtDesc(session.id)
+            ?: throw QuietTimeNotFoundException("Quiet time QR invitation was not found for session: $sessionId")
         return QuietTimeSessionQrView(session, invitation, invitation.statusAt(now))
     }
 
@@ -526,6 +578,9 @@ class QuietTimeQrRevokedException : RuntimeException("Quiet time QR is revoked")
 
 /** 종료된 큐티 세션에 참여하거나 QR을 재발급하려 할 때 발생하는 예외입니다. */
 class QuietTimeSessionClosedException : RuntimeException("Quiet time session is closed")
+
+/** 참여·답변·묵상이 시작된 뒤 본문과 질문의 의미가 바뀌는 것을 차단합니다. */
+class QuietTimePassageLockedException : RuntimeException("Quiet time passage cannot be changed after participation or writing has started")
 
 /** 세션과 특정 QR 발급 이력, 현재 상태를 함께 전달하는 application 조회 모델입니다. */
 data class QuietTimeSessionQrView(

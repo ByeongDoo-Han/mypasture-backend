@@ -14,6 +14,42 @@ variable "container_image" {
   type        = string
 }
 
+variable "admin_enabled" {
+  description = "Create the staging admin Cloud Run service."
+  type        = bool
+  default     = false
+}
+
+variable "admin_container_image" {
+  description = "Staging admin image using a commit SHA tag or digest."
+  type        = string
+  default     = ""
+}
+
+variable "admin_api_base_url" {
+  description = "HTTPS staging API URL used by the admin BFF."
+  type        = string
+  default     = ""
+}
+
+variable "admin_iap_members" {
+  description = "Staging operators allowed through IAP."
+  type        = set(string)
+  default     = []
+}
+
+variable "enable_external_load_balancer" {
+  description = "Expose the staging API through an external HTTPS load balancer and Cloud Armor."
+  type        = bool
+  default     = false
+}
+
+variable "api_domain" {
+  description = "Staging API hostname used by the Google-managed TLS certificate."
+  type        = string
+  default     = ""
+}
+
 variable "deploy_runtime" {
   description = "Enable only after secret versions and the DB user are ready."
   type        = bool

@@ -10,6 +10,8 @@ import com.example.mypasture.quiet_time.domain.QuietTimeSessionStatus
 import com.example.mypasture.quiet_time.domain.QuietTimeReflectionEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionAnswerEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionCategory
+import com.example.mypasture.quiet_time.domain.QuietTimeThemeEntity
+import com.example.mypasture.quiet_time.domain.QuietTimePassageThemeEntity
 import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.EntityGraph
@@ -29,6 +31,22 @@ interface QuietTimePassageRepository : JpaRepository<QuietTimePassageEntity, UUI
     fun findByActiveTrue(): List<QuietTimePassageEntity>
 
     fun countByActiveTrue(): Long
+}
+
+/** 운영에서 관리하는 안정적인 QT 주제 코드를 조회합니다. */
+@Repository
+interface QuietTimeThemeRepository : JpaRepository<QuietTimeThemeEntity, UUID> {
+    fun findByCodeAndActiveTrue(code: String): QuietTimeThemeEntity?
+}
+
+/** 본문에 연결된 복수 주제를 우선순위대로 조회합니다. */
+@Repository
+interface QuietTimePassageThemeRepository : JpaRepository<QuietTimePassageThemeEntity, UUID> {
+    @EntityGraph(attributePaths = ["theme"])
+    fun findAllByPassageIdOrderByPrimaryThemeDescRelevanceScoreDesc(passageId: UUID): List<QuietTimePassageThemeEntity>
+
+    @EntityGraph(attributePaths = ["theme"])
+    fun findByPassageIdAndThemeCode(passageId: UUID, themeCode: String): QuietTimePassageThemeEntity?
 }
 
 /** 큐티목장 정보와 리더 소유권을 조회하는 JPA repository입니다. */
@@ -93,6 +111,8 @@ interface QuietTimeSessionRepository : JpaRepository<QuietTimeSessionEntity, UUI
 interface QuietTimeQrInvitationRepository : JpaRepository<QuietTimeQrInvitationEntity, UUID> {
     fun findByOfflineCode(offlineCode: String): QuietTimeQrInvitationEntity?
 
+    fun findByJoinCode(joinCode: String): QuietTimeQrInvitationEntity?
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(
         """
@@ -107,6 +127,8 @@ interface QuietTimeQrInvitationRepository : JpaRepository<QuietTimeQrInvitationE
     fun findByOfflineCodeForUpdate(@Param("offlineCode") offlineCode: String): QuietTimeQrInvitationEntity?
 
     fun existsByOfflineCode(offlineCode: String): Boolean
+
+    fun existsByJoinCode(joinCode: String): Boolean
 
     @Query(
         """

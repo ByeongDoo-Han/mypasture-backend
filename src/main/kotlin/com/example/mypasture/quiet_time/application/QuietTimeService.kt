@@ -7,6 +7,7 @@ import com.example.mypasture.quiet_time.domain.QuietTimeParticipantEntity
 import com.example.mypasture.quiet_time.domain.QuietTimePastureEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeQrInvitationEntity
 import com.example.mypasture.quiet_time.domain.QuietTimeQrStatus
+import com.example.mypasture.quiet_time.domain.QuietTimeQuestionStyle
 import com.example.mypasture.quiet_time.domain.QuietTimeSessionScope
 import com.example.mypasture.quiet_time.domain.QuietTimeSessionStatus
 import com.example.mypasture.quiet_time.domain.QuietTimeSensitivityLevel
@@ -35,6 +36,7 @@ class QuietTimeService(
     private val qrInvitationRepository: QuietTimeQrInvitationRepository,
     private val participantRepository: QuietTimeParticipantRepository,
     private val attendanceService: AttendanceService,
+    private val questionSetService: QuietTimeQuestionSetService,
     private val qrProperties: QuietTimeQrProperties,
     private val clock: Clock = Clock.systemUTC(),
 ) {
@@ -91,6 +93,8 @@ class QuietTimeService(
         meetingStartsAt: Instant?,
         meetingEndsAt: Instant?,
         joinStartsAt: Instant?,
+        focusThemeCode: String? = null,
+        questionStyle: QuietTimeQuestionStyle? = null,
     ): QuietTimeSessionQrView =
         createPastureSession(
             leaderUserId = leaderUserId,
@@ -98,6 +102,8 @@ class QuietTimeService(
             title = title,
             passageId = passageId,
             theme = theme,
+            focusThemeCode = focusThemeCode,
+            questionStyle = questionStyle,
             meetingDate = meetingDate,
             meetingStartsAt = meetingStartsAt,
             meetingEndsAt = meetingEndsAt,
@@ -115,6 +121,8 @@ class QuietTimeService(
         meetingStartsAt: Instant?,
         meetingEndsAt: Instant?,
         joinStartsAt: Instant?,
+        focusThemeCode: String? = null,
+        questionStyle: QuietTimeQuestionStyle? = null,
     ): QuietTimeSessionQrView {
         val now = Instant.now(clock)
         val pasture = pastureRepository.findById(pastureId)
@@ -129,6 +137,8 @@ class QuietTimeService(
             title = title,
             passageId = passageId,
             theme = theme,
+            focusThemeCode = focusThemeCode,
+            questionStyle = questionStyle,
             meetingDate = meetingDate,
             meetingStartsAt = meetingStartsAt,
             meetingEndsAt = meetingEndsAt,
@@ -149,6 +159,8 @@ class QuietTimeService(
         meetingStartsAt: Instant?,
         meetingEndsAt: Instant?,
         joinStartsAt: Instant?,
+        focusThemeCode: String? = null,
+        questionStyle: QuietTimeQuestionStyle? = null,
     ): QuietTimeSessionQrView {
         require(hostDisplayName.trim().length in 1..80) { "Host display name length must be between 1 and 80." }
         return createSession(
@@ -159,6 +171,8 @@ class QuietTimeService(
             title = title,
             passageId = passageId,
             theme = theme,
+            focusThemeCode = focusThemeCode,
+            questionStyle = questionStyle,
             meetingDate = meetingDate,
             meetingStartsAt = meetingStartsAt,
             meetingEndsAt = meetingEndsAt,
@@ -175,6 +189,8 @@ class QuietTimeService(
         title: String?,
         passageId: UUID?,
         theme: String?,
+        focusThemeCode: String?,
+        questionStyle: QuietTimeQuestionStyle?,
         meetingDate: LocalDate?,
         meetingStartsAt: Instant?,
         meetingEndsAt: Instant?,
@@ -195,6 +211,7 @@ class QuietTimeService(
         val participationStartsAt = joinStartsAt ?: now
         val expiresAt = endsAt.plusSeconds(qrProperties.expiryGraceMinutes * 60)
         validateQrWindow(now, startsAt, endsAt, participationStartsAt, expiresAt)
+        val questionSet = questionSetService.selectForSession(passage, focusThemeCode, theme, questionStyle)
 
         val session = sessionRepository.save(
             QuietTimeSessionEntity(
@@ -207,6 +224,16 @@ class QuietTimeService(
                 meetingDate = meetingDate ?: LocalDate.ofInstant(startsAt, ZoneOffset.UTC),
                 meetingStartsAt = startsAt,
                 meetingEndsAt = endsAt,
+                focusThemeCode = questionSet.focusTheme.code,
+                focusThemeName = questionSet.focusTheme.name,
+                questionStyle = questionSet.style,
+                questionSetVersion = questionSet.version,
+                observationQuestions = questionSet.observationQuestions.joinToString("|"),
+                meditationQuestions = questionSet.meditationQuestions.joinToString("|"),
+                sharingQuestions = questionSet.sharingQuestions.joinToString("|"),
+                actionGuide = questionSet.actionGuide,
+                prayerGuide = questionSet.prayerGuide,
+                questionSetLockedAt = now,
             ),
         )
         val invitation = createInvitation(session, participationStartsAt, expiresAt, now)
@@ -217,6 +244,16 @@ class QuietTimeService(
     @Transactional(readOnly = true)
     fun getOfflineSession(offlineCode: String): QuietTimeSessionQrView {
         val invitation = findInvitation(offlineCode)
+        return QuietTimeSessionQrView(invitation.session, invitation, invitation.statusAt(Instant.now(clock)))
+    }
+
+    /** 인증 사용자가 입력한 짧은 참여 코드를 QR 초대 정보로 해석합니다. */
+    @Transactional(readOnly = true)
+    fun resolveJoinCode(joinCode: String): QuietTimeSessionQrView {
+        val normalizedCode = normalizeJoinCode(joinCode)
+        require(normalizedCode.matches(JOIN_CODE_PATTERN)) { "Join code must contain six allowed characters." }
+        val invitation = qrInvitationRepository.findByJoinCode(normalizedCode)
+            ?: throw QuietTimeNotFoundException("Quiet time join code was not found")
         return QuietTimeSessionQrView(invitation.session, invitation, invitation.statusAt(Instant.now(clock)))
     }
 
@@ -317,11 +354,13 @@ class QuietTimeService(
         now: Instant,
     ): QuietTimeQrInvitationEntity {
         val offlineCode = generateOfflineCode()
+        val joinCode = generateJoinCode()
         val inviteUrl = "${qrProperties.inviteBaseUrl.trimEnd('/')}/$offlineCode"
         return qrInvitationRepository.save(
             QuietTimeQrInvitationEntity(
                 session = session,
                 offlineCode = offlineCode,
+                joinCode = joinCode,
                 inviteUrl = inviteUrl,
                 joinStartsAt = joinStartsAt,
                 expiresAt = expiresAt,
@@ -362,6 +401,8 @@ class QuietTimeService(
 
     private fun normalizeOfflineCode(offlineCode: String): String = offlineCode.trim().uppercase()
 
+    private fun normalizeJoinCode(joinCode: String): String = joinCode.trim().uppercase()
+
     private fun throwQrStatus(status: QuietTimeQrStatus): Nothing =
         when (status) {
             QuietTimeQrStatus.SCHEDULED -> throw QuietTimeQrNotOpenException()
@@ -387,6 +428,13 @@ class QuietTimeService(
         while (true) {
             val code = randomCode(10)
             if (!qrInvitationRepository.existsByOfflineCode(code)) return code
+        }
+    }
+
+    private fun generateJoinCode(): String {
+        while (true) {
+            val code = randomCode(JOIN_CODE_LENGTH)
+            if (!qrInvitationRepository.existsByJoinCode(code)) return code
         }
     }
 
@@ -456,6 +504,8 @@ class QuietTimeService(
 
     companion object {
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        private const val JOIN_CODE_LENGTH = 6
+        private val JOIN_CODE_PATTERN = Regex("^[A-HJ-NP-Z2-9]{$JOIN_CODE_LENGTH}$")
     }
 }
 

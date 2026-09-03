@@ -1,0 +1,120 @@
+### 장별 성경 해설 근거·생성·검수 API
+### http-client.private.env.json의 adminAccessToken을 실제 ADMIN 토큰으로 설정합니다.
+
+### 1. 장별 해설 전용 AI 런타임 설정 확인
+GET {{baseUrl}}/api/v1/admin/ai/runtime-config?useCase=BIBLE_COMMENTARY
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+### 2. 장 전체에 적용할 출처 확인 배경 메모 등록
+POST {{baseUrl}}/api/v1/admin/bible-commentaries/evidence
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "version": "KOR1910",
+  "bookCode": "GEN",
+  "chapter": 1,
+  "evidenceType": "LITERARY",
+  "title": "창세기 1장의 반복 구조",
+  "content": "반복되는 선언과 평가 표현은 창조 본문의 질서 있는 진행을 보여주는 문학적 단서입니다.",
+  "sourceName": "My Pasture 내부 검수 메모",
+  "sourceUrl": null,
+  "licenseNote": "서비스 내부 작성 및 사용 승인"
+}
+
+> {% client.global.set("commentaryEvidenceId", response.body.id); %}
+
+### 3. 배경 메모 승인
+POST {{baseUrl}}/api/v1/admin/bible-commentaries/evidence/{{commentaryEvidenceId}}/approve
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+### 4. 해당 장에 적용되는 책·장 단위 배경 메모 조회
+GET {{baseUrl}}/api/v1/admin/bible-commentaries/evidence?version=KOR1910&bookCode=GEN&chapter=1
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+### 5. 단일 장 해설 생성 작업 등록
+POST {{baseUrl}}/api/v1/admin/bible-commentaries/generation-jobs
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "version": "KOR1910",
+  "bookCode": "GEN",
+  "chapter": 1
+}
+
+### 6. 책 단위 미게시 장 생성 작업 등록
+POST {{baseUrl}}/api/v1/admin/bible-commentaries/generation-jobs/books
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "version": "KOR1910",
+  "bookCode": "GEN",
+  "includePublished": false
+}
+
+### 7. 생성 작업 상태 조회
+GET {{baseUrl}}/api/v1/admin/bible-commentaries/generation-jobs
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+### 8. 생성·평가된 해설 목록 조회
+GET {{baseUrl}}/api/v1/admin/bible-commentaries
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+> {%
+  if (response.body.length > 0) {
+    client.global.set("commentaryId", response.body[0].commentary.id);
+  }
+%}
+
+### 9. 초안 수정 후 새 revision 생성
+PUT {{baseUrl}}/api/v1/admin/bible-commentaries/{{commentaryId}}
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "summary": "이 장은 하나님이 질서 있게 창조하시는 과정을 보여주며 모든 피조물의 근원을 하나님께 둡니다.",
+  "historicalContext": "승인된 배경 메모와 본문의 반복 구조를 중심으로 읽어야 합니다.",
+  "sections": [
+    {
+      "startVerse": 1,
+      "endVerse": 31,
+      "title": "창조의 질서",
+      "explanation": "본문 전체의 흐름을 실제 절 범위에 맞추어 설명합니다."
+    }
+  ],
+  "keyThemes": ["창조", "하나님의 주권"],
+  "crossReferences": [
+    {"bookCode": "GEN", "chapter": 1, "verse": 1, "reason": "장 전체의 시작 선언입니다."}
+  ],
+  "reflectionQuestions": ["오늘 하나님의 질서를 신뢰해야 할 영역은 어디입니까?"],
+  "cautions": ["논쟁적인 해석을 하나의 확정적 사실로 단정하지 않습니다."],
+  "reviewNotes": "본문 범위와 표현을 직접 검수하여 수정했습니다."
+}
+
+> {% client.global.set("commentaryId", response.body.commentary.id); %}
+
+### 10. 검수 이력 확인
+GET {{baseUrl}}/api/v1/admin/bible-commentaries/{{commentaryId}}/reviews
+Authorization: Bearer {{adminAccessToken}}
+Accept: application/json
+
+### 11. 게시
+POST {{baseUrl}}/api/v1/admin/bible-commentaries/{{commentaryId}}/publish
+Authorization: Bearer {{adminAccessToken}}
+Content-Type: application/json
+
+{
+  "qualityScore": 90,
+  "reviewNotes": "성경 본문, 승인 근거, 신학적 표현을 검수했습니다."
+}
+
+### 12. 공개 게시본 확인
+GET {{baseUrl}}/api/v1/bibles/KOR1910/books/GEN/chapters/1/commentary
+Accept: application/json

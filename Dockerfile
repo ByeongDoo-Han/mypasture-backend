@@ -14,6 +14,7 @@ WORKDIR /app
 
 RUN groupadd --system mypasture && useradd --system --gid mypasture mypasture
 COPY --from=build /workspace/build/libs/*.jar /app/mypasture.jar
+COPY --chown=mypasture:mypasture data/kor_html /app/data/kor_html
 USER mypasture
 
 EXPOSE 8080

@@ -27,6 +27,9 @@ enum class QuietTimeSessionStatus { DRAFT, OPEN, CLOSED }
 /** QR 초대 코드의 서버 시간 기준 참여 가능 상태입니다. */
 enum class QuietTimeQrStatus { SCHEDULED, OPEN, EXPIRED, REVOKED, CLOSED }
 
+/** QT 질문이 묵상, 나눔, 실천 중 어느 진행 목적을 더 강조하는지 표현합니다. */
+enum class QuietTimeQuestionStyle { BALANCED, REFLECTION, SHARING, ACTION, NEW_BELIEVER }
+
 /** 큐티에 사용할 성경 본문 단락과 추천 기준 점수를 저장하는 JPA entity입니다. */
 @Entity
 @Table(name = "quiet_time_passages")
@@ -98,6 +101,22 @@ class QuietTimeSessionEntity(
     val meetingDate: LocalDate,
     val meetingStartsAt: Instant,
     val meetingEndsAt: Instant,
+    val focusThemeCode: String,
+    val focusThemeName: String,
+    @Enumerated(EnumType.STRING)
+    val questionStyle: QuietTimeQuestionStyle,
+    val questionSetVersion: Int,
+    @Column(columnDefinition = "text")
+    val observationQuestions: String,
+    @Column(columnDefinition = "text")
+    val meditationQuestions: String,
+    @Column(columnDefinition = "text")
+    val sharingQuestions: String,
+    @Column(columnDefinition = "text")
+    val actionGuide: String,
+    @Column(columnDefinition = "text")
+    val prayerGuide: String,
+    val questionSetLockedAt: Instant,
     @Enumerated(EnumType.STRING)
     var status: QuietTimeSessionStatus = QuietTimeSessionStatus.OPEN,
     val createdAt: Instant = Instant.now(),
@@ -128,6 +147,8 @@ class QuietTimeQrInvitationEntity(
     @ManyToOne(fetch = FetchType.LAZY)
     val session: QuietTimeSessionEntity,
     val offlineCode: String,
+    @Column(length = 6)
+    val joinCode: String,
     val inviteUrl: String,
     val joinStartsAt: Instant,
     val expiresAt: Instant,

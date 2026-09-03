@@ -55,10 +55,14 @@ class JpaDailyWordIncidentAlertAdapter(
 /** 설정된 주기로 게시 준비 상태를 다시 계산합니다. */
 @Component
 @ConditionalOnProperty(prefix = "app.daily-word", name = ["incident-detection-enabled"], havingValue = "true")
-class DailyWordIncidentMonitor(private val service: DailyWordIncidentService) {
+class DailyWordIncidentMonitor(
+    private val service: DailyWordIncidentService,
+    private val clock: Clock = Clock.systemUTC(),
+) {
     @Scheduled(cron = "\${app.daily-word.incident-detection-cron:0 */10 * * * *}")
     fun detect() {
-        runCatching { service.scan() }
+        // Kotlin 기본 인자 호출이 Spring proxy 필드를 참조하지 않도록 시각을 명시적으로 전달합니다.
+        runCatching { service.scan(Instant.now(clock)) }
             .onFailure { logger.error("Daily word incident scan failed", it) }
     }
 

@@ -55,7 +55,7 @@ class AiAnswerFeedbackService(
 
         try {
             val runtimeConfig = runtimeConfigService.current()
-            val effectiveTier = accessPolicyResolver.resolve(userId, subscriptionTier).effectiveTier
+            val effectiveTier = accessPolicyResolver.resolve(subscriptionTier).effectiveTier
             val experiencePolicy = experiencePolicyResolver.resolve(effectiveTier)
             val activeReservationId = usagePort.reserveRegeneration(userId, normalized, turnId, runtimeConfig)
             reservationId = activeReservationId

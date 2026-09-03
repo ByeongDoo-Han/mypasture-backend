@@ -15,16 +15,14 @@ data class RedeemCouponRequest(
     val code: String,
 )
 
-/** Swagger 문서와 controller 구현을 분리한 사용자 쿠폰·권한 API 계약입니다. */
+/** Swagger 문서와 controller 구현을 분리한 사용자 이벤트 보상 API 계약입니다. */
 interface CouponApi {
+    @GetMapping("/rewards")
+    fun rewards(@AuthenticationPrincipal principal: JwtPrincipal): List<UserCollectibleResponse>
+
     @PostMapping("/redeem")
     fun redeem(
         @AuthenticationPrincipal principal: JwtPrincipal,
         @Valid @RequestBody request: RedeemCouponRequest,
     ): CouponRedemptionResponse
-}
-
-interface EntitlementApi {
-    @GetMapping("/me")
-    fun me(@AuthenticationPrincipal principal: JwtPrincipal): UserEntitlementsResponse
 }

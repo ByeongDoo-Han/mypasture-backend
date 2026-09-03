@@ -16,6 +16,10 @@ cp http/http-client.private.env.json.example http/http-client.private.env.json
 
 Google/Apple 토큰의 `aud`는 서버 `.env.local`에 등록한 Client ID 중 하나와 일치해야 합니다. 실제 로그인 요청 다음의 `/me` 요청까지 실행하면 My Pasture JWT 발급과 인증을 함께 확인할 수 있습니다.
 
+`store-review-smoke.http`는 심사 전용 계정으로 AI 권한, 활성 QT 참여 코드, QR 도착 화면을 한 번에 확인합니다. 심사 계정 비밀번호와 참여 코드는 반드시 `http-client.private.env.json`에만 보관하고, 배포 직전과 심사 제출 직전에 각각 실행합니다.
+
+`moderation.http`는 본인이 받은 AI 답변과 참여 가능한 QT 답변에 대해서만 신고가 성공합니다. 테스트용 대상 ID 역시 private 환경 파일에서 관리합니다.
+
 ## QT 실시간 답변
 
 `quiet-time-live-answers.http`를 단독 실행할 때는 로그인 응답의 My Pasture `accessToken`과 생성된 `quietTimeSessionId`를 `http-client.private.env.json`에 입력합니다. 스트림 요청을 먼저 열어 둔 뒤 답변 PUT 요청을 실행하면 `answer-updated` 이벤트를 확인할 수 있습니다.

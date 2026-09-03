@@ -83,6 +83,19 @@ class QuietTimeController(
             joinStartsAt = request.joinStartsAt,
         ).toResponse()
 
+    override fun changeSessionPassage(
+        principal: JwtPrincipal,
+        sessionId: UUID,
+        request: ChangeQuietTimePassageRequest,
+    ): QuietTimeSessionResponse =
+        quietTimeService.changeSessionPassage(
+            managerUserId = principal.userId,
+            sessionId = sessionId,
+            passageId = request.passageId,
+            focusThemeCode = request.focusThemeCode,
+            questionStyle = request.questionStyle,
+        ).toResponse()
+
     override fun offlineSession(offlineCode: String): QuietTimeSessionResponse =
         quietTimeService.getOfflineSession(offlineCode).toResponse()
 

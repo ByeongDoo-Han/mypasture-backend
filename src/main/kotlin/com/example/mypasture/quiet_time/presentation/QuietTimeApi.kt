@@ -36,6 +36,13 @@ interface QuietTimeApi {
     @PostMapping("/sessions/standalone")
     fun createStandaloneSession(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: CreateQuietTimeSessionRequest): QuietTimeSessionResponse
 
+    @PutMapping("/sessions/{sessionId}/passage")
+    fun changeSessionPassage(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable sessionId: UUID,
+        @Valid @RequestBody request: ChangeQuietTimePassageRequest,
+    ): QuietTimeSessionResponse
+
     @GetMapping("/offline/{offlineCode}")
     fun offlineSession(@PathVariable offlineCode: String): QuietTimeSessionResponse
 

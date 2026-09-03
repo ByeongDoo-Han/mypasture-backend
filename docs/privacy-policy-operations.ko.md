@@ -41,3 +41,4 @@
 - 선택 마케팅 동의는 기본값을 `false`로 두고 거부를 이유로 기능을 제한하지 않습니다.
 - `user_policy_consents`는 현재 상태, `user_policy_consent_events`는 감사 이력을 저장합니다.
 - 필수 동의를 철회하려면 회원탈퇴 또는 해당 기능 중단 정책을 먼저 안내해야 합니다.
+- 회원탈퇴의 물리 삭제·공동 기록 익명화·백업 기준은 `docs/account-erasure-policy.ko.md`를 따릅니다.

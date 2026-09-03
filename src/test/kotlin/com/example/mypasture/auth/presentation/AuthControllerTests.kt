@@ -1,26 +1,27 @@
 package com.example.mypasture.auth.presentation
 
+import com.example.mypasture.ai.application.AiCachePort
+import com.example.mypasture.auth.application.PasswordResetNotificationSender
 import com.example.mypasture.auth.application.SocialLoginCommand
 import com.example.mypasture.auth.application.SocialUserProfile
 import com.example.mypasture.auth.domain.AuthProvider
-import com.example.mypasture.auth.application.PasswordResetNotificationSender
 import com.example.mypasture.auth.infrastructure.AppleOidcOAuthClient
 import com.example.mypasture.auth.infrastructure.GoogleOidcOAuthClient
 import com.example.mypasture.auth.infrastructure.KakaoOAuthClient
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.BDDMockito.given
 import org.mockito.Mockito.doAnswer
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.Assertions.assertEquals
+import org.mockito.Mockito.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.test.context.bean.override.mockito.MockitoBean
-import org.springframework.test.context.TestPropertySource
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.context.TestPropertySource
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
@@ -29,6 +30,9 @@ import org.springframework.test.web.servlet.post
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** AuthController의 회원가입 HTTP 흐름을 검증하는 통합 테스트입니다. */
 @SpringBootTest
@@ -56,6 +60,9 @@ class AuthControllerTests(
 
     @MockitoBean
     private lateinit var passwordResetNotificationSender: PasswordResetNotificationSender
+
+    @MockitoBean
+    private lateinit var aiCachePort: AiCachePort
 
     @BeforeEach
     fun configureSocialProviders() {
@@ -591,6 +598,78 @@ class AuthControllerTests(
             status { isCreated() }
             jsonPath("$.user.displayName") { value("Rejoined User") }
         }
+    }
+
+    @Test
+    fun `delete account erases private data anonymizes shared records and evicts cache`() {
+        val email = "withdraw-data@example.com"
+        val password = "password123!"
+        val token = signupAndLogin(email, password)
+        val userId = jdbcTemplate.queryForObject("select id from users where email = ?", UUID::class.java, email)!!
+        val now = Instant.now()
+        val conversationId = UUID.randomUUID()
+        val readingStateId = UUID.randomUUID()
+        val deviceId = UUID.randomUUID()
+        val pastureId = UUID.randomUUID()
+
+        jdbcTemplate.update(
+            """
+            insert into ai_conversations(
+              id, user_id, plan_snapshot, status, encrypted_context, turn_count,
+              expires_at, created_at, updated_at
+            ) values (?, ?, 'FREE', 'ACTIVE', ?, 1, ?, ?, ?)
+            """.trimIndent(),
+            conversationId,
+            userId,
+            "encrypted-private-context",
+            now.plusSeconds(3600),
+            now,
+            now,
+        )
+        jdbcTemplate.update(
+            """
+            insert into bible_reading_states(
+              id, user_id, bible_version, book_code, chapter, last_verse, completed, last_read_at
+            ) values (?, ?, 'KOR1910', 'JHN', 3, 16, false, ?)
+            """.trimIndent(),
+            readingStateId,
+            userId,
+            now,
+        )
+        jdbcTemplate.update(
+            """
+            insert into notification_devices(id, user_id, device_id, fcm_token, platform, active, updated_at)
+            values (?, ?, 'withdraw-device', 'withdraw-fcm-token', 'ANDROID', true, ?)
+            """.trimIndent(),
+            deviceId,
+            userId,
+            now,
+        )
+        jdbcTemplate.update(
+            """
+            insert into quiet_time_pastures(id, name, leader_name, leader_user_id, invite_code, created_at)
+            values (?, '삭제 정책 테스트 목장', '탈퇴 전 이름', ?, 'ERASE-TEST', ?)
+            """.trimIndent(),
+            pastureId,
+            userId,
+            now,
+        )
+
+        mockMvc.delete("/api/v1/auth/me") {
+            header("Authorization", "Bearer $token")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"confirmation":"DELETE","currentPassword":"$password"}"""
+        }.andExpect {
+            status { isNoContent() }
+        }
+
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from ai_conversations where user_id = ?", Long::class.java, userId))
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from bible_reading_states where user_id = ?", Long::class.java, userId))
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from notification_devices where user_id = ?", Long::class.java, userId))
+        assertNull(jdbcTemplate.queryForObject("select leader_user_id from quiet_time_pastures where id = ?", UUID::class.java, pastureId))
+        assertEquals("탈퇴한 사용자", jdbcTemplate.queryForObject("select leader_name from quiet_time_pastures where id = ?", String::class.java, pastureId))
+        assertTrue(jdbcTemplate.queryForObject("select count(*) from account_erasure_audits", Long::class.java)!! > 0L)
+        verify(aiCachePort).evictUser(userId)
     }
 
     @Test

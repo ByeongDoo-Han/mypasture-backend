@@ -358,7 +358,7 @@ Content-Type: application/json
 
 EMAIL 계정은 현재 비밀번호가 필수다. 소셜 전용 계정은 `currentPassword`를 생략한다. Response `204`.
 
-탈퇴 시 로그인 제공자 연결과 활성 재설정 토큰을 폐기하고 사용자 개인정보를 익명화한다. 기존 JWT는 즉시 무효화되며 동일 이메일로 재가입할 수 있다.
+탈퇴 시 로그인 제공자 연결, token, AI·개인 신앙 기록, 말씀 이용 기록과 알림 정보를 물리 삭제한다. 공동 QT 모임은 유지하되 작성자·기기 정보를 익명화하고, 사용자 행은 참조 무결성용 익명 tombstone으로 남긴다. 전체 DB 처리는 한 트랜잭션이며 기존 JWT는 즉시 무효화되고 동일 이메일로 재가입할 수 있다. 상세 정책은 `docs/account-erasure-policy.ko.md`를 따른다.
 
 Errors:
 

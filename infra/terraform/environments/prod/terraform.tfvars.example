@@ -1,5 +1,9 @@
 project_id           = "mypasture-prod"
 container_image      = "asia-northeast3-docker.pkg.dev/mypasture-prod/mypasture-prod-backend/api:COMMIT_SHA"
+admin_enabled        = false
+admin_container_image = "asia-northeast3-docker.pkg.dev/mypasture-prod/mypasture-prod-admin/admin:COMMIT_SHA"
+admin_api_base_url    = "https://api.mypasture.app"
+admin_iap_members     = ["user:admin@example.com"]
 deploy_runtime       = false
 deploy_services      = false
 redis_backend        = "vm"

@@ -4,8 +4,8 @@ GCP staging/prod의 기준 배포 구조와 GitHub Actions 전달 경로입니�
 
 ```mermaid
 flowchart TB
-    Developer["Developer"] --> GitHub["GitHub main + Server CI"]
-    GitHub -->|OIDC, main ref only| WIF["GCP Workload Identity Federation"]
+    Developer["Developer"] --> GitHub["GitHub main + Server/Admin CI"]
+    GitHub -->|repository ID + main ref| WIF["GCP Workload Identity Federation"]
     WIF --> DeploySA["Environment Deploy Service Account"]
     GitHub -->|linux/amd64 digest image| Registry["Artifact Registry"]
 
@@ -15,6 +15,8 @@ flowchart TB
         Worker["Cloud Run Worker Service"]
         API["Cloud Run API Service"]
         Backfill["Cloud Run Embedding Job"]
+        IAP["Cloud Run direct IAP"]
+        Admin["Cloud Run Admin Service"]
         SQL[("Private Cloud SQL PostgreSQL")]
         Redis[("Redis VM / Memorystore option")]
         Secrets["Secret Manager"]
@@ -25,6 +27,8 @@ flowchart TB
         API --> SQL
         API --> Redis
         Backfill --> SQL
+        IAP --> Admin
+        Admin -->|HTTPS only| API
         Secrets -.-> Migration
         Secrets -.-> Worker
         Secrets -.-> API
@@ -39,10 +43,12 @@ flowchart TB
     DeploySA --> Worker
     DeploySA --> API
     DeploySA --> Backfill
+    DeploySA --> Admin
     Registry --> Migration
     Registry --> Worker
     Registry --> API
     Registry --> Backfill
+    Registry --> Admin
 ```
 
 ## 자동배포 순서

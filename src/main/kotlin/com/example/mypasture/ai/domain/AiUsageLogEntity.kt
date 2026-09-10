@@ -91,6 +91,16 @@ class AiUsageLogEntity(
     val createdAt: Instant = Instant.now(),
 ) {
     fun complete(answer: GroundedAnswer, embeddingModel: String) {
+        if (status == AiUsageStatus.COMPLETED) return
+        if (status == AiUsageStatus.FAILED) throw AiRequestPreviouslyFailedException()
+        recordConsumption(answer, embeddingModel)
+        status = AiUsageStatus.COMPLETED
+        errorCode = null
+    }
+
+    /** 실패한 생성의 실제 API 비용도 보존하지만 성공 차감으로 취급하지 않습니다. */
+    fun recordConsumption(answer: GroundedAnswer, embeddingModel: String) {
+        check(status == AiUsageStatus.PENDING) { "Final AI usage cannot be overwritten" }
         promptTokens = answer.promptTokens
         completionTokens = answer.completionTokens
         evaluationPromptTokens = answer.evaluationPromptTokens
@@ -112,11 +122,10 @@ class AiUsageLogEntity(
         estimatedCostUsd = answer.estimatedCostUsd
         cacheHit = answer.cacheHit
         citationVerseIds = answer.citations.joinToString(",") { it.verseId.toString() }.takeIf { it.isNotBlank() }
-        status = AiUsageStatus.COMPLETED
-        errorCode = null
     }
 
     fun fail(code: String) {
+        if (status != AiUsageStatus.PENDING) return
         status = AiUsageStatus.FAILED
         errorCode = code.take(80)
     }

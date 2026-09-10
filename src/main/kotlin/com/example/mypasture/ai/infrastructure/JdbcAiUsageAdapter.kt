@@ -159,8 +159,10 @@ class JdbcAiUsageAdapter(
 
     @Transactional
     override fun complete(reservationId: UUID, answer: GroundedAnswer) {
-        repository.findLockedById(reservationId)?.complete(answer, properties.embeddingModel)
+        val usage = repository.findLockedById(reservationId)
             ?: error("AI usage reservation not found: $reservationId")
+        if (usage.status == AiUsageStatus.COMPLETED) return
+        usage.complete(answer, properties.embeddingModel)
         val now = Instant.now()
         receiptRepository.findLockedByUsageLogId(reservationId)?.complete(
             encryptedResponse = responseCodec.encode(answer),
@@ -171,10 +173,10 @@ class JdbcAiUsageAdapter(
 
     @Transactional
     override fun fail(reservationId: UUID, errorCode: String, consumedAnswer: GroundedAnswer?) {
-        repository.findLockedById(reservationId)?.let {
-            if (consumedAnswer != null) it.complete(consumedAnswer, properties.embeddingModel)
-            it.fail(errorCode)
-        }
+        val usage = repository.findLockedById(reservationId) ?: return
+        if (usage.status != AiUsageStatus.PENDING) return
+        if (consumedAnswer != null) usage.recordConsumption(consumedAnswer, properties.embeddingModel)
+        usage.fail(errorCode)
         receiptRepository.findLockedByUsageLogId(reservationId)?.fail(errorCode, Instant.now())
     }
 

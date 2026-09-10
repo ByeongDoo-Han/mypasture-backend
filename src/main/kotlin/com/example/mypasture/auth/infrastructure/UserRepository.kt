@@ -28,4 +28,9 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select user from UserEntity user where user.id = :id and user.deletedAt is null")
     fun findActiveByIdForUpdate(@Param("id") id: UUID): UserEntity?
+
+    /** 탈퇴 후 도착하는 기존 결제의 환불 알림도 처리하되 신규 서비스 사용 권한은 부여하지 않습니다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select user from UserEntity user where user.id = :id")
+    fun findIncludingWithdrawnByIdForUpdate(@Param("id") id: UUID): UserEntity?
 }

@@ -309,4 +309,38 @@ class AiAssistantFlowTests(
             executor.shutdownNow()
         }
     }
+
+    @Test
+    fun `late failure and repeated completion preserve first successful answer and quota`() {
+        val user = userRepository.save(UserEntity(displayName = "AI terminal state"))
+        val requestId = UUID.randomUUID()
+        val first = useCase.ask(user.id, SubscriptionTier.FREE, "창세기 1장 1절을 설명해주세요", clientRequestId = requestId)
+        val turnId = first.turnId!!
+        usagePort.fail(turnId, "LATE_NETWORK_ERROR")
+        usagePort.complete(turnId, first.copy(answer = "덮어쓰면 안 되는 응답"))
+        assertEquals(1, usagePort.countToday(user.id))
+        val receipt = useCase.requestStatus(user.id, requestId)
+        assertEquals(AiClientRequestStatus.COMPLETED, receipt.status)
+        assertEquals(first, receipt.answer)
+    }
+
+    @Test
+    fun `failed reservation cannot complete later and failure retains provider costs`() {
+        val user = userRepository.save(UserEntity(displayName = "AI failed state"))
+        val validAnswer = useCase.ask(user.id, SubscriptionTier.FREE, "창세기 1장 1절을 설명해주세요")
+        val requestId = UUID.randomUUID()
+        val reservation = usagePort.reserve(user.id, "처리 실패 질문", 10, clientRequestId = requestId) as AiUsageReservation.Started
+        val consumed = validAnswer.copy(promptTokens = 20, completionTokens = 10, estimatedCostUsd = BigDecimal("0.000050"))
+        usagePort.fail(reservation.turnId, "PROVIDER_FAILED", consumed)
+        usagePort.fail(reservation.turnId, "SECOND_FAILURE", consumed.copy(promptTokens = 999))
+        assertThrows(com.example.mypasture.ai.domain.AiRequestPreviouslyFailedException::class.java) {
+            usagePort.complete(reservation.turnId, validAnswer)
+        }
+        assertEquals(1, usagePort.countToday(user.id))
+        assertEquals(AiClientRequestStatus.FAILED, useCase.requestStatus(user.id, requestId).status)
+        val usage = usageRepository.findById(reservation.turnId).orElseThrow()
+        assertEquals(20, usage.promptTokens)
+        assertEquals(BigDecimal("0.000050"), usage.estimatedCostUsd)
+        assertEquals("PROVIDER_FAILED", usage.errorCode)
+    }
 }

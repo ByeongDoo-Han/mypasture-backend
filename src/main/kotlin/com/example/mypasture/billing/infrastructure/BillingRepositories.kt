@@ -9,6 +9,18 @@ import java.util.UUID
 
 /** 결제별 권한과 잔여 lot을 조회합니다. 변경은 application의 사용자 행 잠금 안에서만 수행합니다. */
 interface BillingPurchaseRepository : JpaRepository<BillingPurchaseEntity, UUID> {
+    fun findAllByStoreAndEnvironmentAndSourceKey(store: BillingStore, environment: BillingEnvironment, sourceKey: String): List<BillingPurchaseEntity>
+
+    @Query(value = """
+        select coalesce(sum(greatest(0, p.entitled_units - coalesce(r.used, 0))), 0)
+        from billing_purchases p left join (
+          select purchase_id, count(*) used from billing_credit_reservations
+          where user_id = :userId and status in ('RESERVED', 'COMPLETED') group by purchase_id
+        ) r on r.purchase_id = p.id
+        where p.user_id = :userId and p.environment = :environment and p.access_revoked = false
+    """, nativeQuery = true)
+    fun availableCredits(userId: UUID, environment: String): Long
+
     fun findByStoreAndEnvironmentAndTransactionKey(
         store: BillingStore, environment: BillingEnvironment, transactionKey: String,
     ): BillingPurchaseEntity?

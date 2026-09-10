@@ -30,11 +30,13 @@ data class VerifiedPurchaseSnapshot(
     val accessExpiresAt: Instant?,
     val autoRenew: Boolean,
     val entitledUnits: Int,
+    val sourceKey: String? = null,
 ) {
     init {
         require(transactionKey.isNotBlank() && transactionKey.length <= 200)
         require(eventKey.isNotBlank() && eventKey.length <= 200)
         require(revision > 0)
+        require(sourceKey == null || sourceKey.matches(Regex("[0-9a-f]{64}")))
         require(entitledUnits in 0..product.units)
         if (product.units == 0) {
             require(accessStartsAt != null && accessExpiresAt != null && accessExpiresAt.isAfter(accessStartsAt))

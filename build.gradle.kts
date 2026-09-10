@@ -47,6 +47,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("com.google.firebase:firebase-admin:9.4.3")
+    implementation("com.apple.itunes.storekit:app-store-server-library:5.2.0")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
@@ -75,6 +76,8 @@ dependencyManagement {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // 여러 Spring 통합 테스트 컨텍스트가 기본 512MB에서 반복 GC를 일으키지 않도록 제한을 명시합니다.
+    maxHeapSize = "1g"
 }
 
 tasks.named<Test>("test") {
@@ -116,6 +119,7 @@ tasks.register<Test>("billingPostgresTest") {
     systemProperty("spring.datasource.password", "billing_test_only")
     filter {
         includeTestsMatching("*BillingLedgerTests")
+        includeTestsMatching("*BillingVerificationTests")
         includeTestsMatching("*BillingMigrationPostgresTests")
     }
     outputs.upToDateWhen { false }

@@ -68,7 +68,7 @@ class AskBibleAssistantUseCase(
     /** AI 호출 전에도 모바일이 정확한 남은 횟수를 표시할 수 있게 합니다. */
     fun dailyUsage(userId: UUID, subscriptionTier: SubscriptionTier): AiDailyUsage {
         val used = usagePort.countToday(userId)
-        val accessPolicy = accessPolicyResolver.resolve(subscriptionTier)
+        val accessPolicy = accessPolicyResolver.resolve(subscriptionTier, userId)
         if (accessPolicy.unlimited) {
             return AiDailyUsage(null, used, null, true, accessPolicy.effectiveTier, accessPolicy.entitlementExpiresAt)
         }
@@ -165,7 +165,7 @@ class AskBibleAssistantUseCase(
         if (normalized.length > properties.maxInputChars) throw AiInputTooLongException()
         if (CRISIS_KEYWORDS.any { normalized.contains(it, ignoreCase = true) }) throw AiSafetyException()
 
-        val accessPolicy = accessPolicyResolver.resolve(subscriptionTier)
+        val accessPolicy = accessPolicyResolver.resolve(subscriptionTier, userId)
         val effectiveTier = accessPolicy.effectiveTier
         val experiencePolicy = experiencePolicyResolver.resolve(effectiveTier)
         if (conversationId != null && effectiveTier != SubscriptionTier.PREMIUM) {

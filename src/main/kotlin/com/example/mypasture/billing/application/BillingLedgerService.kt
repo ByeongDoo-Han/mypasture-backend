@@ -44,7 +44,7 @@ class BillingLedgerService(
                 transactionKey = snapshot.transactionKey, product = snapshot.product, financialStatus = snapshot.financialStatus,
                 accessRevoked = snapshot.accessRevoked, accessStartsAt = snapshot.accessStartsAt,
                 accessExpiresAt = snapshot.accessExpiresAt, autoRenew = snapshot.autoRenew,
-                entitledUnits = snapshot.entitledUnits, revision = snapshot.revision,
+                entitledUnits = snapshot.entitledUnits, revision = snapshot.revision, sourceKey = snapshot.sourceKey,
             ))
         } else if (result == BillingApplyResult.APPLIED) {
             // 부분 환불 중 진행 중인 세션은 해당 lot에서만 해제합니다. 완료 차감은 그대로 남깁니다.

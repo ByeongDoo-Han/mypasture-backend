@@ -166,6 +166,7 @@ Terraform 구성은 다음을 관리합니다.
 - [GCP Terraform deployment](docs/gcp-terraform-deployment.ko.md)
 - [QT QR policy](docs/quiet-time-qr-policy.ko.md)
 - [Today word operations](docs/daily-word-publishing-operations.ko.md)
+- [Store purchase verification](docs/store-purchase-verification.ko.md)
 
 문서의 `구현`, `부분 구현`, `계획` 표기를 코드 완료 상태와 구분해서 확인합니다.
 

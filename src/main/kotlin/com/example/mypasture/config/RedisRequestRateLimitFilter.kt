@@ -48,6 +48,8 @@ class RedisRequestRateLimitFilter(
     }
 
     private fun policyFor(request: HttpServletRequest): Policy? = when {
+        request.requestURI.startsWith("/api/v1/billing/") && !request.requestURI.startsWith("/api/v1/billing/webhooks/") ->
+            Policy("billing", 60, authenticatedScope = true)
         request.requestURI.startsWith("/api/v1/auth/") && request.method == HttpMethod.POST.name() ->
             Policy("auth", properties.authRequestsPerWindow)
         request.requestURI.startsWith("/api/v1/ai/") ->

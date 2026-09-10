@@ -8,11 +8,11 @@ import java.sql.DriverManager
 import java.sql.SQLException
 import java.util.UUID
 
-/** 격리한 PostgreSQL 스키마에 V42를 실제 Flyway로 적용하고 DB 제약을 확인합니다. */
+/** 격리한 PostgreSQL 스키마에 결제 마이그레이션을 적용하고 DB 제약을 확인합니다. */
 @Tag("billing-postgres")
 class BillingMigrationPostgresTests {
     @Test
-    fun `V42 applies once and rejects invalid or duplicate purchases`() {
+    fun `V42 and V43 apply once and reject invalid or duplicate purchases`() {
         val url = "jdbc:postgresql://127.0.0.1:55439/mypasture_billing_test"
         val schema = "billing_migration_" + UUID.randomUUID().toString().replace("-", "")
         DriverManager.getConnection(url, "billing_test", "billing_test_only").use { connection ->
@@ -23,7 +23,7 @@ class BillingMigrationPostgresTests {
                     sql.execute("CREATE TABLE users (id UUID PRIMARY KEY)")
                     val flyway = Flyway.configure().dataSource(url, "billing_test", "billing_test_only")
                         .schemas(schema).defaultSchema(schema).baselineOnMigrate(true).baselineVersion("41").load()
-                    assertEquals(1, flyway.migrate().migrationsExecuted)
+                    assertEquals(2, flyway.migrate().migrationsExecuted)
                     assertEquals(0, flyway.migrate().migrationsExecuted)
                     flyway.validate()
                     val userId = UUID.randomUUID()
@@ -39,6 +39,21 @@ class BillingMigrationPostgresTests {
                     assertEquals("23505", assertThrows(SQLException::class.java) { sql.execute(insert("first", 3)) }.sqlState)
                     assertEquals("23514", assertThrows(SQLException::class.java) { sql.execute(insert("invalid-units", 4)) }.sqlState)
                     assertEquals("23503", assertThrows(SQLException::class.java) { sql.execute(insert("unknown-owner", 3, UUID.randomUUID())) }.sqlState)
+                    val accountToken = UUID.randomUUID()
+                    sql.execute("INSERT INTO billing_accounts (user_id, account_token) VALUES ('$userId', '$accountToken')")
+                    val anotherUser = UUID.randomUUID()
+                    sql.execute("INSERT INTO users VALUES ('$anotherUser')")
+                    assertEquals("23505", assertThrows(SQLException::class.java) {
+                        sql.execute("INSERT INTO billing_accounts (user_id, account_token) VALUES ('$anotherUser', '$accountToken')")
+                    }.sqlState)
+                    val requestId = UUID.randomUUID()
+                    fun insertJob() = """
+                        INSERT INTO billing_verification_jobs
+                        (id,user_id,request_id,store,environment,product_id,request_hash,encrypted_proof,phase,next_attempt_at,created_at,updated_at)
+                        VALUES ('${UUID.randomUUID()}','$userId','$requestId','GOOGLE','SANDBOX','monthly','hash','encrypted','VERIFY',now(),now(),now())
+                    """.trimIndent()
+                    sql.execute(insertJob())
+                    assertEquals("23505", assertThrows(SQLException::class.java) { sql.execute(insertJob()) }.sqlState)
                 } finally {
                     sql.execute("SET search_path TO public")
                     sql.execute("DROP SCHEMA $schema CASCADE")

@@ -23,6 +23,7 @@ class BillingPurchaseEntity(
     @Column(nullable = false) var autoRenew: Boolean,
     @Column(nullable = false) var entitledUnits: Int,
     @Column(nullable = false) var revision: Long,
+    @Column(length = 64) var sourceKey: String? = null,
     @Column(nullable = false) val createdAt: Instant = Instant.now(),
     @Column(nullable = false) var updatedAt: Instant = createdAt,
 ) {
@@ -34,6 +35,7 @@ class BillingPurchaseEntity(
         autoRenew = snapshot.autoRenew
         entitledUnits = snapshot.entitledUnits
         revision = snapshot.revision
+        sourceKey = snapshot.sourceKey
         updatedAt = Instant.now()
     }
 }

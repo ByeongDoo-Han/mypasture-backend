@@ -18,8 +18,9 @@ Coordinator 겸 Backend Foundation 단일 작성자가 결제 권한 원장 및 
 - [x] 동시 이용권 예약과 완료/실패 경합 보호
 - [x] AI 성공 보존 및 실패 후 재완료 차단
 - [x] 코드에 한국어 역할 주석 및 후속 연결 계약
-- [ ] 전체 테스트 및 PostgreSQL 결과 기록
-- [ ] PR/CI 확인 및 배포 영향 확인
+- [x] 전체 테스트 217개 및 PostgreSQL 14개 통과
+- [x] main 병합 시 staging 자동 배포 및 승인 보호 없음 확인
+- [ ] staging 배포 승인 후 CI 통과 PR 병합 (별도 승인)
 
 ## 위험
 

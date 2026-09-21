@@ -88,6 +88,36 @@ variable "smtp_host" {
   type        = string
 }
 
+variable "smtp_port" {
+  description = "SMTP provider port."
+  type        = number
+  default     = 587
+}
+
+variable "smtp_starttls_enabled" {
+  description = "Use SMTP STARTTLS."
+  type        = bool
+  default     = true
+}
+
+variable "smtp_ssl_enabled" {
+  description = "Use implicit SMTP TLS."
+  type        = bool
+  default     = false
+}
+
+variable "admin_email_login_enabled" {
+  description = "Enable administrator email login on the API after importing and populating its secrets."
+  type        = bool
+  default     = false
+}
+
+variable "admin_email_login_from" {
+  description = "Verified sender for administrator email login."
+  type        = string
+  default     = "support@mypasture.app"
+}
+
 variable "mail_from" {
   description = "Verified production sender address."
   type        = string

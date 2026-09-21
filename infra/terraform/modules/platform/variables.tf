@@ -308,6 +308,35 @@ variable "smtp_port" {
   default     = 587
 }
 
+variable "smtp_starttls_enabled" {
+  description = "Require SMTP STARTTLS (normally port 587)."
+  type        = bool
+  default     = true
+}
+
+variable "smtp_ssl_enabled" {
+  description = "Use implicit SMTP TLS (normally port 465)."
+  type        = bool
+  default     = false
+}
+
+variable "admin_email_login_enabled" {
+  description = "Enable administrator email OTP on the API only after SMTP and secret versions are ready."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.admin_email_login_enabled || var.smtp_starttls_enabled || var.smtp_ssl_enabled
+    error_message = "Administrator email login requires STARTTLS or implicit SMTP TLS."
+  }
+}
+
+variable "admin_email_login_from" {
+  description = "Verified sender address for administrator email login."
+  type        = string
+  default     = "support@mypasture.app"
+}
+
 variable "mail_from" {
   description = "Verified sender address."
   type        = string

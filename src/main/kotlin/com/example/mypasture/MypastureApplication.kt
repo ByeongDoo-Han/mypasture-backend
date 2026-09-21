@@ -1,6 +1,7 @@
 package com.example.mypasture
 
 import com.example.mypasture.config.AiProperties
+import com.example.mypasture.config.AdminEmailLoginProperties
 import com.example.mypasture.config.AuthSecurityProperties
 import com.example.mypasture.config.BibleProperties
 import com.example.mypasture.config.CorsProperties
@@ -26,6 +27,7 @@ import kotlin.system.exitProcess
 @EnableScheduling
 @EnableConfigurationProperties(
     AiProperties::class,
+    AdminEmailLoginProperties::class,
     AuthSecurityProperties::class,
     BibleProperties::class,
     CorsProperties::class,

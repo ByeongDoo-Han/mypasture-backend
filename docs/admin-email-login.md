@@ -33,7 +33,7 @@ ADMIN 계정에 이메일로 6자리 코드를 보내고 확인 시 기존 JWT/r
 - SMTP: `smtp.resend.com:587`, STARTTLS=true/SSL=false, 사용자명 `resend`.
 - 발신 주소: `support@mypasture.app`. Resend에서 `mypasture.app` 발송 도메인을 인증해야 합니다.
 - GCP 프로젝트: `my-pasture`. 사용자명은 `mypasture-staging-smtp-username`, API 키는 `mypasture-staging-smtp-password` Secret 버전으로 저장합니다. 키 값은 채팅/소스/명령행 인자/로그에 기록하지 않습니다.
-- Cloudflare에는 Resend가 발급한 DKIM TXT 및 발송용 `send` 하위 도메인의 SPF TXT/MX 레코드를 추가합니다. 기존 루트 MX와 Email Routing은 변경하지 않습니다.
+- Cloudflare 발송 인증 레코드: `send` CNAME → `send.forge.rmta.net`, `rsend` CNAME → `rsend-apne1.forge.rmta.net`, `resend._domainkey` TXT → Resend 발급 공개키. CNAME은 DNS only입니다. 기존 루트 MX와 Email Routing은 유지합니다.
 - API 키 저장과 발송 도메인 인증이 끝나면 SMTP 인증 및 지정 관리자 대상 실제 수신을 확인합니다. 운영 API/관리자 배포는 별도 승인 후 수행합니다.
 
 [공식 SMTP 설정](https://resend.com/docs/send-with-smtp), [Cloudflare DNS 설정](https://resend.com/docs/knowledge-base/cloudflare).
@@ -68,4 +68,5 @@ ADMIN 계정에 이메일로 6자리 코드를 보내고 확인 시 기존 JWT/r
 - SMTP 어댑터는 mock으로 TLS 설정과 비밀값 없는 오류 변환을 검증했습니다. 실제 네트워크 발송은 실행하지 않았습니다.
 - HTTP 예제: `http/admin-email-login.http`. API interface에 HTTP 계약이 있습니다.
 - 관리자 저장소 issue #49가 이메일/코드 화면과 BFF를 담당합니다. 모바일 변경은 필요 없습니다.
-- 실제 SMTP 배달과 운영 로그인은 아직 검증하지 않았으며 코드 배포도 보류 상태입니다.
+- 2026-09-22: GCP SMTP password Secret v1 저장, Resend TLS/SMTP 인증 성공, 도쿄 리전 도메인 Verified 확인. 지정 관리자에게 보낸 연결 확인 메일은 Resend Delivered 확인. 코드의 운영 배포와 실제 OTP 로그인은 별도 승인 후 검증합니다.
+- 관리자 전용 HMAC Secret `mypasture-staging-admin-email-login-hmac-secret` v1과 해당 Secret의 runtime service account 읽기 권한을 준비했습니다. 기존 일반 이메일 인증 secret과 분리합니다.

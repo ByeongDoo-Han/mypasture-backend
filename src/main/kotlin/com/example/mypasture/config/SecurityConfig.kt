@@ -94,6 +94,8 @@ class SecurityConfig {
                     "/api/v1/auth/email-verifications/confirm",
                     "/api/v1/auth/signup",
                     "/api/v1/auth/login",
+                    "/api/v1/auth/admin-email-login/requests",
+                    "/api/v1/auth/admin-email-login/confirm",
                     "/api/v1/auth/social-login",
                     "/api/v1/auth/social-login/challenges",
                     "/api/v1/auth/refresh",

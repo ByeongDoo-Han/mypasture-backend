@@ -26,7 +26,19 @@ ADMIN 계정에 이메일로 6자리 코드를 보내고 확인 시 기존 JWT/r
 
 운영에서 기능을 켜면 HMAC, 발신 주소, SMTP 자격증명과 암호화 전송을 시작 시 검증합니다. 운영 발신 주소와 비밀값에는 대체 기본값이 없습니다. SMTP 실패를 로그 발송으로 대체하지 않습니다.
 
-### Cloudflare 연결 준비
+### Resend 연결 준비
+
+발송 제공업체는 Resend 무료 플랜으로 선택했습니다. 기존 Cloudflare Email Routing은 수신용으로 유지합니다.
+
+- SMTP: `smtp.resend.com:587`, STARTTLS=true/SSL=false, 사용자명 `resend`.
+- 발신 주소: `support@mypasture.app`. Resend에서 `mypasture.app` 발송 도메인을 인증해야 합니다.
+- GCP 프로젝트: `my-pasture`. 사용자명은 `mypasture-staging-smtp-username`, API 키는 `mypasture-staging-smtp-password` Secret 버전으로 저장합니다. 키 값은 채팅/소스/명령행 인자/로그에 기록하지 않습니다.
+- Cloudflare에는 Resend가 발급한 DKIM TXT 및 발송용 `send` 하위 도메인의 SPF TXT/MX 레코드를 추가합니다. 기존 루트 MX와 Email Routing은 변경하지 않습니다.
+- API 키 저장과 발송 도메인 인증이 끝나면 SMTP 인증 및 지정 관리자 대상 실제 수신을 확인합니다. 운영 API/관리자 배포는 별도 승인 후 수행합니다.
+
+[공식 SMTP 설정](https://resend.com/docs/send-with-smtp), [Cloudflare DNS 설정](https://resend.com/docs/knowledge-base/cloudflare).
+
+### 이전 Cloudflare 발송 검토
 
 2026-09-21 공식 SMTP 설정은 `smtp.mx.cloudflare.net:465`, 사용자명 `api_token`, 비밀번호는 Email Sending: Edit 권한의 Cloudflare API token입니다. STARTTLS=false/SSL=true를 사용합니다. Cloudflare 로그인 이메일은 SMTP 사용자명이 아닙니다. [공식 SMTP 문서](https://developers.cloudflare.com/email-service/api/send-emails/smtp/)
 

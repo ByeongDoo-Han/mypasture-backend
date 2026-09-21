@@ -31,6 +31,11 @@ module "platform" {
   password_reset_url              = "https://mypasture.app/password-reset"
   quiet_time_invite_base_url      = "https://mypasture.app/q/qt"
   smtp_host                       = var.smtp_host
+  smtp_port                       = var.smtp_port
+  smtp_starttls_enabled           = var.smtp_starttls_enabled
+  smtp_ssl_enabled                = var.smtp_ssl_enabled
+  admin_email_login_enabled       = var.admin_email_login_enabled
+  admin_email_login_from          = var.admin_email_login_from
   mail_from                       = var.mail_from
   firebase_enabled                = var.firebase_enabled
   firebase_project_id             = var.firebase_project_id

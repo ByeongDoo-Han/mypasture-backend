@@ -16,6 +16,7 @@
 - backend-foundation: 서버 auth/**, config/SecurityConfig.kt, 신규 config/AdminEmailLoginProperties.kt, Main configuration properties 등록부 필요시, src/test/**, db/migration/V42__admin_email_login.sql, http/admin-email-login.http
 - Coordinator: application*.yml, build.gradle.kts, .github/**, docs/**, scripts/**, 운영 작업
 - admin: 관리자 src/**, 자체 tests/**. 패키지/CI/문서는 Coordinator 소유
+- 2026-09-22 Coordinator 확장 지정: backend-foundation이 `infra/terraform/**`, `docs/admin-email-login.md`의 Terraform 배포 절차, 이 작업 계약의 경로 확장 기록을 단독 작성합니다. 앱 코드는 변경하지 않으며 Terraform import/apply, push, 배포는 Coordinator가 수행합니다.
 - 기존 코드와 새 소유 경로 충돌 시 메시지로 조정
 
 ## 공유 계약

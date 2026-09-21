@@ -70,3 +70,48 @@ ADMIN 계정에 이메일로 6자리 코드를 보내고 확인 시 기존 JWT/r
 - 관리자 저장소 issue #49가 이메일/코드 화면과 BFF를 담당합니다. 모바일 변경은 필요 없습니다.
 - 2026-09-22: GCP SMTP password Secret v1 저장, Resend TLS/SMTP 인증 성공, 도쿄 리전 도메인 Verified 확인. 지정 관리자에게 보낸 연결 확인 메일은 Resend Delivered 확인. 코드의 운영 배포와 실제 OTP 로그인은 별도 승인 후 검증합니다.
 - 관리자 전용 HMAC Secret `mypasture-staging-admin-email-login-hmac-secret` v1과 해당 Secret의 runtime service account 읽기 권한을 준비했습니다. 기존 일반 이메일 인증 secret과 분리합니다.
+
+
+## Terraform 설정과 기존 Secret 인수
+
+공개 운영 API가 사용하는 실제 root는 `infra/terraform/environments/staging`이며 프로젝트는 `my-pasture`입니다. 해당 root의 관리자 이메일 기본값과 example은 `admin_email_login_enabled=true`, `admin_email_login_from=support@mypasture.app`, `smtp_host=smtp.resend.com`, `smtp_port=587`, `smtp_starttls_enabled=true`, `smtp_ssl_enabled=false`입니다. 별도 `environments/prod` root에서는 관리자 이메일 기본값이 `false`로 유지됩니다. 기존 `.tfvars` 값이 default보다 우선하므로 `smtp_host=smtp.example.com` 같은 이전 placeholder는 실제 apply용 변수 파일에서 갱신합니다. 키·비밀번호·HMAC 값은 변수 파일에 넣지 않습니다.
+
+API에만 `ADMIN_EMAIL_LOGIN_ENABLED`, 발신 주소, HMAC 및 필요한 SMTP username/password Secret 참조를 연결합니다. worker/migration/backfill은 관리자 인증이 비활성 상태이며 관리자 HMAC을 받지 않습니다. 일반 회원 이메일 인증/비밀번호 재설정/incident 발송 모드는 그대로 유지합니다. SMTP 자격증명과 HMAC은 Secret Manager의 `latest` 버전을 참조합니다.
+
+이미 생성한 Secret과 runtime IAM은 생성하려고 apply하기 전에 **올바른 remote state에 import**합니다. 기존 managed SMTP secret/IAM은 state에 이미 있으면 다시 import하지 않습니다. 아래 `approved-staging.tfvars`는 검토한 실제 이미지·리소스 설정이 담긴 로컬 파일 경로로 바꿉니다.
+
+```bash
+terraform -chdir=infra/terraform/environments/staging init -reconfigure \
+  -backend-config='bucket=my-pasture-terraform-state' \
+  -backend-config='prefix=mypasture/staging/platform'
+
+terraform -chdir=infra/terraform/environments/staging import \
+  -var-file=/absolute/path/approved-staging.tfvars \
+  'module.platform.google_secret_manager_secret.runtime["admin-email-login-hmac-secret"]' \
+  'projects/my-pasture/secrets/mypasture-staging-admin-email-login-hmac-secret'
+
+terraform -chdir=infra/terraform/environments/staging import \
+  -var-file=/absolute/path/approved-staging.tfvars \
+  'module.platform.google_secret_manager_secret_iam_member.runtime["admin-email-login-hmac-secret"]' \
+  'projects/my-pasture/secrets/mypasture-staging-admin-email-login-hmac-secret roles/secretmanager.secretAccessor serviceAccount:mypasture-staging-runtime@my-pasture.iam.gserviceaccount.com'
+```
+
+IAM import 형식은 [사용 중인 Google provider 7.45.0 문서](https://github.com/hashicorp/terraform-provider-google/blob/v7.45.0/website/docs/r/secret_manager_secret_iam.html.markdown#import)를 따릅니다. Secret payload/version은 이 Terraform 변경에서 생성하거나 import하지 않습니다.
+
+백엔드 코드/V42 배포 후 API와 필요한 Secret/IAM만 대상으로 plan을 저장하고 읽어 본 뒤 적용합니다. target도 의존 리소스를 포함하므로 다른 리소스 변경·삭제가 섞였는지 확인해야 합니다. 이 변경을 이유로 전체 인프라 apply를 실행하지 않습니다.
+
+```bash
+terraform -chdir=infra/terraform/environments/staging plan \
+  -var-file=/absolute/path/approved-staging.tfvars \
+  -target='module.platform.google_secret_manager_secret.runtime["admin-email-login-hmac-secret"]' \
+  -target='module.platform.google_secret_manager_secret_iam_member.runtime["admin-email-login-hmac-secret"]' \
+  -target='module.platform.google_cloud_run_v2_service.api[0]' \
+  -out=admin-email-login.tfplan
+
+terraform -chdir=infra/terraform/environments/staging show admin-email-login.tfplan
+terraform -chdir=infra/terraform/environments/staging apply admin-email-login.tfplan
+```
+
+관리자 기능을 Terraform에서 `false`로 바꾸면 API의 관리자 HMAC 및 추가 SMTP 참조가 제거됩니다. HMAC Secret 메타데이터와 IAM은 기존 SMTP Secret과 마찬가지로 그대로 보존하여 기능 중단이 키 폐기를 유발하지 않습니다. 다른 환경에서도 빈 Secret 메타데이터만 생성하며 값/version은 생성하지 않습니다. 현재 API/worker/job은 runtime service account를 공유하므로 API에만 env를 연결하더라도 IAM 주체 수준의 격리는 아닙니다.
+
+이 절차의 `fmt`/`validate` 성공은 실제 import/apply 또는 새 리비전의 관리자 로그인 성공을 뜻하지 않습니다. 적용 후 공개 API readiness, 실제 이메일 OTP 로그인, 이전 로그인 방식의 영향, 마지막 targeted plan을 각각 확인합니다.

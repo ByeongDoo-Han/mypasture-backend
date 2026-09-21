@@ -15,12 +15,23 @@ locals {
     var.redis_auth_enabled ? { REDIS_PASSWORD = "redis-password" } : {},
   )
 
+  # 관리자 코드의 키와 추가 SMTP 자격증명은 API에만 전달합니다.
+  api_secret_env = merge(
+    local.required_secret_env,
+    var.admin_email_login_enabled ? {
+      ADMIN_EMAIL_LOGIN_HMAC_SECRET = "admin-email-login-hmac-secret"
+      SMTP_USERNAME                 = "smtp-username"
+      SMTP_PASSWORD                 = "smtp-password"
+    } : {},
+  )
+
   migration_secret_env = merge(local.required_secret_env, {
     DATABASE_PASSWORD = "migration-database-password"
   })
 
   secret_ids = setunion(
     toset(values(local.required_secret_env)),
+    toset(values(local.api_secret_env)),
     toset(values(local.migration_secret_env)),
     toset([
       "redis-ca-certificate",
@@ -28,6 +39,7 @@ locals {
       "redis-server-key",
       "smtp-username",
       "smtp-password",
+      "admin-email-login-hmac-secret",
     ]),
     var.firebase_enabled ? toset(["firebase-service-account"]) : toset([]),
   )

@@ -119,7 +119,7 @@ Sandbox/TestFlight 구매는 별도 Sandbox 서버/DB로 테스트합니다. Pro
 
 ## 데이터베이스
 
-V42 원장에 이어 V43이 nullable source_key와 계정/검증 작업/구매 계열 테이블을 추가합니다. 기존 마이그레이션 파일은 변경하지 않습니다. 운영 적용 전 백업과 실제 데이터 복사본의 마이그레이션 검증을 별도로 수행합니다.
+기존 V42 관리자 로그인 migration을 유지하고 V43 원장에 이어 V44가 nullable source_key와 계정/검증 작업/구매 계열 테이블을 추가합니다. 기존 마이그레이션 파일은 변경하지 않습니다. 운영 적용 전 백업과 실제 데이터 복사본의 마이그레이션 검증을 별도로 수행합니다.
 
 | 테이블 | 용도 |
 | --- | --- |
@@ -136,7 +136,7 @@ V42 원장에 이어 V43이 nullable source_key와 계정/검증 작업/구매 �
 
 로컬 자동 검증:
 - `./gradlew test --no-daemon`: 스토어 fixture/암호화/위조 거절/권한/전체 회귀.
-- `./gradlew billingPostgresTest --no-daemon`: 고정한 폐기용 PostgreSQL에서 동시성 및 V42/V43 마이그레이션.
+- `./gradlew billingPostgresTest --no-daemon`: 고정한 폐기용 PostgreSQL에서 동시성 및 V43/V44 마이그레이션.
 - `http/billing-verification.http`: 실제 테스트 상품/계정이 준비된 별도 서버용 흐름. 변수를 private 파일에 보관.
 
 실제 스토어 호출 없이 자동 테스트합니다. 통과 여부/개수는 작업 기록에 남깁니다. 위조 JWS 거절 테스트는 실제 Apple Sandbox 성공 결제를 대체하지 않습니다.

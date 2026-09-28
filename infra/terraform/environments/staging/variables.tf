@@ -109,8 +109,39 @@ variable "cors_allowed_origins" {
 }
 
 variable "smtp_host" {
-  description = "Staging SMTP hostname."
+  description = "SMTP hostname for the staging-named deployment serving the public API."
   type        = string
+  default     = "smtp.resend.com"
+}
+
+variable "smtp_port" {
+  description = "SMTP provider port."
+  type        = number
+  default     = 587
+}
+
+variable "smtp_starttls_enabled" {
+  description = "Use SMTP STARTTLS."
+  type        = bool
+  default     = true
+}
+
+variable "smtp_ssl_enabled" {
+  description = "Use implicit SMTP TLS."
+  type        = bool
+  default     = false
+}
+
+variable "admin_email_login_enabled" {
+  description = "Enable administrator email login on the API after importing and populating its secrets."
+  type        = bool
+  default     = true
+}
+
+variable "admin_email_login_from" {
+  description = "Verified sender for administrator email login."
+  type        = string
+  default     = "support@mypasture.app"
 }
 
 variable "mail_from" {

@@ -9,7 +9,9 @@ spring:
         smtp:
           auth: true
           starttls:
-            enable: true
+            enable: ${SMTP_STARTTLS_ENABLED:true}
+          ssl:
+            enable: ${SMTP_SSL_ENABLED:false}
   config:
     activate:
       on-profile: prod
@@ -48,6 +50,10 @@ app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
   auth:
+    admin-email-login:
+      enabled: ${ADMIN_EMAIL_LOGIN_ENABLED:false}
+      hmac-secret: ${ADMIN_EMAIL_LOGIN_HMAC_SECRET:}
+      from: ${ADMIN_EMAIL_LOGIN_FROM:}
     email-verification:
       required: true
       delivery: ${EMAIL_VERIFICATION_DELIVERY:smtp}

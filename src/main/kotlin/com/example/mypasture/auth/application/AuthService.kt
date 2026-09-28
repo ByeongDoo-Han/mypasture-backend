@@ -347,6 +347,16 @@ class AuthService(
         )
     }
 
+    /** 관리자 OTP 소비 트랜잭션 안에서만 현재 권한과 인증 버전을 재검증하여 세션을 발급합니다. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    fun issueAdminEmailSession(userId: UUID, expectedAuthVersion: Int): UserLoginResponse {
+        val user = userRepository.findActiveByIdForUpdate(userId) ?: throw InvalidCredentialsException()
+        if (user.role != com.example.mypasture.user.domain.UserRole.ADMIN || user.authVersion != expectedAuthVersion) {
+            throw InvalidCredentialsException()
+        }
+        return issueLoginResponse(user)
+    }
+
     private fun generateResetToken(): String =
         ByteArray(RESET_TOKEN_BYTES)
             .also(secureRandom::nextBytes)

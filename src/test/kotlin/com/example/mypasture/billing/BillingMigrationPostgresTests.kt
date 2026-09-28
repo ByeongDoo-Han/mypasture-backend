@@ -12,7 +12,7 @@ import java.util.UUID
 @Tag("billing-postgres")
 class BillingMigrationPostgresTests {
     @Test
-    fun `V42 and V43 apply once and reject invalid or duplicate purchases`() {
+    fun `V43 and V44 preserve V42 admin login data and reject invalid or duplicate purchases`() {
         val url = "jdbc:postgresql://127.0.0.1:55439/mypasture_billing_test"
         val schema = "billing_migration_" + UUID.randomUUID().toString().replace("-", "")
         DriverManager.getConnection(url, "billing_test", "billing_test_only").use { connection ->
@@ -21,13 +21,25 @@ class BillingMigrationPostgresTests {
                 try {
                     sql.execute("SET search_path TO $schema")
                     sql.execute("CREATE TABLE users (id UUID PRIMARY KEY)")
+                    val existing = Flyway.configure().dataSource(url, "billing_test", "billing_test_only")
+                        .schemas(schema).defaultSchema(schema).baselineOnMigrate(true).baselineVersion("41")
+                        .target("42").load()
+                    assertEquals(1, existing.migrate().migrationsExecuted)
+                    val userId = UUID.randomUUID()
+                    val challengeId = UUID.randomUUID()
+                    sql.execute("INSERT INTO users VALUES ('$userId')")
+                    sql.execute("INSERT INTO admin_email_login_states (user_id, challenge_id, auth_version) VALUES ('$userId', '$challengeId', 7)")
                     val flyway = Flyway.configure().dataSource(url, "billing_test", "billing_test_only")
-                        .schemas(schema).defaultSchema(schema).baselineOnMigrate(true).baselineVersion("41").load()
+                        .schemas(schema).defaultSchema(schema).load()
                     assertEquals(2, flyway.migrate().migrationsExecuted)
                     assertEquals(0, flyway.migrate().migrationsExecuted)
                     flyway.validate()
-                    val userId = UUID.randomUUID()
-                    sql.execute("INSERT INTO users VALUES ('$userId')")
+                    sql.executeQuery("SELECT challenge_id, auth_version FROM admin_email_login_states WHERE user_id = '$userId'").use { row ->
+                        assertTrue(row.next())
+                        assertEquals(challengeId, row.getObject("challenge_id", UUID::class.java))
+                        assertEquals(7, row.getInt("auth_version"))
+                        assertFalse(row.next())
+                    }
                     fun insert(transaction: String, units: Int, owner: UUID = userId) = """
                         INSERT INTO billing_purchases
                         (id,user_id,store,environment,transaction_key,product,financial_status,access_revoked,

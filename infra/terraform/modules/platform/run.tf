@@ -27,6 +27,9 @@ locals {
       PASSWORD_RESET_FROM                   = var.mail_from
       SMTP_HOST                             = var.smtp_host
       SMTP_PORT                             = tostring(var.smtp_port)
+      SMTP_STARTTLS_ENABLED                 = tostring(var.smtp_starttls_enabled)
+      SMTP_SSL_ENABLED                      = tostring(var.smtp_ssl_enabled)
+      ADMIN_EMAIL_LOGIN_ENABLED             = "false"
       QUIET_TIME_INVITE_BASE_URL            = var.quiet_time_invite_base_url
       QUIET_TIME_REALTIME_REDIS_ENABLED     = "true"
       RATE_LIMIT_ENABLED                    = "true"
@@ -53,7 +56,13 @@ locals {
     },
   )
 
-  api_environment = merge(local.common_environment, {
+  api_environment = merge({
+    # API 전용 secret을 쓸 때 공통 빈 SMTP 값과 중복된 env 이름을 만들지 않습니다.
+    for name, value in local.common_environment : name => value
+    if !var.admin_email_login_enabled || !contains(["SMTP_USERNAME", "SMTP_PASSWORD"], name)
+    }, {
+    ADMIN_EMAIL_LOGIN_ENABLED             = tostring(var.admin_email_login_enabled)
+    ADMIN_EMAIL_LOGIN_FROM                = var.admin_email_login_from
     APP_WORKER_ENABLED                    = "false"
     DAILY_WORD_GENERATION_ENABLED         = "false"
     DAILY_WORD_INCIDENT_DETECTION_ENABLED = "false"
@@ -166,7 +175,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       dynamic "env" {
-        for_each = local.required_secret_env
+        for_each = local.api_secret_env
         content {
           name = env.key
           value_source {

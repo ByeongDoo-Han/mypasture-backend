@@ -67,6 +67,10 @@ app:
   coupon:
     code-pepper: ${COUPON_CODE_PEPPER:local-coupon-code-pepper-change-me}
   auth:
+    admin-email-login:
+      enabled: ${ADMIN_EMAIL_LOGIN_ENABLED:false}
+      hmac-secret: ${ADMIN_EMAIL_LOGIN_HMAC_SECRET:}
+      from: ${ADMIN_EMAIL_LOGIN_FROM:no-reply@mypasture.app}
     email-verification:
       required: ${EMAIL_VERIFICATION_REQUIRED:true}
       code-ttl-minutes: ${EMAIL_VERIFICATION_CODE_TTL_MINUTES:10}

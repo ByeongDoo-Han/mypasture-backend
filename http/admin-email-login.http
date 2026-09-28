@@ -1,0 +1,17 @@
+@baseUrl = http://localhost:8080
+@adminEmail = admin@example.invalid
+@challengeId = 00000000-0000-0000-0000-000000000000
+@emailCode = 000000
+
+### 관리자 이메일 코드 요청 — 존재/발송 여부와 무관하게 200, 300초 만료/60초 재전송 안내
+POST {{baseUrl}}/api/v1/auth/admin-email-login/requests
+Content-Type: application/json
+
+{"email":"{{adminEmail}}"}
+
+### 이메일 코드 확인 — 성공 시 기존 로그인 응답, 모든 인증 실패는 같은 401
+# 실제 코드는 파일에 저장하지 않고 HTTP 도구의 개인 환경에서만 지정합니다.
+POST {{baseUrl}}/api/v1/auth/admin-email-login/confirm
+Content-Type: application/json
+
+{"challengeId":"{{challengeId}}","code":"{{emailCode}}"}

@@ -6,7 +6,7 @@ Coordinator 겸 Backend Foundation 단일 작성자가 결제 권한 원장 및 
 
 ## 범위
 
-- billing의 domain/application/infrastructure, 새 V42, AI usage/receipt 전이, 테스트, CI 검증, 한국어 문서.
+- billing의 domain/application/infrastructure, 새 V43, AI usage/receipt 전이, 테스트, CI 검증, 한국어 문서.
 - 공유 경로인 build.gradle.kts, Flyway, CI는 동일 작성자가 관리합니다.
 - 사용자 저장소의 탈퇴 포함 잠금 조회는 기존 거래의 사후 환불 갱신에만 사용합니다.
 - 새 REST API/외부 이벤트/환경변수는 없습니다. 따라서 Swagger 및 .http 공개 계약 변경도 없습니다.

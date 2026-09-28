@@ -99,10 +99,10 @@ PostgreSQL: `./gradlew billingPostgresTest --no-daemon`.
 
 후자는 **폐기 가능한 로컬** `127.0.0.1:55439/mypasture_billing_test` DB, `billing_test` 사용자/`billing_test_only` 테스트 암호만 대상으로 합니다. Hibernate create-drop이므로 기존 데이터가 있는 DB를 사용하지 않습니다. CI는 독립 PostgreSQL 16 컨테이너를 사용합니다.
 
-`BillingMigrationPostgresTests`는 독립 스키마의 최소 users 테이블에 V41 baseline 후 V42만 적용합니다. 전체 V1~V41 업그레이드나 운영 데이터 규모의 마이그레이션 검증을 대체하지 않습니다.
+`BillingMigrationPostgresTests`는 독립 스키마의 최소 users 테이블에 V41 baseline 후 기존 V42 관리자 로그인 테이블과 데이터를 준비하고 V43/V44를 적용합니다. 관리자 데이터 보존과 결제 제약을 검증하며, 전체 V1~V42 업그레이드나 운영 데이터 규모의 마이그레이션 검증을 대체하지 않습니다. 전체 migration 적용은 CI의 `postgres-auth` 작업에서 별도로 확인합니다.
 
 2026-09-11 로컬 최종 검증: `test` 217개, PostgreSQL 14.15의 `billingPostgresTest` 14개 모두 통과. 후자는 원장/동시성 13개와 Flyway/DB 제약 1개입니다. 실제 OpenAI 및 스토어 과금 API는 호출하지 않았습니다. CI에는 PostgreSQL 16 검증을 별도로 추가했습니다.
 
 ## 배포
 
-V42는 기존 테이블 변경 없이 세 테이블을 추가합니다. 자동 권한 지급, 외부 과금 API 호출, 새 고객용 endpoint는 없습니다. main 병합 뒤 기존 워크플로가 staging을 자동 배포하므로 병합 전에 그 영향을 확인합니다. prod 및 스토어 출시는 별도 승인 대상입니다.
+V43은 기존 테이블 변경 없이 세 테이블을 추가합니다. 자동 권한 지급, 외부 과금 API 호출, 새 고객용 endpoint는 없습니다. main 병합 뒤 기존 워크플로가 staging을 자동 배포하므로 병합 전에 그 영향을 확인합니다. prod 및 스토어 출시는 별도 승인 대상입니다.

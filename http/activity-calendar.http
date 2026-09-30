@@ -1,0 +1,11 @@
+### 오늘 로그인 상태로 이용한 날 기록 (한국 시간, 멱등)
+PUT {{baseUrl}}/api/v1/activity/today
+Authorization: Bearer {{accessToken}}
+
+### 올해의 본인 활동 (미래 날짜 제외)
+GET {{baseUrl}}/api/v1/activity
+Authorization: Bearer {{accessToken}}
+
+### 지정 연도 (2000년부터 현재 연도까지만 허용)
+GET {{baseUrl}}/api/v1/activity?year=2026
+Authorization: Bearer {{accessToken}}

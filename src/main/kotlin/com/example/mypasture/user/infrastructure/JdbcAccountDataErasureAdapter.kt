@@ -124,6 +124,7 @@ class JdbcAccountDataErasureAdapter(
         deleted += update("highlights", "delete from highlights where user_id = ?", command.userId)
         deleted += update("reading_progress", "delete from reading_progress where user_id = ?", command.userId)
         deleted += update("bible_reading_states", "delete from bible_reading_states where user_id = ?", command.userId)
+        deleted += update("user_visits", "delete from user_visits where user_id = ?", command.userId)
         deleted += update("bible_reading_history", "delete from bible_reading_history where user_id = ?", command.userId)
 
         deleted += update("prayers", "delete from prayers where user_id = ?", command.userId)

@@ -68,6 +68,13 @@ jobs:
           ADMIN_EMAIL_LOGIN_TEST_JDBC_PASSWORD: disposable-ci-password
         run: ./gradlew test --tests '*AdminEmailLoginControllerTests' --no-daemon
 
+      - name: Validate activity calendar and concurrent visits on PostgreSQL
+        env:
+          ACTIVITY_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
+          ACTIVITY_TEST_JDBC_USER: otp_test
+          ACTIVITY_TEST_JDBC_PASSWORD: disposable-ci-password
+        run: ./gradlew test --tests '*ActivityCalendarControllerTests' --rerun-tasks --no-daemon
+
   container-build:
     name: container-build
     runs-on: ubuntu-latest

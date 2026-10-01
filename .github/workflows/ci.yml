@@ -61,12 +61,15 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
-      - name: Validate Flyway and admin authentication on PostgreSQL
+      - name: Validate Flyway, admin authentication and Bible search on PostgreSQL
         env:
           ADMIN_EMAIL_LOGIN_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           ADMIN_EMAIL_LOGIN_TEST_JDBC_USER: otp_test
           ADMIN_EMAIL_LOGIN_TEST_JDBC_PASSWORD: disposable-ci-password
-        run: ./gradlew test --tests '*AdminEmailLoginControllerTests' --no-daemon
+          BIBLE_SEARCH_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
+          BIBLE_SEARCH_TEST_JDBC_USER: otp_test
+          BIBLE_SEARCH_TEST_JDBC_PASSWORD: disposable-ci-password
+        run: ./gradlew test --tests '*AdminEmailLoginControllerTests' --tests '*BibleCursorSearchControllerTests' --no-daemon
 
       - name: Validate activity calendar and concurrent visits on PostgreSQL
         env:

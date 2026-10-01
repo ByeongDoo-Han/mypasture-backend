@@ -20,6 +20,15 @@ interface BibleApi {
         @RequestParam(defaultValue = "20") size: Int,
     ): BibleSearchResponse
 
+    /** 권 이름과 본문 포함 결과를 반환하며 cursor가 있으면 마지막 위치 다음부터 탐색합니다. */
+    @GetMapping("/{version}/search/cursor")
+    fun searchCursor(
+        @PathVariable version: String,
+        @RequestParam keyword: String,
+        @RequestParam(defaultValue = "20") size: Int,
+        @RequestParam(required = false) cursor: String?,
+    ): BibleCursorSearchResponse
+
     @GetMapping("/{version}/books/{bookCode}/chapters/{chapter}")
     fun chapter(
         @PathVariable version: String,

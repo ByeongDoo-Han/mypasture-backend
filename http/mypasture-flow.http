@@ -581,3 +581,17 @@ client.test("Invalid size is rejected", function () {
   client.assert(response.body.code === "INVALID_QUIET_TIME_REQUEST", "Expected INVALID_QUIET_TIME_REQUEST");
 });
 %}
+
+### 성경 이름 + 구절 cursor 검색 (비로그인 허용, 기존 page 검색과 별도)
+GET {{baseUrl}}/api/v1/bibles/KOR1910/search/cursor?keyword=요&size=20
+
+> {%
+client.global.set("bibleSearchCursor", response.body.nextCursor || "");
+%}
+
+### 응답 nextCursor를 그대로 넣어 다음 구절 조회 (마지막 응답은 hasNext=false, nextCursor=null)
+# @name bibleCursorNextPage
+GET {{baseUrl}}/api/v1/bibles/KOR1910/search/cursor?keyword=요&size=20&cursor={{bibleSearchCursor}}
+
+### 검색어 변경 시 cursor 없이 첫 페이지 조회 (%, _는 문자 그대로 검색)
+GET {{baseUrl}}/api/v1/bibles/KOR1910/search/cursor?keyword=%25&size=20

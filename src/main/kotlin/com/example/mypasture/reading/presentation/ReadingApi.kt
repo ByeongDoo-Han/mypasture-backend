@@ -19,7 +19,9 @@ data class ReadingHistoryResponse(val version: String, val bookCode: String, val
 
 /** 사용자별 성경 읽기 진행률과 날짜별 기록 API 계약입니다. */
 interface ReadingApi {
+    /** 장의 실제 절 범위를 벗어나거나 timezone이 잘못되면 INVALID_REQUEST(400), 저장은 롤백됩니다. */
     @PutMapping("/progress") fun record(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: RecordReadingRequest): ReadingStateResponse
     @GetMapping("/progress") fun progress(@AuthenticationPrincipal principal: JwtPrincipal): List<ReadingStateResponse>
+    /** from <= to인 최대 366일(양끝 포함) 범위만 허용하며 위반 시 INVALID_REQUEST(400)입니다. */
     @GetMapping("/history") fun history(@AuthenticationPrincipal principal: JwtPrincipal, @RequestParam from: LocalDate, @RequestParam to: LocalDate): List<ReadingHistoryResponse>
 }

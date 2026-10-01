@@ -1,5 +1,6 @@
 package com.example.mypasture.reading.application
 
+import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.bible.application.BibleReaderService
 import com.example.mypasture.reading.domain.BibleReadingHistoryEntity
 import com.example.mypasture.reading.domain.BibleReadingStateEntity
@@ -19,6 +20,7 @@ class ReadingService(
     private val bibleReaderService: BibleReaderService,
     private val stateRepository: BibleReadingStateRepository,
     private val historyRepository: BibleReadingHistoryRepository,
+    private val users: UserRepository,
     private val clock: Clock = Clock.systemUTC(),
 ) {
     @Transactional
@@ -26,6 +28,8 @@ class ReadingService(
         val source = bibleReaderService.getChapter(version, bookCode, chapter)
         require(source.verses.any { it.verse == lastVerse }) { "Last verse is outside the chapter." }
         val normalizedCompleted = completed || lastVerse == source.verses.maxOf { it.verse }
+        // 같은 사용자의 여러 기기 요청을 직렬화해 최초 저장 충돌과 완독 상태 유실을 막습니다.
+        checkNotNull(users.findActiveByIdForUpdate(userId)) { "Active user is required" }
         val now = Instant.now(clock)
         val state = stateRepository.findByUserIdAndBibleVersionAndBookCodeAndChapter(userId, source.version, source.book.code, chapter)
             ?: BibleReadingStateEntity(userId = userId, bibleVersion = source.version, bookCode = source.book.code, chapter = chapter, lastVerse = lastVerse, completed = normalizedCompleted, lastReadAt = now)

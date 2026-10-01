@@ -20,7 +20,11 @@
 ACTIVITY_TEST_JDBC_URL=jdbc:postgresql://localhost:55432/activity_test \
 ACTIVITY_TEST_JDBC_USER=activity_test \
 ACTIVITY_TEST_JDBC_PASSWORD=<test-password> \
-./gradlew test --tests '*ActivityCalendarControllerTests' --rerun-tasks
+./gradlew test --tests '*ActivityCalendarControllerTests' --tests '*ReadingActivityIntegrationTests' --rerun-tasks
 ```
 
 CI의 PostgreSQL 서비스에서도 같은 인증/집계/중복 요청 테스트와 Flyway 검증을 실행합니다.
+
+## 읽기 API 통합 검증
+
+읽기 진행률 PUT부터 활동 GET까지 실제 HTTP 계약으로 검증합니다. 같은 사용자의 여러 기기가 읽기를 저장할 때 사용자 행 잠금으로 최초 행 생성과 완독 상태 갱신을 직렬화합니다. 장 수는 하루 한 번 집계하고 완독 뒤 도착한 미완독 요청이 완독 상태를 되돌리지 않습니다.

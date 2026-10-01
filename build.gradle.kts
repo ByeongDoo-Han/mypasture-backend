@@ -78,6 +78,8 @@ tasks.withType<Test> {
 }
 
 tasks.named<Test>("test") {
+    // 활동 통합 검사를 포함한 Spring context들이 기본 512MiB에서 OOM이 발생하지 않게 확보합니다.
+    maxHeapSize = "1g"
     // 개발자별 .env.local이 Firebase, OpenAI 등 통합 테스트 설정을 오염시키지 않게 격리합니다.
     systemProperty("spring.profiles.active", "test")
     systemProperty("app.auth.email-verification.required", "false")

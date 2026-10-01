@@ -9,3 +9,21 @@ Authorization: Bearer {{accessToken}}
 ### 지정 연도 (2000년부터 현재 연도까지만 허용)
 GET {{baseUrl}}/api/v1/activity?year=2026
 Authorization: Bearer {{accessToken}}
+
+### 잘못된 읽기 절 범위: INVALID_REQUEST 400, 기존 기록 유지
+PUT {{baseUrl}}/api/v1/reading/progress
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":"KOR1910","bookCode":"GEN","chapter":1,"lastVerse":199,"timezone":"Asia/Seoul"}
+
+### 잘못된 timezone: INVALID_REQUEST 400, 저장 롤백
+PUT {{baseUrl}}/api/v1/reading/progress
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":"KOR1910","bookCode":"GEN","chapter":1,"lastVerse":1,"timezone":"Invalid/Zone"}
+
+### 역순 기간: INVALID_REQUEST 400
+GET {{baseUrl}}/api/v1/reading/history?from=2026-02-01&to=2026-01-01
+Authorization: Bearer {{accessToken}}

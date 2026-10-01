@@ -76,7 +76,7 @@ jobs:
           ACTIVITY_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           ACTIVITY_TEST_JDBC_USER: otp_test
           ACTIVITY_TEST_JDBC_PASSWORD: disposable-ci-password
-        run: ./gradlew test --tests '*ActivityCalendarControllerTests' --rerun-tasks --no-daemon
+        run: ./gradlew test --tests '*ActivityCalendarControllerTests' --tests '*ReadingActivityIntegrationTests' --rerun-tasks --no-daemon
 
   container-build:
     name: container-build

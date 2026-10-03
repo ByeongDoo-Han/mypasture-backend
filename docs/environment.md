@@ -207,3 +207,13 @@ SPRING_PROFILES_ACTIVE=prod ./gradlew bootRun
 ```
 
 `.env.local`과 `.env.prod`는 Git에서 제외됩니다. `JWT_SECRET`, DB 비밀번호, SMTP 비밀번호, OpenAI 키 같은 비밀값은 예제 파일에 기록하지 않습니다.
+
+## AI 목자 개인 기록
+
+AI 기록 기능은 새 비밀 환경변수를 추가하지 않고 기존 `AI_PRIVACY_HASH_SECRET`에서 history 전용 AES-GCM 키와 cursor 서명 키를 용도별로 유도합니다. 이 값을 바로 교체하면 기존 기록을 복호화할 수 없으므로 운영 키 회전은 이전 키로 재암호화하는 절차·백업 복구 검증을 먼저 준비해야 합니다. 비밀값을 작업 기록이나 테스트 로그에 넣지 않습니다.
+
+`AI_PASTOR_VERSION`은 프롬프트·검색·답변 정책의 생성 파이프라인 버전이며 모델 설정 버전과 별개입니다. 해당 정책을 바꿀 때 이 상수도 갱신합니다. 응답 캐시 범위에도 포함하므로 이전 파이프라인의 캐시를 새 버전의 기록으로 재사용하지 않습니다.
+
+원본 질문 생성 후 365일이 지나면 기록 조회에서 제외되고 worker 정기 파기가 연결된 개선본을 함께 삭제합니다. worker 실행·실패와 만료 행 잔류를 운영 점검에 포함합니다. 직접 삭제·탈퇴는 별도의 즉시 처리 경로입니다.
+
+검증 전용 `AI_HISTORY_TEST_JDBC_URL`, `AI_HISTORY_TEST_JDBC_USER`, `AI_HISTORY_TEST_JDBC_PASSWORD`는 테스트 클래스가 일회용 PostgreSQL에 Flyway·JPA validate 검사를 수행하는 입력입니다. 사용자·기록을 정리하는 fixture가 있으므로 운영 DB를 지정하지 않습니다. 운영 애플리케이션 환경변수로 추가하지 않습니다.

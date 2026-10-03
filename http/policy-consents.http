@@ -2,7 +2,7 @@
 GET {{baseUrl}}/api/v1/policies/current?scope=ACCOUNT
 
 ### 정책 원문
-GET {{baseUrl}}/api/v1/policies/PRIVACY_POLICY/1.0.0
+GET {{baseUrl}}/api/v1/policies/PRIVACY_POLICY/1.1.0
 
 ### 로그인 사용자의 현재 동의 상태
 GET {{baseUrl}}/api/v1/policies/consent-status?scopes=ACCOUNT,AI
@@ -15,6 +15,6 @@ Content-Type: application/json
 
 {
   "consents": [
-    { "type": "AI_SENSITIVE_DATA", "version": "1.0.0", "agreed": true }
+    { "type": "AI_SENSITIVE_DATA", "version": "1.1.0", "agreed": true }
   ]
 }

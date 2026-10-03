@@ -1,0 +1,19 @@
+@host = http://localhost:8080
+@accessToken = replace-with-user-jwt
+@turnId = 00000000-0000-0000-0000-000000000000
+
+### 본인 AI 목자 질문 목록, 최신순·커서 페이지
+GET {{host}}/api/v1/ai/history?size=20
+Authorization: Bearer {{accessToken}}
+
+### 첫 페이지 nextCursor를 복사하여 다음 페이지 조회
+GET {{host}}/api/v1/ai/history?size=20&cursor=replace-with-nextCursor
+Authorization: Bearer {{accessToken}}
+
+### 원본 또는 개선본 turnId로 질문·답변 버전 상세 조회
+GET {{host}}/api/v1/ai/history/{{turnId}}
+Authorization: Bearer {{accessToken}}
+
+### 원본과 개선본의 민감 기록 삭제, 반복 요청도 204
+DELETE {{host}}/api/v1/ai/history/{{turnId}}
+Authorization: Bearer {{accessToken}}

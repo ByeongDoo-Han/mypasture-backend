@@ -140,6 +140,8 @@ interface AiUsagePort {
     fun complete(
         reservationId: UUID,
         answer: GroundedAnswer,
+        question: String,
+        modelVersion: Long,
     )
 
     fun fail(reservationId: UUID, errorCode: String, consumedAnswer: GroundedAnswer? = null)

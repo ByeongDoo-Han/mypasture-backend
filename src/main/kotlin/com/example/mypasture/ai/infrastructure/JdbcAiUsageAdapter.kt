@@ -48,6 +48,10 @@ interface AiUsageLogRepository : JpaRepository<AiUsageLogEntity, UUID> {
     @org.springframework.data.jpa.repository.Query("select usage from AiUsageLogEntity usage where usage.id = :id")
     fun findLockedById(id: UUID): AiUsageLogEntity?
 
+    // 완료 전 사용자 잠금 순서를 결정할 때 영속성 컨텍스트에 오래된 PENDING 행을 적재하지 않습니다.
+    @org.springframework.data.jpa.repository.Query("select usage.userId from AiUsageLogEntity usage where usage.id = :id")
+    fun findUserIdById(id: UUID): UUID?
+
     fun findAllByUserId(userId: UUID): List<AiUsageLogEntity>
     fun deleteAllByCreatedAtBefore(cutoff: Instant): Long
 }
@@ -58,6 +62,7 @@ class JdbcAiUsageAdapter(
     private val repository: AiUsageLogRepository,
     private val receiptRepository: AiRequestReceiptRepository,
     private val responseCodec: AiRequestResponseCodec,
+    private val historyWriter: AiAnswerHistoryWriter,
     private val userRepository: UserRepository,
     private val properties: com.example.mypasture.config.AiProperties,
 ) : AiUsagePort {
@@ -158,9 +163,17 @@ class JdbcAiUsageAdapter(
     }
 
     @Transactional
-    override fun complete(reservationId: UUID, answer: GroundedAnswer) {
-        repository.findLockedById(reservationId)?.complete(answer, properties.embeddingModel)
+    override fun complete(reservationId: UUID, answer: GroundedAnswer, question: String, modelVersion: Long) {
+        val userId = repository.findUserIdById(reservationId)
             ?: error("AI usage reservation not found: $reservationId")
+        // 탈퇴가 user → usage 순으로 지우므로 FK 삽입도 동일한 순서로 잠급니다.
+        userRepository.findActiveByIdForUpdate(userId) ?: error("AI 사용자를 찾을 수 없습니다.")
+        val usage = repository.findLockedById(reservationId)
+            ?: error("AI usage reservation not found: $reservationId")
+        if (usage.status == AiUsageStatus.COMPLETED) return
+        check(usage.status == AiUsageStatus.PENDING) { "AI usage reservation is not pending" }
+        usage.complete(answer, properties.embeddingModel)
+        historyWriter.save(usage, question, answer, modelVersion)
         val now = Instant.now()
         receiptRepository.findLockedByUsageLogId(reservationId)?.complete(
             encryptedResponse = responseCodec.encode(answer),
@@ -171,10 +184,13 @@ class JdbcAiUsageAdapter(
 
     @Transactional
     override fun fail(reservationId: UUID, errorCode: String, consumedAnswer: GroundedAnswer?) {
-        repository.findLockedById(reservationId)?.let {
-            if (consumedAnswer != null) it.complete(consumedAnswer, properties.embeddingModel)
-            it.fail(errorCode)
-        }
+        val userId = repository.findUserIdById(reservationId) ?: return
+        userRepository.findActiveByIdForUpdate(userId) ?: return
+        val usage = repository.findLockedById(reservationId) ?: return
+        // 완료 뒤 캐시·피드백 후처리 실패가 이미 확정한 답변과 영수증을 덮어쓰지 않습니다.
+        if (usage.status != AiUsageStatus.PENDING) return
+        if (consumedAnswer != null) usage.complete(consumedAnswer, properties.embeddingModel)
+        usage.fail(errorCode)
         receiptRepository.findLockedByUsageLogId(reservationId)?.fail(errorCode, Instant.now())
     }
 

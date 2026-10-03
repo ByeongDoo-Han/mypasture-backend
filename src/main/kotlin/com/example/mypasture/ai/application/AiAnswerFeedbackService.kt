@@ -89,7 +89,7 @@ class AiAnswerFeedbackService(
                 interactionMode = experiencePolicy.interactionMode,
             )
             consumed = answer
-            usagePort.complete(activeReservationId, answer)
+            usagePort.complete(activeReservationId, answer, normalized, runtimeConfig.version)
             feedbackPort.completeRegeneration(userId, turnId, activeReservationId)
             answer
         } catch (error: RuntimeException) {

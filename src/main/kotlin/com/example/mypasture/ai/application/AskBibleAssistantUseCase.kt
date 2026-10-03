@@ -194,7 +194,7 @@ class AskBibleAssistantUseCase(
             onStage(AiAssistantStage.UNDERSTANDING_QUESTION)
 
             // 상담 내용이 다른 사용자에게 재사용되지 않도록 사용자별 HMAC cache를 사용합니다.
-            val cacheScope = "${runtimeConfig.cacheScope}:${experiencePolicy.interactionMode}:$AI_RESPONSE_CACHE_VERSION"
+            val cacheScope = "${runtimeConfig.cacheScope}:${experiencePolicy.interactionMode}:$AI_RESPONSE_CACHE_VERSION:${com.example.mypasture.ai.domain.AI_PASTOR_VERSION}"
             if (conversationContext == null) cachePort.get(userId, normalized, cacheScope)?.let { cached ->
                 val cacheHit = cached.copy(
                     turnId = reservationId,
@@ -205,7 +205,7 @@ class AskBibleAssistantUseCase(
                     embeddingTokens = 0,
                     embeddingCostUsd = java.math.BigDecimal.ZERO,
                 )
-                usagePort.complete(reservationId, cacheHit)
+                usagePort.complete(reservationId, cacheHit, normalized, runtimeConfig.version)
                 onCacheHit(cacheHit)
                 return@withContext cacheHit
             }
@@ -246,7 +246,7 @@ class AskBibleAssistantUseCase(
                 )
                 answer = answer.copy(conversationId = savedConversationId)
             }
-            usagePort.complete(reservationId, answer)
+            usagePort.complete(reservationId, answer, normalized, runtimeConfig.version)
             if (conversationContext == null && effectiveTier == SubscriptionTier.FREE) {
                 cachePort.put(userId, normalized, cacheScope, answer)
             }

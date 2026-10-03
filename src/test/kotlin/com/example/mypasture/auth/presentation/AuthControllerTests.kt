@@ -613,6 +613,7 @@ class AuthControllerTests(
         val userId = jdbcTemplate.queryForObject("select id from users where email = ?", UUID::class.java, email)!!
         val now = Instant.now()
         val conversationId = UUID.randomUUID()
+        val answerTurnId = UUID.randomUUID()
         val readingStateId = UUID.randomUUID()
         val deviceId = UUID.randomUUID()
         val pastureId = UUID.randomUUID()
@@ -629,6 +630,18 @@ class AuthControllerTests(
             "encrypted-private-context",
             now.plusSeconds(3600),
             now,
+            now,
+        )
+        jdbcTemplate.update(
+            """
+            insert into ai_answer_history(
+              turn_id, user_id, question_ciphertext, response_ciphertext, assistant_version, response_schema_version, created_at
+            ) values (?, ?, ?, ?, 'ai-pastor-v1', 'assistant-response-v2', ?)
+            """.trimIndent(),
+            answerTurnId,
+            userId,
+            "encrypted-question",
+            "encrypted-answer",
             now,
         )
         jdbcTemplate.update(
@@ -669,6 +682,7 @@ class AuthControllerTests(
         }
 
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from ai_conversations where user_id = ?", Long::class.java, userId))
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from ai_answer_history where user_id = ?", Long::class.java, userId))
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from bible_reading_states where user_id = ?", Long::class.java, userId))
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from notification_devices where user_id = ?", Long::class.java, userId))
         assertNull(jdbcTemplate.queryForObject("select leader_user_id from quiet_time_pastures where id = ?", UUID::class.java, pastureId))

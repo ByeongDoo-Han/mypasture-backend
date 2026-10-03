@@ -112,6 +112,7 @@ class JdbcAccountDataErasureAdapter(
         )
         deleted += update("ai_conversations_legacy", "delete from ai_conversations_legacy where user_id = ?", command.userId)
         deleted += update("ai_conversations", "delete from ai_conversations where user_id = ?", command.userId)
+        deleted += update("ai_answer_history", "delete from ai_answer_history where user_id = ?", command.userId)
         deleted += update("ai_usage_logs", "delete from ai_usage_logs where user_id = ?", command.userId)
 
         deleted += update(

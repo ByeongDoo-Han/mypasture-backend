@@ -78,6 +78,32 @@ jobs:
           ACTIVITY_TEST_JDBC_PASSWORD: disposable-ci-password
         run: ./gradlew test --tests '*ActivityCalendarControllerTests' --tests '*ReadingActivityIntegrationTests' --rerun-tasks --no-daemon
 
+  billing-postgres:
+    name: billing-postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: billing_test
+          POSTGRES_PASSWORD: billing_test_only
+          POSTGRES_DB: mypasture_billing_test
+        ports:
+          - 55439:5432
+        options: >-
+          --health-cmd "pg_isready -U billing_test -d mypasture_billing_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb
+      - name: Verify billing transactions and V43-V44 migrations
+        run: ./gradlew billingPostgresTest --no-daemon
+
   container-build:
     name: container-build
     runs-on: ubuntu-latest

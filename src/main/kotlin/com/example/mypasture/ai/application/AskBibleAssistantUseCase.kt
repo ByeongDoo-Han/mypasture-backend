@@ -21,6 +21,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.springframework.stereotype.Service
+import org.slf4j.LoggerFactory
+import kotlinx.coroutines.CancellationException
 import java.util.UUID
 import java.time.Instant
 
@@ -66,7 +68,7 @@ class AskBibleAssistantUseCase(
     /** AI 호출 전에도 모바일이 정확한 남은 횟수를 표시할 수 있게 합니다. */
     fun dailyUsage(userId: UUID, subscriptionTier: SubscriptionTier): AiDailyUsage {
         val used = usagePort.countToday(userId)
-        val accessPolicy = accessPolicyResolver.resolve(subscriptionTier)
+        val accessPolicy = accessPolicyResolver.resolve(subscriptionTier, userId)
         if (accessPolicy.unlimited) {
             return AiDailyUsage(null, used, null, true, accessPolicy.effectiveTier, accessPolicy.entitlementExpiresAt)
         }
@@ -163,7 +165,7 @@ class AskBibleAssistantUseCase(
         if (normalized.length > properties.maxInputChars) throw AiInputTooLongException()
         if (CRISIS_KEYWORDS.any { normalized.contains(it, ignoreCase = true) }) throw AiSafetyException()
 
-        val accessPolicy = accessPolicyResolver.resolve(subscriptionTier)
+        val accessPolicy = accessPolicyResolver.resolve(subscriptionTier, userId)
         val effectiveTier = accessPolicy.effectiveTier
         val experiencePolicy = experiencePolicyResolver.resolve(effectiveTier)
         if (conversationId != null && effectiveTier != SubscriptionTier.PREMIUM) {
@@ -248,12 +250,18 @@ class AskBibleAssistantUseCase(
             }
             usagePort.complete(reservationId, answer)
             if (conversationContext == null && effectiveTier == SubscriptionTier.FREE) {
-                cachePort.put(userId, normalized, cacheScope, answer)
+                try {
+                    cachePort.put(userId, normalized, cacheScope, answer)
+                } catch (error: RuntimeException) {
+                    if (error is CancellationException) throw error
+                    // 결과 원장은 이미 저장되었습니다. 선택적인 캐시 저장 실패가 성공을 취소해서는 안 됩니다.
+                    logger.warn("AI cache write failed after completion type={}", error.javaClass.simpleName)
+                }
             }
             return@withContext answer
         } catch (error: RuntimeException) {
             val rejectedAnswer = (error as? AiAnswerRejectedException)?.rejectedAnswer
-            val consumedAnswer = (rejectedAnswer ?: consumedCompletion)?.let { rejected ->
+            val consumedAnswer = rejectedAnswer?.let { rejected ->
                 val retrieval = consumedRetrieval
                 if (retrieval == null) rejected else rejected.copy(
                     estimatedCostUsd = rejected.estimatedCostUsd.add(retrieval.embeddingCostUsd),
@@ -262,7 +270,7 @@ class AskBibleAssistantUseCase(
                     retrievalStrategy = retrieval.strategy,
                     questionIntent = consumedIntent,
                 )
-            }
+            } ?: consumedCompletion
             usagePort.fail(reservationId, error::class.simpleName ?: "AI_REQUEST_FAILED", consumedAnswer)
             throw error
         }
@@ -283,6 +291,7 @@ class AskBibleAssistantUseCase(
     }
 
     companion object {
+        private val logger = LoggerFactory.getLogger(AskBibleAssistantUseCase::class.java)
         private val CRISIS_KEYWORDS = listOf("자살", "죽고 싶", "극단적 선택", "해치고 싶", "살고 싶지")
         private const val AI_RESPONSE_CACHE_VERSION = "assistant-response-v2"
     }

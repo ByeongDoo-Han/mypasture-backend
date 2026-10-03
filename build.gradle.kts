@@ -47,6 +47,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("com.google.firebase:firebase-admin:9.4.3")
+    implementation("com.apple.itunes.storekit:app-store-server-library:5.2.0")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
@@ -75,6 +76,8 @@ dependencyManagement {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // 여러 Spring 통합 테스트 컨텍스트가 기본 512MB에서 반복 GC를 일으키지 않도록 제한을 명시합니다.
+    maxHeapSize = "1g"
 }
 
 tasks.named<Test>("test") {
@@ -86,7 +89,7 @@ tasks.named<Test>("test") {
     // 정책 외 기존 테스트 fixture는 동의 UI 계약을 다루지 않으므로 정책 통합 테스트에서만 다시 활성화합니다.
     systemProperty("app.policy.enforcement-enabled", "false")
     useJUnitPlatform {
-        excludeTags("openai-live")
+        excludeTags("openai-live", "billing-postgres")
     }
 }
 
@@ -103,4 +106,23 @@ tasks.register<Test>("openAiSmokeTest") {
         events("passed", "failed")
         showStandardStreams = true
     }
+}
+
+/** 운영 DB를 지정할 수 없는 고정 loopback 테스트 DB에서 결제의 행 잠금 동작을 확인합니다. */
+tasks.register<Test>("billingPostgresTest") {
+    group = "verification"
+    description = "Runs billing concurrency tests against the disposable local PostgreSQL database."
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    systemProperty("spring.profiles.active", "test")
+    systemProperty("spring.datasource.url", "jdbc:postgresql://127.0.0.1:55439/mypasture_billing_test")
+    systemProperty("spring.datasource.driver-class-name", "org.postgresql.Driver")
+    systemProperty("spring.datasource.username", "billing_test")
+    systemProperty("spring.datasource.password", "billing_test_only")
+    filter {
+        includeTestsMatching("*BillingLedgerTests")
+        includeTestsMatching("*BillingVerificationTests")
+        includeTestsMatching("*BillingMigrationPostgresTests")
+    }
+    outputs.upToDateWhen { false }
 }

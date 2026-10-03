@@ -25,6 +25,29 @@ management:
         enabled: true
 
 app:
+  billing:
+    enabled: ${BILLING_ENABLED:false}
+    environment: ${BILLING_ENVIRONMENT:SANDBOX}
+    encryption-key: ${BILLING_ENCRYPTION_KEY:}
+    apple:
+      enabled: ${BILLING_APPLE_ENABLED:false}
+      bundle-id: ${BILLING_APPLE_BUNDLE_ID:}
+      app-apple-id: ${BILLING_APPLE_APP_ID:}
+      issuer-id: ${BILLING_APPLE_ISSUER_ID:}
+      key-id: ${BILLING_APPLE_KEY_ID:}
+      private-key-path: ${BILLING_APPLE_PRIVATE_KEY_PATH:}
+      root-certificate-paths: ${BILLING_APPLE_ROOT_CERTIFICATE_PATHS:}
+      monthly-product-id: ${BILLING_APPLE_MONTHLY_PRODUCT_ID:}
+      yearly-product-id: ${BILLING_APPLE_YEARLY_PRODUCT_ID:}
+      deep-product-id: ${BILLING_APPLE_DEEP_PRODUCT_ID:}
+    google:
+      enabled: ${BILLING_GOOGLE_ENABLED:false}
+      package-name: ${BILLING_GOOGLE_PACKAGE_NAME:}
+      push-audience: ${BILLING_GOOGLE_PUSH_AUDIENCE:}
+      push-service-account: ${BILLING_GOOGLE_PUSH_SERVICE_ACCOUNT:}
+      monthly-product-id: ${BILLING_GOOGLE_MONTHLY_PRODUCT_ID:}
+      yearly-product-id: ${BILLING_GOOGLE_YEARLY_PRODUCT_ID:}
+      deep-product-id: ${BILLING_GOOGLE_DEEP_PRODUCT_ID:}
   policy:
     enforcement-enabled: ${POLICY_CONSENT_ENFORCED:true}
   worker:

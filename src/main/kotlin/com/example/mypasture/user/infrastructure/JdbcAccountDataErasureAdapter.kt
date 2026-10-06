@@ -120,6 +120,7 @@ class JdbcAccountDataErasureAdapter(
             "delete from bible_note_verses where note_id in (select id from bible_notes where user_id = ?)",
             command.userId,
         )
+        deleted += update("scripture_copies", "delete from scripture_copies where user_id = ?", command.userId)
         deleted += update("bible_notes", "delete from bible_notes where user_id = ?", command.userId)
         deleted += update("bookmarks", "delete from bookmarks where user_id = ?", command.userId)
         deleted += update("highlights", "delete from highlights where user_id = ?", command.userId)

@@ -141,6 +141,57 @@ client.test("AI answer contains verified Bible citations", function () {
 client.global.set("aiTurnId", response.body.turnId);
 %}
 
+### 06-1-scope. Unrelated questions return guidance without scripture or prayer
+POST {{baseUrl}}/api/v1/ai/chat
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "오늘 삼성전자 주식 가격 알려줘"
+}
+
+> {%
+client.test("Unrelated request stops before scripture and prayer generation", function () {
+  client.assert(response.status === 422, "Expected HTTP 422");
+  client.assert(response.body.code === "AI_QUESTION_OUT_OF_SCOPE", "Expected scope guidance");
+  client.assert(!response.body.citations && !response.body.prayer && !response.body.blocks, "No scripture or prayer response");
+});
+%}
+
+### 06-1-unclear. Ambiguous questions ask the user to clarify
+POST {{baseUrl}}/api/v1/ai/chat
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "어떻게 해야 할까?"
+}
+
+> {%
+client.test("Ambiguous request receives clarification guidance", function () {
+  client.assert(response.status === 422, "Expected HTTP 422");
+  client.assert(response.body.code === "AI_QUESTION_SCOPE_UNCLEAR", "Expected clarification guidance");
+  client.assert(!response.body.citations && !response.body.prayer, "No scripture or prayer response");
+});
+%}
+
+### 06-1-counseling. A financial situation can be the background of pastoral support
+POST {{baseUrl}}/api/v1/ai/chat
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "오늘 삼성전자 주식 가격이 떨어져서 마음이 불안해"
+}
+
+> {%
+client.test("Emotional support follows the grounded counseling flow", function () {
+  client.assert(response.status === 200, "Expected HTTP 200 when grounding exists");
+  client.assert(response.body.questionIntent === "PASTORAL_COUNSELING", "Expected pastoral counseling");
+  client.assert(response.body.citations.length > 0, "Expected grounded support");
+});
+%}
+
 ### 06-1-a. Submit answer feedback without consuming AI quota
 POST {{baseUrl}}/api/v1/ai/feedback
 Authorization: Bearer {{accessToken}}
@@ -218,6 +269,27 @@ client.test("AI stream completes with citations and usage", function () {
   client.assert(response.body.indexOf("event:citations") >= 0, "Expected citations event");
   client.assert(response.body.indexOf("event:usage") >= 0, "Expected usage event");
   client.assert(response.body.indexOf("event:done") >= 0, "Expected done event");
+});
+%}
+
+### 06-2-scope. SSE refuses unrelated requests without answer events
+POST {{baseUrl}}/api/v1/ai/chat/stream
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+Accept: text/event-stream
+
+{
+  "question": "오늘 삼성전자 주식 가격 알려줘"
+}
+
+> {%
+client.test("Scope guidance is delivered through the existing SSE error contract", function () {
+  client.assert(response.status === 200, "Expected opened SSE connection");
+  client.assert(response.body.indexOf("event:error") >= 0, "Expected error event");
+  client.assert(response.body.indexOf("AI_QUESTION_OUT_OF_SCOPE") >= 0, "Expected scope code");
+  client.assert(response.body.indexOf("event:delta") < 0, "No answer delta");
+  client.assert(response.body.indexOf("event:response") < 0, "No structured answer/prayer");
+  client.assert(response.body.indexOf("event:citations") < 0, "No citations event");
 });
 %}
 

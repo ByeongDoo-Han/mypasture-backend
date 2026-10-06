@@ -130,7 +130,7 @@ class AiAssistantFlowTests(
         val user = userRepository.save(UserEntity(email = "ai-empty-${UUID.randomUUID()}@example.com", displayName = "AI Empty"))
 
         assertThrows(AiGroundingNotFoundException::class.java) {
-            useCase.ask(user.id, SubscriptionTier.FREE, "zxqvnoresulttoken")
+            useCase.ask(user.id, SubscriptionTier.FREE, "요한복음 99장 99절을 설명해주세요")
         }
         assertEquals("FAILED", usageRepository.findAllByUserId(user.id).single().status.name)
         assertEquals(0, usagePort.countToday(user.id))

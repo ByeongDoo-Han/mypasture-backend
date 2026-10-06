@@ -100,7 +100,7 @@ class JdbcAiUsageAdapter(
                 requestHash = hash(question),
                 model = config?.generatorModel ?: properties.generatorModel,
                 modelConfigVersionId = config?.id,
-                evaluatorModel = config?.evaluatorModel?.takeIf { config.evaluationEnabled },
+                evaluatorModel = config?.evaluatorModel,
             ),
         )
         if (clientRequestId != null) {
@@ -136,7 +136,7 @@ class JdbcAiUsageAdapter(
                 requestHash = hash(question),
                 model = config.generatorModel,
                 modelConfigVersionId = config.id,
-                evaluatorModel = config.evaluatorModel.takeIf { config.evaluationEnabled },
+                evaluatorModel = config.evaluatorModel,
                 quotaCounted = false,
                 parentTurnId = parentTurnId,
             ),

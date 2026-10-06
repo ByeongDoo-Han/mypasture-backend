@@ -17,6 +17,7 @@ interface AiApi {
         @AuthenticationPrincipal principal: JwtPrincipal,
     ): AiDailyUsageResponse
 
+    /** 무관/모호한 질문은 검색 전에 422 AI_QUESTION_OUT_OF_SCOPE / AI_QUESTION_SCOPE_UNCLEAR로 안내합니다. 구절과 기도문은 반환하지 않습니다. */
     @PostMapping("/chat")
     suspend fun chat(
         @AuthenticationPrincipal principal: JwtPrincipal,
@@ -29,6 +30,7 @@ interface AiApi {
         @PathVariable clientRequestId: java.util.UUID,
     ): AiRequestStatusResponse
 
+    /** 무관/모호한 질문은 HTTP 200 연결 후 event:error로 동일 범위 코드를 반환하고 종료하며 delta·구절·기도문을 보내지 않습니다. */
     @PostMapping("/chat/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun stream(
         @AuthenticationPrincipal principal: JwtPrincipal,
@@ -41,6 +43,7 @@ interface AiApi {
         @Valid @RequestBody request: SubmitAiFeedbackRequest,
     ): AiFeedbackResponse
 
+    /** 본인 원 질문에도 현재 범위 정책을 적용하며 무관/모호한 질문은 422 범위 안내로 구절·기도문 재생성을 중단합니다. */
     @PostMapping("/feedback/{turnId}/regenerate")
     suspend fun regenerate(
         @AuthenticationPrincipal principal: JwtPrincipal,

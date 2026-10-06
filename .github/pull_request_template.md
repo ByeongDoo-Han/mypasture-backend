@@ -3,6 +3,7 @@
 - 작업 ID:
 - 관련 Issue: Closes #
 - 담당 도메인: Foundation / Scripture Intelligence / Community / Platform
+- 검증 위험도: 저위험 / 고위험 / 영향 불명확 — 근거와 담당·인접 회귀 범위:
 
 ## 변경 내용
 
@@ -18,7 +19,8 @@
 ## 검증
 
 - [ ] 관련 단위/통합 테스트 통과
-- [ ] `./gradlew test` 통과
+- [ ] 로컬 전체 `./gradlew test` 통과 또는 저위험 정책상 생략(근거·대체 검사 기록)
+- [ ] 최종 커밋의 필수 전체 CI 통과
 - [ ] 필요한 `.http` 시나리오 확인
 - [ ] PostgreSQL 전용 변경이면 Docker 환경 확인
 

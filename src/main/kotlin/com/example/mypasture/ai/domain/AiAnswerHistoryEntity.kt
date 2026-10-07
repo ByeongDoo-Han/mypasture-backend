@@ -36,4 +36,8 @@ class AiAnswerHistoryEntity(
     val responseSchemaVersion: String,
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
+    @Column(name = "context_snapshot_ciphertext", columnDefinition = "text")
+    var contextSnapshotCiphertext: String? = null,
+    @Column(name = "context_snapshot_expires_at")
+    var contextSnapshotExpiresAt: Instant? = null,
 )

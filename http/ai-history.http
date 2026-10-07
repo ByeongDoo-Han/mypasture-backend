@@ -14,6 +14,6 @@ Authorization: Bearer {{accessToken}}
 GET {{host}}/api/v1/ai/history/{{turnId}}
 Authorization: Bearer {{accessToken}}
 
-### 원본과 개선본의 민감 기록 삭제, 반복 요청도 204
+### 원본과 개선본 묶음 삭제 + 소유자의 모든 복원 snapshot/현재 대화 문맥 파기; 다른 답변 보존, 반복 요청 204
 DELETE {{host}}/api/v1/ai/history/{{turnId}}
 Authorization: Bearer {{accessToken}}

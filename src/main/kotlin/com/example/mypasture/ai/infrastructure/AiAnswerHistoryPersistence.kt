@@ -50,6 +50,23 @@ interface AiAnswerHistoryRepository : JpaRepository<AiAnswerHistoryEntity, UUID>
 
     fun findTop500ByParentTurnIdIsNullAndCreatedAtBeforeOrderByCreatedAtAsc(cutoff: Instant): List<AiAnswerHistoryEntity>
     fun deleteAllByUserIdAndParentTurnId(userId: UUID, parentTurnId: UUID): Long
+
+    // Scalar 조회는 동일 영속성 문맥에 남은 삭제 전 entity 값을 재사용하지 않습니다.
+    @Query("select h.contextSnapshotCiphertext, h.contextSnapshotExpiresAt, h.parentTurnId, h.createdAt from AiAnswerHistoryEntity h where h.turnId = :turnId and h.userId = :userId")
+    fun contextState(userId: UUID, turnId: UUID): List<Array<Any?>>
+
+    @Query("select h.createdAt from AiAnswerHistoryEntity h where h.turnId = :turnId and h.userId = :userId")
+    fun ownedCreatedAt(userId: UUID, turnId: UUID): Instant?
+
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @Query("update AiAnswerHistoryEntity h set h.contextSnapshotCiphertext = null, h.contextSnapshotExpiresAt = null where h.userId = :userId and (h.contextSnapshotCiphertext is not null or h.contextSnapshotExpiresAt is not null)")
+    fun invalidateContextSnapshots(userId: UUID): Int
+
+    fun findTop500ByContextSnapshotExpiresAtLessThanEqualOrderByContextSnapshotExpiresAtAsc(now: Instant): List<AiAnswerHistoryEntity>
+
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @Query("update AiAnswerHistoryEntity h set h.contextSnapshotCiphertext = null, h.contextSnapshotExpiresAt = null where h.userId = :userId and h.turnId in :turnIds and h.contextSnapshotExpiresAt <= :now")
+    fun clearExpiredContextSnapshots(userId: UUID, turnIds: Collection<UUID>, now: Instant): Int
 }
 
 /** 기록 원문에 영수증·대화 문맥과 구분된 AES-GCM 도메인 키를 사용합니다. */
@@ -88,22 +105,27 @@ class AiAnswerHistoryCipher(properties: AiProperties, private val objectMapper: 
 class AiAnswerHistoryWriter(
     private val repository: AiAnswerHistoryRepository,
     private val cipher: AiAnswerHistoryCipher,
+    private val snapshotCipher: AiContextSnapshotCipher,
 ) {
     fun save(
         usage: com.example.mypasture.ai.domain.AiUsageLogEntity,
         question: String,
         answer: GroundedAnswer,
         modelVersion: Long,
+        contextSnapshot: com.example.mypasture.ai.domain.AiContextSnapshot? = null,
     ) {
         if (repository.existsById(usage.id)) return
+        if (contextSnapshot != null && !contextSnapshot.expiresAt.isAfter(Instant.now())) {
+            throw com.example.mypasture.ai.application.AiQuestionScopeUnclearException()
+        }
         val parentId = usage.parentTurnId?.let { sourceId ->
             // 사용량은 직접 개선한 답변을 가리키고, 이력은 최종 원본으로 묶습니다.
-            val source = repository.findByTurnIdAndUserId(sourceId, usage.userId) ?: return
+            val source = repository.findByTurnIdAndUserId(sourceId, usage.userId) ?: throw com.example.mypasture.ai.application.AiQuestionScopeUnclearException()
             val rootId = source.parentTurnId ?: source.turnId
-            val root = repository.lockByTurnIdAndUserId(rootId, usage.userId) ?: return
-            if (!root.createdAt.isAfter(Instant.now().minus(AI_ANSWER_HISTORY_RETENTION_DAYS, ChronoUnit.DAYS))) return
+            val root = repository.lockByTurnIdAndUserId(rootId, usage.userId) ?: throw com.example.mypasture.ai.application.AiQuestionScopeUnclearException()
+            if (!root.createdAt.isAfter(Instant.now().minus(AI_ANSWER_HISTORY_RETENTION_DAYS, ChronoUnit.DAYS))) throw com.example.mypasture.ai.application.AiQuestionScopeUnclearException()
             // 잠금을 기다리는 동안 삭제가 먼저 완료됐다면 이력을 되살리지 않습니다.
-            if (repository.findByTurnIdAndUserId(sourceId, usage.userId) == null) return
+            if (repository.findByTurnIdAndUserId(sourceId, usage.userId) == null) throw com.example.mypasture.ai.application.AiQuestionScopeUnclearException()
             rootId
         }
         repository.save(
@@ -114,6 +136,8 @@ class AiAnswerHistoryWriter(
                 conversationId = answer.conversationId,
                 questionCiphertext = cipher.encrypt(question),
                 responseCiphertext = cipher.encrypt(answer),
+                contextSnapshotCiphertext = contextSnapshot?.let { snapshotCipher.encrypt(usage.userId, usage.id, it) },
+                contextSnapshotExpiresAt = contextSnapshot?.expiresAt,
                 modelConfigVersionId = usage.modelConfigVersionId,
                 modelVersionNumber = modelVersion.takeIf { usage.modelConfigVersionId != null },
                 generatorModel = usage.model,
@@ -127,18 +151,39 @@ class AiAnswerHistoryWriter(
 
 /** 기록의 365일 보유기간이 지난 원본과 해당 개선본을 함께 삭제합니다. */
 @Component
-class AiAnswerHistoryCleanupService(private val repository: AiAnswerHistoryRepository) {
+class AiAnswerHistoryCleanupService(
+    private val repository: AiAnswerHistoryRepository,
+    private val users: com.example.mypasture.auth.infrastructure.UserRepository,
+    private val snapshots: AiContextSnapshotLifecycle,
+) {
     @Transactional
     fun deleteExpired(): Int {
         val cutoff = Instant.now().minus(AI_ANSWER_HISTORY_RETENTION_DAYS, ChronoUnit.DAYS)
         val expired = repository.findTop500ByParentTurnIdIsNullAndCreatedAtBeforeOrderByCreatedAtAsc(cutoff)
-        expired.forEach { candidate ->
+        // PostgreSQL UUID와 같은 문자열 순서로 배치의 모든 U를 먼저 잠근 뒤 H를 잠급니다.
+        val active = expired.map { it.userId }.distinct().sortedBy(UUID::toString)
+            .filter { users.findActiveByIdForUpdate(it) != null }.toSet()
+        var deleted = 0
+        val invalidatedUsers = mutableSetOf<UUID>()
+        expired.filter { it.userId in active }.forEach { candidate ->
             val root = repository.lockByTurnIdAndUserId(candidate.turnId, candidate.userId) ?: return@forEach
             if (!root.createdAt.isBefore(cutoff)) return@forEach
+            if (invalidatedUsers.add(root.userId)) snapshots.invalidateUser(root.userId)
             repository.deleteAllByUserIdAndParentTurnId(root.userId, root.turnId)
             repository.delete(root)
+            deleted++
         }
-        return expired.size
+        return deleted
+    }
+
+    @Transactional
+    fun clearExpiredSnapshots(): Int {
+        val now = Instant.now()
+        val expired = repository.findTop500ByContextSnapshotExpiresAtLessThanEqualOrderByContextSnapshotExpiresAtAsc(now)
+        val active = expired.map { it.userId }.distinct().sortedBy(UUID::toString)
+            .filter { users.findActiveByIdForUpdate(it) != null }.toSet()
+        return expired.filter { it.userId in active }.groupBy { it.userId }.entries.sortedBy { it.key.toString() }
+            .sumOf { (userId, rows) -> repository.clearExpiredContextSnapshots(userId, rows.map { it.turnId }, now) }
     }
 }
 
@@ -148,6 +193,7 @@ class AiAnswerHistoryCleanupService(private val repository: AiAnswerHistoryRepos
 class AiAnswerHistoryCleanupJob(private val cleanupService: AiAnswerHistoryCleanupService) {
     @Scheduled(cron = "0 30 3 * * *")
     fun deleteExpired() {
+        while (cleanupService.clearExpiredSnapshots() == 500) { /* 최대 500개 문맥씩 파기합니다. */ }
         while (cleanupService.deleteExpired() == 500) { /* 한 배치씩 트랜잭션을 마칩니다. */ }
     }
 }

@@ -26,6 +26,7 @@ interface AiHistoryApi {
         @PathVariable turnId: UUID,
     ): ResponseEntity<AiHistoryDetail>
 
+    /** 선택한 답변 그룹을 삭제하고 사용자의 모든 복원 문맥 및 현재 상담 대화를 초기화합니다. */
     @DeleteMapping("/history/{turnId}")
     fun delete(
         @AuthenticationPrincipal principal: JwtPrincipal,

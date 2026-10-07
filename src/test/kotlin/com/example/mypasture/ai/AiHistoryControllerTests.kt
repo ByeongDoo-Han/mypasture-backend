@@ -5,7 +5,12 @@ import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.user.domain.SubscriptionTier
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
+import com.example.mypasture.ai.presentation.AiHistoryExceptionHandler
+import com.example.mypasture.common.error.RequestCorrelationFilter
+import org.springframework.mock.web.MockHttpServletRequest
+import java.time.Instant
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -111,7 +116,40 @@ class AiHistoryControllerTests(
         val error = mockMvc.get("/api/v1/ai/history?cursor=bad") {
             header("Authorization", "Bearer $token")
         }.andExpect { status { isBadRequest() }; header { string("Cache-Control", "no-store") } }.andReturn()
-        assertFalse(error.response.contentAsString.contains("bad"))
+        assertInvalidCursorContract(error.response.contentAsString, error.response.getHeader(RequestCorrelationFilter.TRACE_ID_HEADER)!!)
+    }
+
+    @Test
+    fun `cursor error contract allows bad inside trace ID but rejects cursor leakage`() {
+        // 유효한 UUID에 cursor와 같은 substring이 있어도 추적 메타데이터는 누출이 아닙니다.
+        val traceId = "00000bad-0000-4000-8000-000000000000"
+        val request = MockHttpServletRequest("GET", "/api/v1/ai/history").apply {
+            queryString = "cursor=bad"
+            setAttribute(RequestCorrelationFilter.TRACE_ID_ATTRIBUTE, traceId)
+        }
+        val response = mapper.writeValueAsString(AiHistoryExceptionHandler().invalidRequest(request).body)
+        assertTrue(response.contains("bad"), "The deterministic collision must exercise the former assertion")
+        assertInvalidCursorContract(response, traceId)
+        for (field in listOf("code", "message", "path")) {
+            val leaked = mapper.readTree(response).deepCopy<com.fasterxml.jackson.databind.node.ObjectNode>()
+            leaked.put(field, leaked.path(field).asText() + " cursor=bad")
+            assertThrows(AssertionError::class.java) { assertInvalidCursorContract(mapper.writeValueAsString(leaked), traceId) }
+        }
+        val leakedFields = mapper.readTree(response).deepCopy<com.fasterxml.jackson.databind.node.ObjectNode>()
+        leakedFields.putArray("fieldErrors").addObject().put("field", "cursor").put("message", "bad")
+        assertThrows(AssertionError::class.java) { assertInvalidCursorContract(mapper.writeValueAsString(leakedFields), traceId) }
+    }
+
+    private fun assertInvalidCursorContract(body: String, traceId: String) {
+        val error = mapper.readTree(body)
+        assertEquals(setOf("code", "message", "timestamp", "path", "traceId", "fieldErrors"), error.fieldNames().asSequence().toSet())
+        assertEquals("AI_HISTORY_INVALID_REQUEST", error.path("code").asText())
+        assertEquals("AI 기록 조회 요청이 올바르지 않습니다.", error.path("message").asText())
+        assertEquals("/api/v1/ai/history", error.path("path").asText())
+        assertEquals(mapper.createArrayNode(), error.path("fieldErrors"))
+        assertEquals(traceId, error.path("traceId").asText())
+        UUID.fromString(traceId)
+        Instant.parse(error.path("timestamp").asText())
     }
 
     @Test
@@ -157,8 +195,7 @@ class AiHistoryControllerTests(
             accept = MediaType.TEXT_EVENT_STREAM
             content = """{"question":"창세기 말씀을 설명해주세요","clientRequestId":"$requestId"}"""
         }.andReturn()
-        replay.getAsyncResult(10_000)
-        while (!streamingRunner.isIdle() && System.nanoTime() < deadline) Thread.sleep(10)
+        AiSseTestSupport.awaitCompletion(replay, streamingRunner::isIdle, "done", setOf("delta", "response", "citations", "usage", "done"))
         mockMvc.get("/api/v1/ai/history") {
             header("Authorization", "Bearer $token")
         }.andExpect { status { isOk() }; jsonPath("$.items.length()") { value(1) }; jsonPath("$.items[0].turnId") { value(turnId) } }

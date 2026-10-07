@@ -5,7 +5,6 @@ import com.example.mypasture.ai.domain.AiAssistantStage
 import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
 import com.example.mypasture.ai.domain.AiAssistantExperiencePolicy
 import com.example.mypasture.ai.domain.AiConversationContext
-import com.example.mypasture.ai.domain.AiConversationTurn
 import com.example.mypasture.ai.domain.AiClientRequest
 import com.example.mypasture.ai.domain.AiClientRequestStatus
 import com.example.mypasture.ai.domain.AiRequestInProgressException
@@ -171,6 +170,7 @@ class AskBibleAssistantUseCase(
             throw com.example.mypasture.ai.domain.AiConversationUnavailableException()
         }
         val conversationContext = conversationId?.let { conversationPort.load(userId, it) }
+        val contextSnapshot = conversationContext?.let { com.example.mypasture.ai.domain.AiContextSnapshot.capture(it) }
 
         val dailyLimit = accessPolicy.reservationDailyLimit
         val runtimeConfig = runtimeConfigService.current()
@@ -242,20 +242,13 @@ class AskBibleAssistantUseCase(
                 interactionMode = experiencePolicy.interactionMode,
             )
             answer = answer.withScopeUsage(consumedScope)
-            if (effectiveTier == SubscriptionTier.PREMIUM) {
-                val savedConversationId = conversationPort.append(
-                    userId = userId,
-                    conversationId = conversationContext?.conversationId,
-                    turn = AiConversationTurn(
-                        userQuestion = normalized,
-                        assistantAnswer = answer.answer,
-                        followUpQuestion = answer.followUpQuestion?.question,
-                    ),
-                    maxContextTurns = experiencePolicy.maxContextTurns,
-                )
-                answer = answer.copy(conversationId = savedConversationId)
-            }
-            usagePort.complete(reservationId, answer, normalized, runtimeConfig.version)
+            answer = usagePort.completeWithContext(
+                reservationId, answer, normalized, runtimeConfig.version,
+                com.example.mypasture.ai.domain.AiTurnCompletionContext(
+                    snapshot = contextSnapshot,
+                    appendPolicy = experiencePolicy.takeIf { effectiveTier == SubscriptionTier.PREMIUM },
+                ),
+            )
             if (conversationContext == null && effectiveTier == SubscriptionTier.FREE) {
                 cachePort.put(userId, normalized, cacheScope, answer)
             }

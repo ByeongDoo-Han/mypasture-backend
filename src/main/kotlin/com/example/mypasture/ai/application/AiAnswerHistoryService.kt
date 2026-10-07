@@ -64,6 +64,8 @@ class AiAnswerHistoryService(
     private val repository: AiAnswerHistoryRepository,
     private val cipher: AiAnswerHistoryCipher,
     properties: AiProperties,
+    private val users: com.example.mypasture.auth.infrastructure.UserRepository,
+    private val snapshots: com.example.mypasture.ai.infrastructure.AiContextSnapshotLifecycle,
 ) {
     private val cursorKey = SecretKeySpec(
         MessageDigest.getInstance("SHA-256")
@@ -134,7 +136,9 @@ class AiAnswerHistoryService(
     fun delete(userId: UUID, turnId: UUID) {
         val selected = repository.findByTurnIdAndUserId(turnId, userId) ?: return
         val rootId = selected.parentTurnId ?: selected.turnId
+        if (users.findActiveByIdForUpdate(userId) == null) return
         val root = repository.lockByTurnIdAndUserId(rootId, userId) ?: return
+        snapshots.invalidateUser(userId)
         repository.deleteAllByUserIdAndParentTurnId(userId, root.turnId)
         repository.delete(root)
     }

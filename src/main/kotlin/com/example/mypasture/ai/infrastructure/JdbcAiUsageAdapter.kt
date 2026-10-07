@@ -65,6 +65,8 @@ class JdbcAiUsageAdapter(
     private val historyWriter: AiAnswerHistoryWriter,
     private val userRepository: UserRepository,
     private val properties: com.example.mypasture.config.AiProperties,
+    private val snapshotAdapter: JpaAiContextSnapshotAdapter,
+    private val conversationPort: com.example.mypasture.ai.application.AiConversationPort,
 ) : AiUsagePort {
     override fun countToday(userId: UUID): Long =
         repository.countByUserIdAndQuotaCountedTrueAndStatusInAndCreatedAtGreaterThanEqual(
@@ -164,22 +166,54 @@ class JdbcAiUsageAdapter(
 
     @Transactional
     override fun complete(reservationId: UUID, answer: GroundedAnswer, question: String, modelVersion: Long) {
+        completeTurn(reservationId, answer, question, modelVersion, com.example.mypasture.ai.domain.AiTurnCompletionContext())
+    }
+
+    @Transactional
+    override fun completeWithContext(
+        reservationId: UUID,
+        answer: GroundedAnswer,
+        question: String,
+        modelVersion: Long,
+        context: com.example.mypasture.ai.domain.AiTurnCompletionContext,
+    ): GroundedAnswer = completeTurn(reservationId, answer, question, modelVersion, context)
+
+    private fun completeTurn(
+        reservationId: UUID,
+        answer: GroundedAnswer,
+        question: String,
+        modelVersion: Long,
+        context: com.example.mypasture.ai.domain.AiTurnCompletionContext,
+    ): GroundedAnswer {
         val userId = repository.findUserIdById(reservationId)
             ?: error("AI usage reservation not found: $reservationId")
-        // 탈퇴가 user → usage 순으로 지우므로 FK 삽입도 동일한 순서로 잠급니다.
+        // 삭제·탈퇴·배치 파기와 같은 U → usage/H 순서로 검증과 모든 저장을 원자적으로 묶습니다.
         userRepository.findActiveByIdForUpdate(userId) ?: error("AI 사용자를 찾을 수 없습니다.")
         val usage = repository.findLockedById(reservationId)
             ?: error("AI usage reservation not found: $reservationId")
-        if (usage.status == AiUsageStatus.COMPLETED) return
+        if (usage.status == AiUsageStatus.COMPLETED) return answer
         check(usage.status == AiUsageStatus.PENDING) { "AI usage reservation is not pending" }
-        usage.complete(answer, properties.embeddingModel)
-        historyWriter.save(usage, question, answer, modelVersion)
+        if (usage.parentTurnId != null && context.restoredSource == null) {
+            throw com.example.mypasture.ai.application.AiQuestionScopeUnclearException()
+        }
+        context.restoredSource?.let {
+            if (it.sourceTurnId != usage.parentTurnId) throw com.example.mypasture.ai.application.AiQuestionScopeUnclearException()
+        }
+        snapshotAdapter.validateForCompletion(userId, context)
+        val completedAnswer = context.appendPolicy?.let { policy ->
+            answer.copy(conversationId = conversationPort.append(userId, context.snapshot?.context?.conversationId,
+                com.example.mypasture.ai.domain.AiConversationTurn(question, answer.answer, answer.followUpQuestion?.question),
+                policy.maxContextTurns))
+        } ?: answer
+        usage.complete(completedAnswer, properties.embeddingModel)
+        historyWriter.save(usage, question, completedAnswer, modelVersion, context.snapshot)
         val now = Instant.now()
         receiptRepository.findLockedByUsageLogId(reservationId)?.complete(
-            encryptedResponse = responseCodec.encode(answer),
+            encryptedResponse = responseCodec.encode(completedAnswer),
             responseExpiresAt = now.plusSeconds(properties.idempotencyResponseTtlSeconds),
             now = now,
         )
+        return completedAnswer
     }
 
     @Transactional

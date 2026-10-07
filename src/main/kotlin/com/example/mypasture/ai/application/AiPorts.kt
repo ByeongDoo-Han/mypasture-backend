@@ -144,6 +144,15 @@ interface AiUsagePort {
         modelVersion: Long,
     )
 
+    /** 대화 append와 usage/history/receipt를 사용자 잠금 안에서 함께 확정합니다. */
+    fun completeWithContext(
+        reservationId: UUID,
+        answer: GroundedAnswer,
+        question: String,
+        modelVersion: Long,
+        context: com.example.mypasture.ai.domain.AiTurnCompletionContext,
+    ): GroundedAnswer
+
     fun fail(reservationId: UUID, errorCode: String, consumedAnswer: GroundedAnswer? = null)
 }
 
@@ -175,4 +184,9 @@ interface AiQuestionScopePort {
         conversationContext: AiConversationContext?,
         config: AiRuntimeConfigSnapshot,
     ): com.example.mypasture.ai.domain.AiQuestionScopeAssessment
+}
+
+/** 사용자 소유 원 턴의 당시 문맥만 복원하며 최신 대화 텍스트는 조회하지 않습니다. */
+interface AiContextSnapshotPort {
+    fun restore(userId: UUID, turnId: UUID): com.example.mypasture.ai.domain.AiRestoredContextSnapshot?
 }

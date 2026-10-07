@@ -1,5 +1,7 @@
 package com.example.mypasture.ai.presentation
 
+import com.example.mypasture.ai.application.AiQuestionOutOfScopeException
+import com.example.mypasture.ai.application.AiQuestionScopeUnclearException
 import com.example.mypasture.ai.application.AiProviderException
 import com.example.mypasture.ai.application.AiGroundingNotFoundException
 import com.example.mypasture.ai.application.AiInputTooLongException
@@ -302,6 +304,8 @@ private fun Throwable.toStreamErrorResponse(): ApiErrorResponse =
     when (this) {
         is AiInputTooLongException -> ApiErrorResponse.of(AiErrorCode.INPUT_TOO_LONG, message = message ?: AiErrorCode.INPUT_TOO_LONG.defaultMessage)
         is AiQuotaExceededException -> ApiErrorResponse.of(AiErrorCode.QUOTA_EXCEEDED, message = message ?: AiErrorCode.QUOTA_EXCEEDED.defaultMessage)
+        is AiQuestionOutOfScopeException -> ApiErrorResponse.of(AiErrorCode.QUESTION_OUT_OF_SCOPE, message = message ?: AiErrorCode.QUESTION_OUT_OF_SCOPE.defaultMessage)
+        is AiQuestionScopeUnclearException -> ApiErrorResponse.of(AiErrorCode.QUESTION_SCOPE_UNCLEAR, message = message ?: AiErrorCode.QUESTION_SCOPE_UNCLEAR.defaultMessage)
         is AiGroundingNotFoundException -> ApiErrorResponse.of(AiErrorCode.GROUNDING_NOT_FOUND, message = message ?: AiErrorCode.GROUNDING_NOT_FOUND.defaultMessage)
         is AiAnswerRejectedException -> ApiErrorResponse.of(AiErrorCode.EVALUATION_REJECTED, message = message ?: AiErrorCode.EVALUATION_REJECTED.defaultMessage)
         is AiSafetyException -> ApiErrorResponse.of(AiErrorCode.SAFETY_ESCALATION, message = message ?: AiErrorCode.SAFETY_ESCALATION.defaultMessage)

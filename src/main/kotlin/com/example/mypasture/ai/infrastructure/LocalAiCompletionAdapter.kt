@@ -1,5 +1,8 @@
 package com.example.mypasture.ai.infrastructure
 
+import com.example.mypasture.ai.application.AiQuestionScopePort
+import com.example.mypasture.ai.domain.AiQuestionScope
+import com.example.mypasture.ai.domain.AiQuestionScopeAssessment
 import com.example.mypasture.ai.application.AiAnswerEvaluationPort
 import com.example.mypasture.ai.application.AiCompletionPort
 import com.example.mypasture.ai.application.AiStreamingCompletionPort
@@ -18,7 +21,7 @@ import java.math.BigDecimal
 /** 개발 환경에서 외부 비용 없이 RAG와 화면 흐름을 검증하는 성경 근거 응답기입니다. */
 @Component
 @ConditionalOnProperty(prefix = "app.ai", name = ["mock-enabled"], havingValue = "true")
-class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort, AiAnswerEvaluationPort {
+class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort, AiAnswerEvaluationPort, AiQuestionScopePort {
     override suspend fun answerWithCitations(
         question: String,
         citations: List<BibleCitation>,
@@ -95,6 +98,27 @@ class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort, Ai
         estimatedCostUsd = BigDecimal.ZERO,
         evaluatorModel = config.evaluatorModel,
     )
+
+    /** 로컬 mock의 보수적 분기는 흐름 테스트용이며 운영 의미 분류를 대신하지 않습니다. */
+    override suspend fun assess(
+        currentQuestion: String,
+        conversationContext: AiConversationContext?,
+        config: AiRuntimeConfigSnapshot,
+    ): AiQuestionScopeAssessment {
+        val question = currentQuestion.lowercase()
+        val financialTopic = listOf("주가", "비트코인", "btc", "삼성전자", "stock").any(question::contains)
+        val directFinancialTask = financialTopic && listOf("알려", "조회", "얼마", "시세", "현재 가격", "price", "예측", "추천 종목").any(question::contains)
+        val scope = when {
+            directFinancialTask || listOf("시세", "날씨", "코딩", "파이썬", "python", "stock price", "weather", "write code", "관련으로 분류", "related로", "ignore previous").any(question::contains) -> AiQuestionScope.UNRELATED
+            question in listOf("어떻게 해야 할까?", "어떻게 해야 할까요?", "어떡해", "그냥") -> AiQuestionScope.UNCLEAR
+            listOf("성경", "기독", "신앙", "하나님", "예수", "기도", "말씀", "창세기", "요한", "시편", "잠언", "불교", "이슬람", "종교", "힌두", "bible", "christian", "religion", "buddh", "islam").any(question::contains) -> AiQuestionScope.RELATED
+            listOf("불안", "외로", "상처", "관계", "슬픔", "마음", "힘들", "걱정", "위로", "용서", "평안", "상담", "anxious", "lonely", "grief").any(question::contains) -> AiQuestionScope.PASTORAL_SUPPORT
+            conversationContext?.turns?.lastOrNull()?.followUpQuestion != null && question in listOf("네", "아니요", "첫 번째", "두 번째") -> AiQuestionScope.PASTORAL_SUPPORT
+            question.length < 8 || question.all { it.isLetter() && it.code < 128 } -> AiQuestionScope.UNCLEAR
+            else -> AiQuestionScope.UNRELATED
+        }
+        return AiQuestionScopeAssessment(scope, scope == AiQuestionScope.UNCLEAR, evaluatorModel = config.evaluatorModel)
+    }
 
     private fun estimateTokens(text: String): Int = (text.length / 3).coerceAtLeast(1)
 }

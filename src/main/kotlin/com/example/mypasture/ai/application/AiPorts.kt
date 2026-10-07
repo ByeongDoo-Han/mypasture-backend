@@ -167,3 +167,12 @@ interface AiFeedbackPort {
 
     fun priority(limit: Int): List<AiAnswerFeedback>
 }
+
+/** 현재 질문의 의미를 판단하며 대화 문맥은 짧은 후속 답변 해석에만 사용합니다. */
+interface AiQuestionScopePort {
+    suspend fun assess(
+        currentQuestion: String,
+        conversationContext: AiConversationContext?,
+        config: AiRuntimeConfigSnapshot,
+    ): com.example.mypasture.ai.domain.AiQuestionScopeAssessment
+}

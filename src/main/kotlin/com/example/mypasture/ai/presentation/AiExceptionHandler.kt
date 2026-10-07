@@ -41,6 +41,12 @@ class AiExceptionHandler {
     @ExceptionHandler(AiQuotaExceededException::class) @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
     fun quotaExceeded(exception: AiQuotaExceededException, request: HttpServletRequest) =
         AiErrorCode.QUOTA_EXCEEDED.toResponse(request, exception.message ?: AiErrorCode.QUOTA_EXCEEDED.defaultMessage)
+    @ExceptionHandler(AiQuestionOutOfScopeException::class) @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    fun questionOutOfScope(exception: AiQuestionOutOfScopeException, request: HttpServletRequest) =
+        AiErrorCode.QUESTION_OUT_OF_SCOPE.toResponse(request, exception.message ?: AiErrorCode.QUESTION_OUT_OF_SCOPE.defaultMessage)
+    @ExceptionHandler(AiQuestionScopeUnclearException::class) @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    fun questionScopeUnclear(exception: AiQuestionScopeUnclearException, request: HttpServletRequest) =
+        AiErrorCode.QUESTION_SCOPE_UNCLEAR.toResponse(request, exception.message ?: AiErrorCode.QUESTION_SCOPE_UNCLEAR.defaultMessage)
     @ExceptionHandler(AiGroundingNotFoundException::class) @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
     fun groundingNotFound(exception: AiGroundingNotFoundException, request: HttpServletRequest) =
         AiErrorCode.GROUNDING_NOT_FOUND.toResponse(request, exception.message ?: AiErrorCode.GROUNDING_NOT_FOUND.defaultMessage)
@@ -83,6 +89,8 @@ enum class AiErrorCode(
 ) : ErrorCode {
     INPUT_TOO_LONG("AI_INPUT_TOO_LONG", "AI input is too long"),
     QUOTA_EXCEEDED("AI_QUOTA_EXCEEDED", "Daily AI quota exceeded"),
+    QUESTION_OUT_OF_SCOPE("AI_QUESTION_OUT_OF_SCOPE", "성경·종교·신앙 상담에 관한 질문을 입력해 주세요."),
+    QUESTION_SCOPE_UNCLEAR("AI_QUESTION_SCOPE_UNCLEAR", "원하는 도움을 조금 더 구체적으로 적어 주세요."),
     GROUNDING_NOT_FOUND("AI_GROUNDING_NOT_FOUND", "No relevant Bible verses found"),
     EVALUATION_REJECTED("AI_EVALUATION_REJECTED", "AI 답변이 품질 검증을 통과하지 못했습니다."),
     SAFETY_ESCALATION("AI_SAFETY_ESCALATION", "즉시 도움을 요청해 주세요."),

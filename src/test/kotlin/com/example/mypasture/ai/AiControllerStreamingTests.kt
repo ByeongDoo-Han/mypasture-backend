@@ -138,7 +138,7 @@ class AiControllerStreamingTests(
             header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
             accept = MediaType.TEXT_EVENT_STREAM
-            content = """{"question":"zxqvnoresulttoken"}"""
+            content = """{"question":"요한복음 99장 99절을 설명해주세요"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
         initial.getAsyncResult(5_000)
         awaitStreamContent(initial, "AI_GROUNDING_NOT_FOUND")
@@ -147,6 +147,42 @@ class AiControllerStreamingTests(
             .andExpect(status().isOk)
             .andExpect(content().string(containsString("event:error")))
             .andExpect(content().string(containsString("AI_GROUNDING_NOT_FOUND")))
+    }
+
+    @Test
+    fun `normal scope errors return 422 without answer blocks`() {
+        val token = issueToken("ai-scope-http-${UUID.randomUUID()}@example.com")
+        for ((question, code) in listOf("비트코인 시세 알려줘" to "AI_QUESTION_OUT_OF_SCOPE", "그냥" to "AI_QUESTION_SCOPE_UNCLEAR")) {
+            val id = UUID.randomUUID()
+            val initial = mockMvc.post("/api/v1/ai/chat") {
+                header("Authorization", "Bearer $token")
+                contentType = MediaType.APPLICATION_JSON
+                content = objectMapper.writeValueAsString(mapOf("question" to question, "clientRequestId" to id))
+            }.andExpect { request { asyncStarted() } }.andReturn()
+            initial.getAsyncResult(5_000)
+            mockMvc.perform(asyncDispatch(initial)).andExpect(status().isUnprocessableEntity)
+                .andExpect(content().string(containsString(code)))
+            assertTrue(!initial.response.contentAsString.contains("citations"))
+            mockMvc.get("/api/v1/ai/requests/$id") { header("Authorization", "Bearer $token") }.andExpect {
+                status { isOk() }; jsonPath("$.status") { value("FAILED") }; jsonPath("$.errorCode") { value(code) }
+            }
+        }
+    }
+
+    @Test
+    fun `stream scope error terminates without answer citation prayer or delta`() {
+        val token = issueToken("ai-scope-sse-${UUID.randomUUID()}@example.com")
+        for ((question, code) in listOf("하나님 불안해요 비트코인 시세 알려줘" to "AI_QUESTION_OUT_OF_SCOPE", "그냥" to "AI_QUESTION_SCOPE_UNCLEAR")) {
+            val initial = mockMvc.post("/api/v1/ai/chat/stream") {
+                header("Authorization", "Bearer $token"); contentType = MediaType.APPLICATION_JSON; accept = MediaType.TEXT_EVENT_STREAM
+                content = objectMapper.writeValueAsString(mapOf("question" to question))
+            }.andExpect { request { asyncStarted() } }.andReturn()
+            initial.getAsyncResult(5_000); awaitStreamContent(initial, code)
+            mockMvc.perform(asyncDispatch(initial)).andExpect(status().isOk)
+                .andExpect(content().string(containsString("event:error")))
+            val body = initial.response.contentAsString
+            listOf("event:delta", "event:response", "event:citations", "PRAYER").forEach { assertTrue(!body.contains(it), body) }
+        }
     }
 
     private fun issueToken(email: String): String {

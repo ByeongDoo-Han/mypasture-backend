@@ -22,6 +22,7 @@ import java.util.UUID
 data class ScriptureCopyCommand(
     val version: String, val bookCode: String, val chapter: Int, val verse: Int,
     val typedText: String, val reflection: String, val expectedRevision: Long, val complete: Boolean,
+    val endVerse: Int? = null,
 )
 
 /** 본인 필사 기록이 없거나 다른 사용자가 소유한 경우입니다. */
@@ -47,7 +48,8 @@ class ScriptureCopyService(
         if (existing != null) {
             if (existing.userId != userId) throw ScriptureCopyNotFoundException()
             if (existing.version != command.version || existing.bookCode != command.bookCode ||
-                existing.chapter != command.chapter || existing.verse != command.verse) {
+                existing.chapter != command.chapter || existing.verse != command.verse ||
+                existing.endVerse != (command.endVerse ?: existing.endVerse)) {
                 throw ScriptureCopyConflictException()
             }
             val nextStatus = if (command.complete) ScriptureCopyStatus.COMPLETED else ScriptureCopyStatus.DRAFT
@@ -68,18 +70,43 @@ class ScriptureCopyService(
         if (command.expectedRevision != 0L) throw ScriptureCopyConflictException()
         val book = books.findByVersionAndCode(command.version, command.bookCode)
             ?: throw BibleNotFoundException("Bible book was not found.")
-        val verse = verses.findByVersionAndBook_IdAndChapterAndVerse(command.version, book.id, command.chapter, command.verse)
-            ?: throw BibleNotFoundException("Bible verse was not found.")
-        if (verse.text.isBlank()) throw BibleNotFoundException("Bible verse text was not found.")
-        if (command.complete) verifyCompletion(verse.text, command.typedText)
+        val endVerse = command.endVerse ?: command.verse
+        val selected = if (endVerse == command.verse) {
+            listOfNotNull(verses.findByVersionAndBook_IdAndChapterAndVerse(command.version, book.id, command.chapter, command.verse))
+        } else {
+            verses.findAllByVersionAndBook_IdAndChapterOrderByVerse(command.version, book.id, command.chapter)
+                .filter { it.verse in command.verse..endVerse }
+        }
+        if (selected.size != endVerse - command.verse + 1 || selected.any { it.text.isBlank() }) {
+            throw BibleNotFoundException("Bible passage was not found.")
+        }
+        val sourceText = selected.joinToString("\n") { it.text }
+        require(sourceText.length <= 10000) { "Selected passage exceeds the maximum length." }
+        if (command.complete) verifyCompletion(sourceText, command.typedText)
         val now = Instant.now().truncatedTo(ChronoUnit.MICROS)
         return copies.insert(ScriptureCopyEntity(
-            id = id, userId = userId, version = verse.version, bookCode = book.code, bookName = book.name,
-            chapter = verse.chapter, verse = verse.verse, sourceText = verse.text,
+            id = id, userId = userId, version = book.version, bookCode = book.code, bookName = book.name,
+            chapter = command.chapter, verse = command.verse, endVerse = endVerse, sourceText = sourceText,
             typedText = command.typedText, reflection = command.reflection,
             status = if (command.complete) ScriptureCopyStatus.COMPLETED else ScriptureCopyStatus.DRAFT,
             createdAt = now, updatedAt = now, completedAt = if (command.complete) now else null,
         ))
+    }
+
+    /** 완료한 필사 본문은 보존하며 묵상만 별도의 revision 조건으로 수정합니다. */
+    @Transactional
+    fun updateReflection(userId: UUID, id: UUID, reflection: String, expectedRevision: Long): ScriptureCopyEntity {
+        require(reflection.length <= 1000) { "Reflection exceeds the maximum length." }
+        require(expectedRevision >= 1) { "Expected revision must be positive." }
+        lockActiveUser(userId)
+        val record = copies.findByIdAndUserId(id, userId) ?: throw ScriptureCopyNotFoundException()
+        if (record.status != ScriptureCopyStatus.COMPLETED) throw ScriptureCopyConflictException()
+        if (record.reflection == reflection) return record
+        if (record.revision != expectedRevision) throw ScriptureCopyConflictException()
+        record.reflection = reflection
+        record.revision += 1
+        record.updatedAt = Instant.now().truncatedTo(ChronoUnit.MICROS)
+        return copies.save(record)
     }
 
     @Transactional(readOnly = true)
@@ -111,6 +138,9 @@ class ScriptureCopyService(
         val bookCode = request.bookCode.trim().uppercase(Locale.ROOT)
         require(version.length in 1..40 && bookCode.length in 1..40) { "Invalid Bible location." }
         require(request.chapter > 0 && request.verse > 0) { "Chapter and verse must be positive." }
+        request.endVerse?.let { endVerse ->
+            require(endVerse >= request.verse && endVerse - request.verse < 20) { "Select between 1 and 20 consecutive verses." }
+        }
         require(request.typedText.length <= 10000 && request.reflection.length <= 1000) { "Text exceeds the maximum length." }
         require(request.expectedRevision >= 0) { "Expected revision cannot be negative." }
         return request.copy(version = version, bookCode = bookCode)

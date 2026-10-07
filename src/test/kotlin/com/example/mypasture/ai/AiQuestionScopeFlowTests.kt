@@ -138,17 +138,17 @@ class AiQuestionScopeFlowTests(
         catch (_: AiFeedbackRegenerationUnavailableException) { }
     }
 
-    @Test fun `context-only source regeneration asks clarification and preserves original answer`() = runTest {
+    @Test fun `context-only source regeneration restores original owned context and preserves original answer`() = runTest {
         val user = user(); val first = useCase.ask(user.id, SubscriptionTier.PREMIUM, "창세기 말씀을 설명해주세요")
         val followup = useCase.ask(user.id, SubscriptionTier.PREMIUM, "네", first.conversationId)
         feedbackService.submit(user.id, followup.turnId, AiFeedbackRating.NOT_HELPFUL, setOf(AiFeedbackReason.TOO_GENERIC), null)
-        try { feedbackService.regenerate(user.id, SubscriptionTier.PREMIUM, followup.turnId, "네"); fail("Expected clarification") }
-        catch (_: AiQuestionScopeUnclearException) { }
+        val regenerated = feedbackService.regenerate(user.id, SubscriptionTier.PREMIUM, followup.turnId, "네")
         assertNotNull(usagePort.findCompletedTurn(user.id, followup.turnId))
+        assertNotNull(usagePort.findCompletedTurn(user.id, regenerated.turnId))
         assertEquals(2, usagePort.countToday(user.id))
-        assertEquals("네", scope.question); assertNull(scope.context)
-        val failed = usages.findAllByUserId(user.id).single { it.parentTurnId == followup.turnId }
-        assertEquals("AI_QUESTION_SCOPE_UNCLEAR", failed.errorCode)
+        assertEquals("네", scope.question); assertNotNull(scope.context)
+        assertEquals("창세기 말씀을 설명해주세요", scope.context!!.turns.single().userQuestion)
+        assertEquals(11, regenerated.evaluationPromptTokens)
     }
 
     @TestConfiguration class ScopeTestConfig {

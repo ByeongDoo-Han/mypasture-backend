@@ -14,8 +14,11 @@ import java.util.UUID
 class ScriptureCopyController(private val service: ScriptureCopyService) : ScriptureCopyApi {
     override fun save(principal: JwtPrincipal, id: UUID, request: ScriptureCopyRequest) = service.save(
         principal.userId, id, ScriptureCopyCommand(request.version, request.bookCode, request.chapter, request.verse,
-            request.typedText, request.reflection, request.expectedRevision, request.complete),
+            request.typedText, request.reflection, request.expectedRevision, request.complete, request.endVerse),
     ).toResponse()
+
+    override fun updateReflection(principal: JwtPrincipal, id: UUID, request: ScriptureCopyReflectionRequest) =
+        service.updateReflection(principal.userId, id, request.reflection, request.expectedRevision).toResponse()
 
     override fun list(principal: JwtPrincipal, page: Int, size: Int): ScriptureCopyPageResponse {
         val records = service.list(principal.userId, page, size)
@@ -28,5 +31,5 @@ class ScriptureCopyController(private val service: ScriptureCopyService) : Scrip
 }
 
 private fun ScriptureCopyEntity.toResponse() = ScriptureCopyResponse(
-    id, version, bookCode, bookName, chapter, verse, sourceText, typedText, reflection, revision, status, createdAt, updatedAt, completedAt,
+    id, version, bookCode, bookName, chapter, verse, endVerse, sourceText, typedText, reflection, revision, status, createdAt, updatedAt, completedAt,
 )

@@ -15,6 +15,7 @@ class ScriptureCopyEntity(
     @Column(name = "book_name", nullable = false, length = 100) val bookName: String,
     @Column(nullable = false) val chapter: Int,
     @Column(nullable = false) val verse: Int,
+    @Column(name = "end_verse", nullable = false) val endVerse: Int = verse,
     @Column(name = "source_text", nullable = false, columnDefinition = "text") val sourceText: String,
     @Column(name = "typed_text", nullable = false, columnDefinition = "text") var typedText: String,
     @Column(nullable = false, columnDefinition = "text") var reflection: String,

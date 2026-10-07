@@ -20,11 +20,18 @@ data class ScriptureCopyRequest(
     @field:Size(max = 1000) val reflection: String,
     @field:PositiveOrZero val expectedRevision: Long,
     val complete: Boolean,
+    @field:Positive val endVerse: Int? = null,
+)
+
+/** 완료한 필사의 묵상만 변경하는 요청입니다. */
+data class ScriptureCopyReflectionRequest(
+    @field:Size(max = 1000) val reflection: String,
+    @field:Positive val expectedRevision: Long,
 )
 
 /** 엔티티를 노출하지 않는 본인 필사 상세 응답입니다. */
 data class ScriptureCopyResponse(
-    val id: UUID, val version: String, val bookCode: String, val bookName: String, val chapter: Int, val verse: Int,
+    val id: UUID, val version: String, val bookCode: String, val bookName: String, val chapter: Int, val verse: Int, val endVerse: Int,
     val sourceText: String, val typedText: String, val reflection: String, val revision: Long, val status: ScriptureCopyStatus,
     val createdAt: Instant, val updatedAt: Instant, val completedAt: Instant?,
 )
@@ -36,9 +43,13 @@ data class ScriptureCopyPageResponse(
 
 /** 본인 필사의 저장·조회·삭제 HTTP 계약을 정의합니다. */
 interface ScriptureCopyApi {
-    /** 서버 원문을 보존합니다. 동일 내용 재시도는 같은 revision이며, 변경은 expectedRevision 일치가 필요합니다. 완료 기록은 불변입니다. */
+    /** 서버 원문을 보존합니다. 동일 내용 재시도는 같은 revision이며, 변경은 expectedRevision 일치가 필요합니다. 완료 본문은 불변입니다. endVerse 생략 시 신규는 한 절, 기존은 저장 범위를 유지합니다. */
     @PutMapping("/{id}")
     fun save(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable id: UUID, @Valid @RequestBody request: ScriptureCopyRequest): ScriptureCopyResponse
+
+    /** 완료 후 묵상만 저장하며 동일 묵상 재시도는 같은 revision을 반환합니다. */
+    @PatchMapping("/{id}/reflection")
+    fun updateReflection(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable id: UUID, @Valid @RequestBody request: ScriptureCopyReflectionRequest): ScriptureCopyResponse
 
     @GetMapping
     fun list(@AuthenticationPrincipal principal: JwtPrincipal, @RequestParam(defaultValue = "0") page: Int, @RequestParam(defaultValue = "20") size: Int): ScriptureCopyPageResponse

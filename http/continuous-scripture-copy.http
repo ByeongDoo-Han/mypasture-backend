@@ -1,0 +1,88 @@
+@baseUrl = http://localhost:8080
+# 기존 로그인 flow의 accessToken을 사용합니다. 운영 비밀값을 이 파일에 저장하지 않습니다.
+
+### 같은 장의 두 절을 빈 DRAFT로 시작 (매 실행마다 새로운 클라이언트 UUID)
+PUT {{baseUrl}}/api/v1/scripture-copies/{{$uuid}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":"KOR1910","bookCode":"GEN","chapter":1,"verse":1,"endVerse":2,"typedText":"","reflection":"","expectedRevision":0,"complete":false}
+
+> {%
+client.test("범위 원문이 확정됩니다", function () {
+  client.assert(response.status === 200, "Expected 200");
+  client.assert(response.body.endVerse === 2, "Expected requested end verse");
+  client.assert(response.body.status === "DRAFT", "Expected draft");
+});
+client.global.set("passageCopyId", response.body.id);
+client.global.set("passageCopyRevision", response.body.revision);
+client.global.set("passageCopySourceJson", JSON.stringify(response.body.sourceText));
+%}
+
+### 기존 PUT에서 endVerse를 생략해도 저장 범위를 유지
+PUT {{baseUrl}}/api/v1/scripture-copies/{{passageCopyId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":"KOR1910","bookCode":"GEN","chapter":1,"verse":1,"typedText":"태초에","reflection":"","expectedRevision":{{passageCopyRevision}},"complete":false}
+
+> {%
+client.test("한 절 클라이언트 요청이 범위를 축소하지 않습니다", function () {
+  client.assert(response.status === 200, "Expected 200");
+  client.assert(response.body.endVerse === 2, "Expected retained end verse");
+});
+client.global.set("passageCopyRevision", response.body.revision);
+%}
+
+### 원문 전체를 작성한 뒤 명시적으로 완료
+PUT {{baseUrl}}/api/v1/scripture-copies/{{passageCopyId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"version":"KOR1910","bookCode":"GEN","chapter":1,"verse":1,"typedText":{{passageCopySourceJson}},"reflection":"","expectedRevision":{{passageCopyRevision}},"complete":true}
+
+> {%
+client.test("전체 범위 완료", function () {
+  client.assert(response.status === 200, "Expected 200");
+  client.assert(response.body.status === "COMPLETED", "Expected completed");
+});
+client.global.set("passageCopyRevisionBeforeReflection", response.body.revision);
+%}
+
+### 완료 후 묵상만 변경
+PATCH {{baseUrl}}/api/v1/scripture-copies/{{passageCopyId}}/reflection
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"reflection":"오늘 말씀을 마음에 담습니다.","expectedRevision":{{passageCopyRevisionBeforeReflection}}}
+
+> {%
+client.test("본문을 보존하고 묵상만 저장", function () {
+  client.assert(response.status === 200, "Expected 200");
+  client.assert(response.body.status === "COMPLETED", "Expected completed");
+  client.assert(JSON.stringify(response.body.sourceText) === client.global.get("passageCopySourceJson"), "Expected immutable source");
+});
+client.global.set("passageCopyRevision", response.body.revision);
+%}
+
+### 응답 유실 뒤 같은 묵상을 이전 revision으로 재시도
+PATCH {{baseUrl}}/api/v1/scripture-copies/{{passageCopyId}}/reflection
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"reflection":"오늘 말씀을 마음에 담습니다.","expectedRevision":{{passageCopyRevisionBeforeReflection}}}
+
+> {%
+client.test("동일 묵상 재시도는 revision을 늘리지 않습니다", function () {
+  client.assert(response.status === 200, "Expected 200");
+  client.assert(response.body.revision === client.global.get("passageCopyRevision"), "Expected same revision");
+});
+%}
+
+### 조회하여 같은 ID로 재개/확인
+GET {{baseUrl}}/api/v1/scripture-copies/{{passageCopyId}}
+Authorization: Bearer {{accessToken}}
+
+### 검증한 테스트 기록 삭제
+DELETE {{baseUrl}}/api/v1/scripture-copies/{{passageCopyId}}?expectedRevision={{passageCopyRevision}}
+Authorization: Bearer {{accessToken}}

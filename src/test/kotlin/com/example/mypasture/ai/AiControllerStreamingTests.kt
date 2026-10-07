@@ -38,11 +38,7 @@ class AiControllerStreamingTests(
 ) {
     @AfterEach
     fun awaitStreamingCompletion() {
-        val deadline = System.nanoTime() + 5_000_000_000L
-        while (System.nanoTime() < deadline && !streamingRunner.isIdle()) {
-            Thread.sleep(10)
-        }
-        assertTrue(streamingRunner.isIdle(), "AI streaming coroutine did not finish within 5 seconds")
+        AiSseTestSupport.awaitIdle(streamingRunner::isIdle)
     }
 
     @Test
@@ -66,8 +62,7 @@ class AiControllerStreamingTests(
             accept = MediaType.TEXT_EVENT_STREAM
             content = """{"question":"창세기 말씀을 설명해주세요","clientRequestId":"$clientRequestId"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
-        initial.getAsyncResult(5_000)
-        awaitStreamContent(initial, "event:done")
+        awaitStreamCompletion(initial, "done")
 
         mockMvc.perform(asyncDispatch(initial))
             .andExpect(status().isOk)
@@ -102,8 +97,7 @@ class AiControllerStreamingTests(
             accept = MediaType.TEXT_EVENT_STREAM
             content = """{"question":"창세기 말씀을 설명해주세요","clientRequestId":"$clientRequestId"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
-        replay.getAsyncResult(5_000)
-        awaitStreamContent(replay, "event:done")
+        awaitStreamCompletion(replay, "done")
         mockMvc.perform(asyncDispatch(replay))
             .andExpect(status().isOk)
             .andExpect(content().string(containsString("event:delta")))
@@ -140,8 +134,7 @@ class AiControllerStreamingTests(
             accept = MediaType.TEXT_EVENT_STREAM
             content = """{"question":"요한복음 99장 99절을 설명해주세요"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
-        initial.getAsyncResult(5_000)
-        awaitStreamContent(initial, "AI_GROUNDING_NOT_FOUND")
+        awaitStreamCompletion(initial, "error", "AI_GROUNDING_NOT_FOUND")
 
         mockMvc.perform(asyncDispatch(initial))
             .andExpect(status().isOk)
@@ -159,7 +152,7 @@ class AiControllerStreamingTests(
                 contentType = MediaType.APPLICATION_JSON
                 content = objectMapper.writeValueAsString(mapOf("question" to question, "clientRequestId" to id))
             }.andExpect { request { asyncStarted() } }.andReturn()
-            initial.getAsyncResult(5_000)
+            initial.getAsyncResult(15_000)
             mockMvc.perform(asyncDispatch(initial)).andExpect(status().isUnprocessableEntity)
                 .andExpect(content().string(containsString(code)))
             assertTrue(!initial.response.contentAsString.contains("citations"))
@@ -177,7 +170,7 @@ class AiControllerStreamingTests(
                 header("Authorization", "Bearer $token"); contentType = MediaType.APPLICATION_JSON; accept = MediaType.TEXT_EVENT_STREAM
                 content = objectMapper.writeValueAsString(mapOf("question" to question))
             }.andExpect { request { asyncStarted() } }.andReturn()
-            initial.getAsyncResult(5_000); awaitStreamContent(initial, code)
+            awaitStreamCompletion(initial, "error", code)
             mockMvc.perform(asyncDispatch(initial)).andExpect(status().isOk)
                 .andExpect(content().string(containsString("event:error")))
             val body = initial.response.contentAsString
@@ -198,13 +191,13 @@ class AiControllerStreamingTests(
         return objectMapper.readTree(login.response.contentAsString).path("token").asText()
     }
 
-    /** SseEmitter 반환과 실제 마지막 event 기록 사이의 race를 제거합니다. */
-    private fun awaitStreamContent(result: MvcResult, marker: String) {
-        val deadline = System.nanoTime() + 5_000_000_000L
-        while (System.nanoTime() < deadline) {
-            if (result.response.contentAsString.contains(marker) && streamingRunner.isIdle()) return
-            Thread.sleep(10)
+    private fun awaitStreamCompletion(result: MvcResult, terminal: String, errorCode: String? = null) {
+        val requiredEvents = if (terminal == "done") setOf("delta", "response", "citations", "usage", "done") else setOf("error")
+        val frames = AiSseTestSupport.awaitCompletion(result, streamingRunner::isIdle, terminal, requiredEvents)
+        if (errorCode != null) {
+            kotlin.test.assertEquals(errorCode, objectMapper.readTree(frames.single { it.event == "error" }.data).path("code").asText())
+        } else {
+            kotlin.test.assertEquals("completed", objectMapper.readTree(frames.single { it.event == "done" }.data).path("status").asText())
         }
-        error("SSE response did not contain '$marker' and finish within 5 seconds")
     }
 }

@@ -232,12 +232,19 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `postgres waiting save acquires user before record and cannot resurrect account erased records`() {
+    fun `postgres waiting copy mutations acquire user before record and cannot resurrect erased records`() {
         assumeTrue(!System.getenv("SCRIPTURE_COPY_TEST_JDBC_URL").isNullOrBlank(), "Requires PostgreSQL lock inspection")
-        for (existing in listOf(false, true)) {
+        for (operation in listOf("create", "update", "reflection", "delete")) {
+            val existing = operation != "create"
             val user = users.saveAndFlush(UserEntity(email = "copy-lock-${UUID.randomUUID()}@example.com", displayName = "잠금 검증"))
             val id = UUID.randomUUID()
-            if (existing) service.save(user.id, id, command())
+            if (existing) {
+                val source = if (operation == "reflection") {
+                    val book = books.findByVersionAndCode("KOR1910", "GEN")!!
+                    verses.findByVersionAndBook_IdAndChapterAndVerse("KOR1910", book.id, 1, 1)!!.text
+                } else ""
+                service.save(user.id, id, command().copy(typedText = source, complete = operation == "reflection"))
+            }
             val executor = Executors.newSingleThreadExecutor()
             val started = CountDownLatch(1)
             val pid = AtomicInteger()
@@ -250,7 +257,11 @@ class ScriptureCopyControllerTests(
                             TransactionTemplate(transactions).executeWithoutResult {
                                 pid.set(jdbc.queryForObject("select pg_backend_pid()", Int::class.java)!!)
                                 started.countDown()
-                                service.save(user.id, id, command().copy(typedText = "새 입력", expectedRevision = if (existing) 1 else 0))
+                                when (operation) {
+                                    "reflection" -> service.updateReflection(user.id, id, "탈퇴 중 묵상", 1)
+                                    "delete" -> service.delete(user.id, id, 1)
+                                    else -> service.save(user.id, id, command().copy(typedText = "새 입력", expectedRevision = if (existing) 1 else 0))
+                                }
                             }
                         }.exceptionOrNull()
                     }
@@ -262,7 +273,7 @@ class ScriptureCopyControllerTests(
                         if (blocked) break
                         Thread.sleep(25)
                     }
-                    assertTrue(blocked, "Save must block on the account row before accessing its record")
+                    assertTrue(blocked, "Copy mutation must block on the account row before accessing its record")
                     if (existing) jdbc.queryForObject("select id from scripture_copies where id = ? for update nowait", UUID::class.java, id)
                     auth.deleteAccount(user.id, Instant.now(), DeleteAccountRequest("DELETE", null))
                 }
@@ -273,12 +284,197 @@ class ScriptureCopyControllerTests(
         }
     }
 
+    @Test
+    fun `range snapshot joins canonical verses and legacy omitted end resumes without truncating`() {
+        val token = token()
+        val (version, selected) = passageFixture(listOf(1 to "첫 말씀", 2 to "둘째 말씀", 3 to "셋째 말씀"))
+        val source = selected.joinToString("\n") { it.text }
+        val id = UUID.randomUUID()
+        put(token, id, request(version = version, endVerse = 3)).andExpect {
+            status { isOk() }; jsonPath("$.endVerse") { value(3) }; jsonPath("$.sourceText") { value(source) }
+            jsonPath("$.revision") { value(1) }
+        }
+        mvc.get("/api/v1/scripture-copies/$id") { bearer(token) }.andExpect {
+            status { isOk() }; jsonPath("$.endVerse") { value(3) }
+        }
+        mvc.get("/api/v1/scripture-copies") { bearer(token) }.andExpect {
+            jsonPath("$.items[0].endVerse") { value(3) }
+        }
+        selected[1].updateText("뒤늦게 변경된 말씀")
+        verses.saveAndFlush(selected[1])
+        put(token, id, request(version = version, typed = "첫 말씀", revision = 1)).andExpect {
+            status { isOk() }; jsonPath("$.endVerse") { value(3) }; jsonPath("$.sourceText") { value(source) }
+            jsonPath("$.revision") { value(2) }
+        }
+        put(token, id, request(version = version, typed = "첫 말씀", revision = 2, complete = true)).andExpect {
+            status { isBadRequest() }; jsonPath("$.code") { value("SCRIPTURE_COPY_INCOMPLETE") }
+        }
+        assertEquals(2L, copies.findById(id).orElseThrow().revision)
+        put(token, id, request(version = version, typed = source.replace("\n", " "), revision = 2, complete = true)).andExpect {
+            status { isOk() }; jsonPath("$.status") { value("COMPLETED") }; jsonPath("$.revision") { value(3) }
+            jsonPath("$.sourceText") { value(source) }; jsonPath("$.endVerse") { value(3) }
+        }
+        put(token, id, request(version = version, typed = source.replace("\n", " "), revision = 2, complete = true, endVerse = 3)).andExpect {
+            status { isOk() }; jsonPath("$.revision") { value(3) }
+        }
+        put(token, id, request(version = version, typed = source, revision = 3, complete = true, endVerse = 2)).andExpect {
+            status { isConflict() }; jsonPath("$.code") { value("SCRIPTURE_COPY_CONFLICT") }
+        }
+        val singleId = UUID.randomUUID()
+        put(token, singleId, request()).andExpect { status { isOk() }; jsonPath("$.endVerse") { value(1) } }
+        put(token, singleId, request(revision = 1, endVerse = 2)).andExpect { status { isConflict() } }
+    }
+
+    @Test
+    fun `range allows twenty verses and rejects invalid bounds missing middle and blank middle atomically`() {
+        val token = token()
+        val (version) = passageFixture((1..21).map { it to "말씀 $it" })
+        put(token, UUID.randomUUID(), request(version = version, endVerse = 20)).andExpect {
+            status { isOk() }; jsonPath("$.endVerse") { value(20) }
+        }
+        for (body in listOf(request(version = version, endVerse = 21), request(version = version, endVerse = 0), request(version = version, verse = 2, endVerse = 1))) {
+            val id = UUID.randomUUID()
+            put(token, id, body).andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_REQUEST") } }
+            assertFalse(copies.existsById(id))
+        }
+        for (texts in listOf(listOf(1 to "첫 말씀", 3 to "마지막 말씀"), listOf(1 to "첫 말씀", 2 to "   ", 3 to "마지막 말씀"))) {
+            val (missingVersion) = passageFixture(texts)
+            val id = UUID.randomUUID()
+            put(token, id, request(version = missingVersion, endVerse = 3)).andExpect {
+                status { isNotFound() }; jsonPath("$.code") { value("BIBLE_NOT_FOUND") }
+            }
+            assertFalse(copies.existsById(id))
+        }
+    }
+
+    @Test
+    fun `joined snapshot enforces ten thousand UTF16 characters including separators`() {
+        val token = token()
+        val (version, selected) = passageFixture(listOf(1 to "𐐀".repeat(2500), 2 to "가".repeat(4999)))
+        put(token, UUID.randomUUID(), request(version = version, endVerse = 2)).andExpect { status { isOk() } }
+        selected[1].updateText("가".repeat(5000))
+        verses.saveAndFlush(selected[1])
+        val id = UUID.randomUUID()
+        put(token, id, request(version = version, endVerse = 2)).andExpect {
+            status { isBadRequest() }; jsonPath("$.code") { value("INVALID_REQUEST") }
+        }
+        assertFalse(copies.existsById(id))
+    }
+
+    @Test
+    fun `completed reflection changes independently with retries while original completion and legacy PUT stay immutable`() {
+        val token = token()
+        val id = completedCopy(token)
+        val before = copies.findById(id).orElseThrow()
+        patch(token, id, "오늘 마음에 남은 말씀", before.revision).andExpect {
+            status { isOk() }; jsonPath("$.reflection") { value("오늘 마음에 남은 말씀") }
+            jsonPath("$.revision") { value(3) }; jsonPath("$.status") { value("COMPLETED") }
+        }
+        val after = copies.findById(id).orElseThrow()
+        assertEquals(before.sourceText, after.sourceText)
+        assertEquals(before.typedText, after.typedText)
+        assertEquals(before.completedAt, after.completedAt)
+        assertEquals(before.createdAt, after.createdAt)
+        assertEquals(before.endVerse, after.endVerse)
+        patch(token, id, "오늘 마음에 남은 말씀", before.revision).andExpect {
+            status { isOk() }; jsonPath("$.revision") { value(3) }
+        }
+        patch(token, id, "오래된 다른 묵상", before.revision).andExpect {
+            status { isConflict() }; jsonPath("$.code") { value("SCRIPTURE_COPY_CONFLICT") }
+        }
+        put(token, id, request(typed = after.typedText, reflection = "PUT으로 바꾸기", revision = after.revision, complete = true)).andExpect {
+            status { isConflict() }
+        }
+        patch(token, id, "", after.revision).andExpect { status { isOk() }; jsonPath("$.revision") { value(4) } }
+        mvc.delete("/api/v1/scripture-copies/$id?expectedRevision=3") { bearer(token) }.andExpect { status { isConflict() } }
+        mvc.delete("/api/v1/scripture-copies/$id?expectedRevision=4") { bearer(token) }.andExpect { status { isNoContent() } }
+        patch(token, id, "삭제 후 복원 시도", 4).andExpect {
+            status { isNotFound() }; jsonPath("$.code") { value("SCRIPTURE_COPY_NOT_FOUND") }
+        }
+        assertFalse(copies.existsById(id))
+    }
+
+    @Test
+    fun `reflection PATCH requires authentication ownership completed state and valid revision and length`() {
+        val token = token()
+        val id = completedCopy(token)
+        mvc.patch("/api/v1/scripture-copies/$id/reflection") {
+            contentType = MediaType.APPLICATION_JSON; content = """{"reflection":"묵상","expectedRevision":2}"""
+        }.andExpect { status { isUnauthorized() } }
+        patch(token(), id, "다른 사용자의 묵상", 2).andExpect {
+            status { isNotFound() }; jsonPath("$.code") { value("SCRIPTURE_COPY_NOT_FOUND") }
+        }
+        patch(token, UUID.randomUUID(), "없는 기록", 1).andExpect { status { isNotFound() } }
+        patch(token, id, "가".repeat(1001), 2).andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_REQUEST") } }
+        patch(token, id, "묵상", 0).andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_REQUEST") } }
+        val draft = UUID.randomUUID()
+        put(token, draft, request()).andExpect { status { isOk() } }
+        patch(token, draft, "", 1).andExpect { status { isConflict() } }
+        patch(token, draft, "아직 완료 전", 1).andExpect { status { isConflict() } }
+        assertEquals(1L, copies.findById(draft).orElseThrow().revision)
+    }
+
+    @Test
+    fun `parallel reflection changes have one winner and identical stale retries keep its revision`() {
+        val token = token()
+        val id = completedCopy(token)
+        val outcomes = parallel(List(4) { index -> { patch(token, id, "묵상 $index", 2).andReturn().response.status } })
+        assertEquals(listOf(200, 409, 409, 409), outcomes.sorted())
+        val winner = copies.findById(id).orElseThrow()
+        assertEquals(3L, winner.revision)
+        val retries = parallel(List(4) { { patch(token, id, winner.reflection, 2).andReturn().response.status } })
+        assertEquals(listOf(200, 200, 200, 200), retries)
+        assertEquals(3L, copies.findById(id).orElseThrow().revision)
+    }
+
+    @Test
+    fun `reflection and deletion race cannot recreate record or silently discard a newer reflection`() {
+        val token = token()
+        val id = completedCopy(token)
+        val outcomes = parallel(listOf(
+            { patch(token, id, "삭제 경합 묵상", 2).andReturn().response.status },
+            { mvc.delete("/api/v1/scripture-copies/$id?expectedRevision=2") { bearer(token) }.andReturn().response.status },
+        ))
+        when (outcomes) {
+            listOf(200, 409) -> {
+                val record = copies.findById(id).orElseThrow()
+                assertEquals("삭제 경합 묵상", record.reflection)
+                assertEquals(3L, record.revision)
+            }
+            listOf(404, 204) -> assertFalse(copies.existsById(id))
+            else -> fail<Unit>("Unexpected reflection/delete results: $outcomes")
+        }
+    }
+
+    private fun passageFixture(texts: List<Pair<Int, String>>): Pair<String, List<BibleVerseEntity>> {
+        val version = "RANGE${UUID.randomUUID().toString().take(8).uppercase()}"
+        val book = books.saveAndFlush(BibleBookEntity(version = version, code = "GEN", name = "연속 필사 검증", testament = Testament.OLD, displayOrder = 1))
+        chapters.saveAndFlush(BibleChapterEntity(version = version, book = book, chapter = 1, contentStatus = BibleChapterContentStatus.AVAILABLE, verseCount = texts.size))
+        return version to verses.saveAllAndFlush(texts.map { (verse, text) -> BibleVerseEntity(version = version, book = book, chapter = 1, verse = verse, text = text) })
+    }
+
+    private fun completedCopy(token: String): UUID {
+        val id = UUID.randomUUID()
+        val response = put(token, id, request()).andExpect { status { isOk() } }.andReturn()
+        val source = mapper.readTree(response.response.contentAsString)["sourceText"].asText()
+        put(token, id, request(typed = source, revision = 1, complete = true)).andExpect { status { isOk() } }
+        return id
+    }
+
+    private fun patch(token: String, id: UUID, reflection: String, revision: Long) = mvc.patch("/api/v1/scripture-copies/$id/reflection") {
+        bearer(token); contentType = MediaType.APPLICATION_JSON
+        content = mapper.writeValueAsString(mapOf("reflection" to reflection, "expectedRevision" to revision))
+    }
+
     private fun command() = ScriptureCopyCommand("KOR1910", "GEN", 1, 1, "", "", 0, false)
     private fun request(
         typed: String = "", reflection: String = "", revision: Long = 0, complete: Boolean = false,
-        version: String = "KOR1910", book: String = "GEN", verse: Int = 1,
-    ) = mapper.writeValueAsString(mapOf("version" to version, "bookCode" to book, "chapter" to 1, "verse" to verse,
-        "typedText" to typed, "reflection" to reflection, "expectedRevision" to revision, "complete" to complete))
+        version: String = "KOR1910", book: String = "GEN", verse: Int = 1, endVerse: Int? = null,
+    ) = mapper.writeValueAsString(buildMap<String, Any> {
+        putAll(mapOf("version" to version, "bookCode" to book, "chapter" to 1, "verse" to verse,
+            "typedText" to typed, "reflection" to reflection, "expectedRevision" to revision, "complete" to complete))
+        if (endVerse != null) put("endVerse", endVerse)
+    })
 
     private fun put(token: String, id: UUID, body: String) = mvc.put("/api/v1/scripture-copies/$id") {
         bearer(token); contentType = MediaType.APPLICATION_JSON; content = body

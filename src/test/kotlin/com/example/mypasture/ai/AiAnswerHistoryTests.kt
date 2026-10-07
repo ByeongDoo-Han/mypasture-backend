@@ -22,6 +22,7 @@ import com.example.mypasture.ai.infrastructure.AiAnswerHistoryRepository
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.user.domain.SubscriptionTier
 import com.example.mypasture.user.domain.UserEntity
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -67,6 +68,7 @@ class AiAnswerHistoryTests(
     @Autowired private val cipher: AiAnswerHistoryCipher,
     @Autowired private val cleanup: AiAnswerHistoryCleanupService,
     @Autowired private val usage: AiUsagePort,
+    @Autowired private val snapshots: com.example.mypasture.ai.application.AiContextSnapshotPort,
     @Autowired private val usageRecords: AiUsageLogRepository,
     @Autowired private val transactionManager: PlatformTransactionManager,
     @Autowired private val runtimeConfig: com.example.mypasture.ai.application.AiRuntimeConfigService,
@@ -202,9 +204,12 @@ class AiAnswerHistoryTests(
         history.delete(owner.id, second.turnId)
         assertFalse(records.existsById(third.turnId))
         feedback.submit(owner.id, third.turnId, AiFeedbackRating.NOT_HELPFUL, setOf(AiFeedbackReason.TOO_GENERIC), null)
-        val afterDeletion = feedback.regenerate(owner.id, SubscriptionTier.FREE, third.turnId, question)
-        assertFalse(records.existsById(afterDeletion.turnId))
-        assertEquals(AiUsageStatus.COMPLETED, usageRecords.findById(afterDeletion.turnId).orElseThrow().status)
+        assertThrows(com.example.mypasture.ai.application.AiQuestionScopeUnclearException::class.java) {
+            runBlocking { feedback.regenerate(owner.id, SubscriptionTier.FREE, third.turnId, question) }
+        }
+        val afterDeletion = usageRecords.findAllByUserId(owner.id).single { it.parentTurnId == third.turnId }
+        assertFalse(records.existsById(afterDeletion.id))
+        assertEquals(AiUsageStatus.FAILED, afterDeletion.status)
         assertTrue(history.list(owner.id, 20, null).items.isEmpty())
     }
 
@@ -255,12 +260,14 @@ class AiAnswerHistoryTests(
         val original = assistant.ask(owner.id, SubscriptionTier.FREE, question)
         val config = runtimeConfig.current()
         val revisionId = usage.reserveRegeneration(owner.id, question, original.turnId, config)
+        val sourceFence = snapshots.restore(owner.id, original.turnId)!!
         val locked = CountDownLatch(1)
         val release = CountDownLatch(1)
         val executor = Executors.newFixedThreadPool(2)
         try {
             val deletion = executor.submit {
                 TransactionTemplate(transactionManager).executeWithoutResult {
+                    users.findActiveByIdForUpdate(owner.id)!!
                     records.lockByTurnIdAndUserId(original.turnId, owner.id)!!
                     locked.countDown()
                     check(release.await(10, TimeUnit.SECONDS))
@@ -268,10 +275,15 @@ class AiAnswerHistoryTests(
                 }
             }
             assertTrue(locked.await(10, TimeUnit.SECONDS))
-            val completion = executor.submit { usage.complete(revisionId, testAnswer(revisionId), question, 1) }
+            val completion = executor.submit {
+                usage.completeWithContext(revisionId, testAnswer(revisionId), question, 1,
+                    com.example.mypasture.ai.domain.AiTurnCompletionContext(sourceFence.snapshot, sourceFence))
+            }
             release.countDown()
             deletion.get(20, TimeUnit.SECONDS)
-            completion.get(20, TimeUnit.SECONDS)
+            val failure = assertThrows(java.util.concurrent.ExecutionException::class.java) { completion.get(20, TimeUnit.SECONDS) }
+            assertTrue(failure.cause is com.example.mypasture.ai.application.AiQuestionScopeUnclearException)
+            usage.fail(revisionId, "AI_QUESTION_SCOPE_UNCLEAR")
             assertTrue(history.list(owner.id, 20, null).items.isEmpty())
             assertFalse(records.existsById(revisionId))
         } finally { release.countDown(); executor.shutdownNow() }

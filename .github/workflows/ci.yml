@@ -83,7 +83,7 @@ jobs:
           AI_HISTORY_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           AI_HISTORY_TEST_JDBC_USER: otp_test
           AI_HISTORY_TEST_JDBC_PASSWORD: disposable-ci-password
-        run: ./gradlew test --tests '*AiAnswerHistoryTests' --tests '*AiHistoryControllerTests' --rerun-tasks --no-daemon
+        run: ./gradlew test --tests '*AiAnswerHistoryTests' --tests '*AiHistoryControllerTests' --tests '*AiContextSnapshotTests' --tests '*AiContextDeletionGuardPostgresTests' --rerun-tasks --no-daemon
 
       - name: Validate scripture copying, revisions and erasure on PostgreSQL
         env:

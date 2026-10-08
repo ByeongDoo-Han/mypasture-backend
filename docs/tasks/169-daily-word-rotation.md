@@ -89,7 +89,7 @@ Lead Decision: root 수락 v1.3, verse_card/review에 전달.
 | --- | --- | --- |
 | 담당·인접 | ./gradlew test --tests '*DailyWord*Tests' --tests '*NotificationDispatchTests' --tests '*NotificationInboxControllerTests' --no-daemon; test/H2 | 발견47, 통과32, PG조건부건너뜀15, 실패0, exit0/42.60초 |
 | 전체 | ./gradlew test --no-daemon; test/H2 | 발견357, 통과327, PG조건부건너뜀30, 실패0, exit0/113.44초 |
-| 실제PG | ./gradlew test --tests '*DailyWordRotation*Tests' --rerun-tasks --no-daemon; Docker pgvector16 격리DB | 발견19, 통과19, 건너뜀0, 실패0, exit0/72.91초: service13+migration2+catalog4 |
+| 실제PG | ./gradlew test --tests '*DailyWordRotation*Tests' --rerun-tasks --no-daemon; Docker pgvector16 격리DB/UUID schema | 최종 발견19, 통과19, 건너뜀0, 실패0, exit0/85.90초: service13+migration2+catalog4 |
 | 최종catalog | 전체검사의 CatalogSourceTests, 완전 외부copied corpus1188파일 | 4/4 실제실행. corpus없으면CI의원문1건만명시skip하며 나머지logic3건실행 |
 | 실행산출물 | ./gradlew bootJar --no-daemon | exit0/10.12초 |
 | 운영본문 조회 | 공개Bible GET-only, 84range/57chapter | missing/blank0; 운영 데이터 변경 없음 |
@@ -100,3 +100,8 @@ PG 최초12개의CGLIB 기본인자 Clock-null 실패는 기능 결함이었다.
 PGservice13/migration2 결과는 소스·환경이 동일한 최종버전에 재사용한다. PG실행 후 바뀐catalog source검사의corpus-presence gate는 최종전체에서4/4 재실행해 검증했다. 전체로그/XML/종료코드/manifest와 QA/Review 원본은 /private/tmp/mypasture-daily-rotation-20261009/evidence에 보존한다. CI는 새PG조건 env와두class를 포함하며 기존 전체jobs를 유지한다.
 
 Remaining: 클라이언트최종화면/독립통합Review/PR CI 확인 후 결과는 PR에 기록. 구현요청의범위상 운영연결main병합·migration·서버/웹/스토어배포는 미실행한다. 실제배포승인 후 migration→server→app/admin 순서로 진행한다.
+
+### 최종 QA fixture 격리 보완
+최초 성공 PG 검사 이후 CI 공유DB의 public schema를 초기화할 가능성을 발견해 service test만 UUID schema/currentSchema/Flyway·Hibernate defaultSchema/qualified TRUNCATE/current_schema assertion으로 격리했다. 실제PG19개를85.90초에 다시 실행해 모두 통과했다. 런타임 소스와 전체 H2에서 실행한327개는 바뀌지 않았고 수정된13개service tests는 전체H2에서 조건부skip이었으므로 전체 결과를 재사용한다. PG 재실행에서 최종 검사 컴파일도 완료했다.
+
+Reviewer LOW: pg_stat_activity의 경합 관측 count는 같은DB의 다른 lock도 포함할 수 있다. 이번 실행은 격리testDB 단독이며 CI job은 순차검사이고, 실제 lock holder와 successor의 완료/단일snapshot·단일broadcast도 별도로 단언하므로 현재 근거는 유효하다. Lead가 이 잔여 관측 한계를 수용했으며 실행 중인 최종fixture를 다시 바꾸거나 같은 전체 검사를 불필요 반복하지 않는다.

@@ -71,7 +71,10 @@ class DailyWordRotationPostgresTests(
     @BeforeEach
     fun prepareSyntheticDatabase() {
         assertEquals("PostgreSQL", jdbc.dataSource!!.connection.use { it.metaData.databaseProductName })
-        jdbc.execute("TRUNCATE notification_device_deliveries,daily_word_notification_settings,notification_devices,notification_broadcasts,daily_word_generation_jobs,daily_words,bible_verses,bible_chapters,bible_books RESTART IDENTITY CASCADE")
+        assertEquals(SCHEMA, jdbc.queryForObject("SELECT current_schema()", String::class.java))
+        val ownedTables = listOf("notification_device_deliveries", "daily_word_notification_settings", "notification_devices",
+            "notification_broadcasts", "daily_word_generation_jobs", "daily_words", "bible_verses", "bible_chapters", "bible_books")
+        jdbc.execute("TRUNCATE ${ownedTables.joinToString(",") { "$SCHEMA.$it" }} RESTART IDENTITY CASCADE")
         clock.set(NOW)
         // 합성 원문은 트랜잭션 논리 fixture입니다. 실제 파일 전체 후보 검증은 별도 SourceTests입니다.
         for ((code, entries) in catalog.entries.groupBy { it.bookCode }) {
@@ -336,12 +339,17 @@ class DailyWordRotationPostgresTests(
         val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
         val TODAY: LocalDate = LocalDate.of(2026, 10, 5)
         val NOW: Instant = Instant.parse("2026-10-05T03:00:00Z")
+        val SCHEMA: String = "rotation_service_${UUID.randomUUID().toString().replace("-", "") }"
         @JvmStatic @DynamicPropertySource fun database(registry: DynamicPropertyRegistry) {
-            registry.add("spring.datasource.url") { System.getenv("DAILY_WORD_ROTATION_TEST_JDBC_URL") }
+            val url = System.getenv("DAILY_WORD_ROTATION_TEST_JDBC_URL")!!
+            registry.add("spring.datasource.url") { "$url${if ('?' in url) '&' else '?'}currentSchema=$SCHEMA,public" }
             registry.add("spring.datasource.username") { System.getenv("DAILY_WORD_ROTATION_TEST_JDBC_USER") ?: "postgres" }
             registry.add("spring.datasource.password") { System.getenv("DAILY_WORD_ROTATION_TEST_JDBC_PASSWORD") ?: "" }
             registry.add("spring.datasource.driver-class-name") { "org.postgresql.Driver" }
             registry.add("spring.flyway.enabled") { "true" }
+            registry.add("spring.flyway.schemas") { SCHEMA }
+            registry.add("spring.flyway.default-schema") { SCHEMA }
+            registry.add("spring.jpa.properties.hibernate.default_schema") { SCHEMA }
             registry.add("spring.jpa.hibernate.ddl-auto") { "validate" }
         }
     }

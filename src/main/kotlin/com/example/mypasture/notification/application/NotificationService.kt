@@ -185,6 +185,8 @@ class NotificationService(
             page.content.forEach { setting ->
                 val local = ZonedDateTime.ofInstant(now, ZoneId.of(setting.timezone))
                 if (local.toLocalTime().withSecond(0).withNano(0) != setting.notificationTime) return@forEach
+                // 빠른 timezone의 내일 본문은 한국 날짜가 시작되기 전에 푸시하지 않습니다.
+                if (local.toLocalDate().atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant().isAfter(now)) return@forEach
                 val word = wordsByDate.getOrPut(local.toLocalDate()) {
                     try { dailyWordService.getPublished(local.toLocalDate()) } catch (_: DailyWordNotPublishedException) { null }
                 } ?: return@forEach

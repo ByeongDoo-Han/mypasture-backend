@@ -58,9 +58,27 @@ class DailyWordEntity(
     val createdAt: Instant = Instant.now(),
     var updatedAt: Instant = Instant.now(),
     @Version var entityVersion: Long = 0,
+    var endVerse: Int? = null,
+    @Column(columnDefinition = "text") var passageText: String? = null,
+    @Column(length = 200) var topicTags: String = "",
+    @Enumerated(EnumType.STRING) var readingMode: DailyWordReadingMode? = null,
+    @Enumerated(EnumType.STRING) var passageType: DailyWordPassageType? = null,
+    @Column(length = 100) var rotationEntryId: String? = null,
 ) {
+    val topics: List<String> get() = topicTags.split(',').filter { it.isNotBlank() }
+
+    /** 단일 절 수동/AI 편집이 이전 순환 범위 메타데이터를 남기지 않게 합니다. */
+    private fun clearRotation() {
+        endVerse = null
+        passageText = null
+        topicTags = ""
+        readingMode = null
+        passageType = null
+        rotationEntryId = null
+    }
     /** RAG가 반환한 실제 절과 생성 결과로 기존 초안을 새 revision으로 교체합니다. */
     fun replaceDraft(citation: BibleCitation, canonicalBookCode: String, generated: GeneratedDailyWord, now: Instant) {
+        clearRotation()
         verseId = citation.verseId
         bibleVersion = citation.version
         bookCode = canonicalBookCode
@@ -92,6 +110,7 @@ class DailyWordEntity(
     /** 관리자가 실제 절을 다시 지정하고 사용자 노출 문구를 수정합니다. */
     fun edit(citation: BibleCitation, canonicalBookCode: String, bookDisplayName: String, nextMeditation: String, nextQuestion: String, now: Instant) {
         check(status == DailyWordStatus.DRAFT) { "초안 상태의 오늘의 말씀만 수정할 수 있습니다." }
+        clearRotation()
         verseId = citation.verseId
         bibleVersion = citation.version
         bookCode = canonicalBookCode
@@ -116,6 +135,7 @@ class DailyWordEntity(
         now: Instant,
     ) {
         check(status != DailyWordStatus.PUBLISHED) { "게시된 오늘의 말씀은 수동 초안으로 교체할 수 없습니다." }
+        clearRotation()
         verseId = citation.verseId
         bibleVersion = citation.version
         bookCode = canonicalBookCode

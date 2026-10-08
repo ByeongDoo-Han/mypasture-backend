@@ -4,6 +4,8 @@ GCP Terraform 기반 staging/production 구축은 [GCP Terraform 배포 가이�
 
 서버 환경은 `local`과 `prod` 두 가지 Spring Profile로 관리합니다.
 
+오늘의 말씀은 기본 `DAILY_WORD_ROTATION_ENABLED=true`로 요일별 목록을 자동 제공합니다. `DAILY_WORD_GENERATION_ENABLED=true`인 전용 worker가 오늘·내일을 준비하고 API 인스턴스는 조회 시 현재 날짜 게시본을 복구할 수 있습니다. `DAILY_WORD_ROTATION_ENABLED=false`일 때만 기존 provider/AI 초안 생성과 관리자 검수 경로를 사용합니다. 운영은 V42.8을 먼저 적용해야 하며 본문 목록·범위·실패 처리 기준은 [오늘의 말씀 운영 가이드](daily-word-publishing-operations.ko.md)를 확인하세요.
+
 6자리 현장 QT 참여 코드는 로그인 사용자만 해석할 수 있으며, 운영에서는 Redis rate limit을 활성화합니다.
 
 ```dotenv

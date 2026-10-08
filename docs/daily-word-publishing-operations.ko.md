@@ -1,6 +1,33 @@
-# 오늘의 말씀 생성·검수·게시 운영 가이드
+# 오늘의 말씀 순환 제공과 예외 복구 운영 가이드
 
-## 운영 원칙
+## 기본 운영: 요일별 자동 순환
+
+`DAILY_WORD_ROTATION_ENABLED=true`가 기본입니다. AI 생성이나 매일 관리자 검수 없이 카탈로그에 정의한 범위의 KOR1910 원문을 DB에서 검증한 뒤 날짜별로 한 번 게시합니다.
+
+| 요일 | 제공 방식 |
+| --- | --- |
+| 월 | 소망 |
+| 화 | 감사 |
+| 수 | 사랑 |
+| 목 | 평안 |
+| 금 | 기쁨 |
+| 토·일 | 성경 함께 읽기: 주제 태그 없이 문맥 단위로 순서대로 읽기 |
+
+초기 목록은 `DailyWordRotationCatalog`의 주제별 12개(60개)와 창세기 1~5장 문맥 읽기 24개입니다. 전체 성경을 감정 주제에 강제 분류하지 않습니다. 본문 유형과 주제 태그는 별개이며 읽기 본문에는 빈 태그를 허용합니다. 목록 끝에서는 처음으로 돌아갑니다. 주제 말씀은 최근30일 같은 범위와 겹치지 않는 후보를 우선하며, 읽기 본문은 목록 순서를 보존합니다.
+
+모든 사용자는 한국 날짜별로 같은 저장된 본문을 받습니다. 요청 횟수는 순환 위치에 영향을 주지 않습니다. worker는 오늘·내일 게시본을 준비하고, worker가 놓친 현재 날짜는 공개 조회에서 복구합니다. 과거 또는 내일 이후의 미게시 날짜를 조회해 임의로 생성할 수 없습니다. 원문 누락·빈 절은 다음 유효한 후보로 이동하고 모든 후보가 실패하면 게시하지 않아 기존 사건 감지가 누락을 알립니다.
+
+기존 게시본과 수동/반려 콘텐츠는 보존합니다. 현재/내일의 기존 AI 초안은 순환 본문으로 전환하며 비용·모델 기록을 지우지 않습니다. 활성 AI 작업은 같은 트랜잭션에서 취소합니다. 순환 게시본은 `source=CURATED`, `readingMode`, `topics`, `passageType`, `rotationEntryId`로 구분하고 `reviewedBy/reviewedAt`은 비워 관리자 검수를 가장하지 않습니다.
+
+기존 `verseText`는 첫 절 원문이며 `passageText`는 여러 절 전체 본문입니다. 새 클라이언트는 `passageText ?? verseText`를 표시합니다. `verse`는 시작 절, `endVerse`는 끝 절입니다. 구버전 클라이언트/서버는 첫 절 계약을 계속 사용할 수 있습니다.
+
+내일 게시본을 미리 준비해도 인앱 알림은 한국 날짜 자정부터 노출하고 자정 이전의 미래 날짜 푸시도 예약하지 않습니다. 장애/수동 복구 초안에는 아래 검수·게시 명령을 계속 사용할 수 있지만, 순환 모드의 AI 생성 예약 요청은409로 명시적으로 거절합니다.
+
+## 개발·배포 순서
+
+V42.8 migration → 서버 → 앱/관리자 순서입니다. 기존 V42.7 및 열린 결제 migration V43/V44와 번호 충돌을 피합니다. 기존 migration과 기존 게시본은 수정하지 않습니다. `DAILY_WORD_ROTATION_ENABLED=false`이면 아래의 기존 AI 초안/검수 흐름으로 돌아갑니다. 이미 저장된 순환 게시본은 다시 생성되지 않습니다. 이번 구현 PR 자체는 운영 배포 승인을 포함하지 않습니다.
+
+## 기존 AI 모드와 수동 복구 운영 원칙
 
 - 생성 worker는 매일 다음 날 콘텐츠를 한 번 예약합니다.
 - RAG가 찾은 `verse_id`를 현재 `bible_verses` 원문과 비교한 뒤 묵상과 실천 질문만 AI에 생성시킵니다.
@@ -18,7 +45,7 @@
 
 worker가 종료되면 `leaseUntil` 이후 다른 인스턴스가 작업을 회수합니다. 이전 worker는 lease token이 달라 결과를 저장할 수 없습니다. 날짜별 `PENDING/PROCESSING` 부분 유일 인덱스가 다중 서버의 활성 작업 중복을 최종 차단합니다.
 
-## 일일 운영 순서
+## 기존 AI 모드의 일일 운영 순서
 
 1. 운영 요약에서 오늘과 내일의 준비 상태, 실패·적체 작업을 확인합니다.
 2. 관리자 화면에서 다음 날 생성 작업이 `COMPLETED`인지 확인합니다.
@@ -46,6 +73,7 @@ worker가 종료되면 `leaseUntil` 이후 다른 인스턴스가 작업을 회�
 ## 환경변수
 
 ```text
+DAILY_WORD_ROTATION_ENABLED=false
 DAILY_WORD_GENERATION_ENABLED=true
 DAILY_WORD_PROVIDER=openai
 DAILY_WORD_GENERATION_CRON=0 0 18 * * *
@@ -65,7 +93,7 @@ DAILY_WORD_INCIDENT_EMAIL_FROM=operations@mypasture.app
 DAILY_WORD_INCIDENT_EMAIL_MAX_ATTEMPTS=5
 ```
 
-로컬 기본값은 자동 생성을 끕니다. 외부 비용 없이 흐름을 확인하려면 `DAILY_WORD_GENERATION_ENABLED=true`, `DAILY_WORD_PROVIDER=local`을 명시합니다. 운영에서는 `openai`만 사용하며 `OPENAI_API_KEY`는 Secret Manager로 주입합니다.
+로컬 기본값은 자동 AI 생성을 끕니다. 기존 AI 초안/검수 흐름을 외부 비용 없이 확인하려면 `DAILY_WORD_ROTATION_ENABLED=false`, `DAILY_WORD_GENERATION_ENABLED=true`, `DAILY_WORD_PROVIDER=local`을 명시합니다. 기존 AI 운영 모드에서는 `openai`만 사용하며 `OPENAI_API_KEY`는 Secret Manager로 주입합니다. 기본 순환 모드는 provider를 호출하지 않습니다.
 
 ## 장애 대응
 

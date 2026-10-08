@@ -12,4 +12,7 @@ import java.time.LocalDate
 class DailyWordController(private val service: DailyWordService) : DailyWordApi {
     override fun today(date: LocalDate?) = (date?.let(service::getPublished) ?: service.getPublished()).toResponse()
 }
-private fun DailyWordEntity.toResponse() = DailyWordResponse(id, wordDate, bibleVersion, bookCode, bookName, chapter, verse, verseText, meditation, actionQuestion, publishedAt)
+private fun DailyWordEntity.toResponse() = DailyWordResponse(
+    id, wordDate, bibleVersion, bookCode, bookName, chapter, verse, verseText, meditation, actionQuestion, publishedAt,
+    endVerse, passageText, topics, readingMode?.name, passageType?.name,
+)

@@ -104,3 +104,14 @@ Reviewer가 query 취소 await 중 계정이 바뀌면 북마크/메모가 새 �
 - Reviewer 최종 서버 판정: MERGE READY, 미해결 BLOCKER/HIGH/MEDIUM 없음. 운영 migration 최신42.6과 미병합 결제43/44를 확인했으며 아직 출시하지 않은42.7만 작성했습니다. `git diff --check` 확인.
 - 근거 위치: /private/tmp/mypasture-growth-20261008/의 검사별 log/result.json/XML/QA/Review/인수인계/source hash. 원본 로그는 저장소에 커밋하지 않습니다.
 - 구현·로컬 검증은 완료이며 최종 커밋 CI는 PR에서 확인합니다. main 병합은 운영 자동 배포를 유발하므로 새로운 업적 운영 배포 승인 없이 진행하지 않습니다. 앱의 최종 PNG/전체 PWA/Android·iOS 검증은 진행 중이며 서버 API/DB 선행 운영 반영 후 앱 배포가 필요합니다.
+
+
+### CR-004: PostgreSQL CI 반복 컴파일 제거 (수락, 검증 범위 유지)
+
+- Current: postgres-auth job에서 인증/검색, 활동, AI, 필사, 업적을 다섯 Gradle 프로세스로 나누고 후속 네 번에 --rerun-tasks를 사용합니다. Java/Kotlin 및 테스트 소스를 반복 컴파일합니다. GitHub job113162232297은 앞 네 단계가 성공한 뒤 업적 단계에서 취소됐고, check-run annotation은 `The job has exceeded the maximum execution time of 15m0s`를 명시합니다. 취소된 업적 CI를 통과로 간주하지 않습니다.
+- Proposed: 동일 PostgreSQL 서비스와 여섯 JDBC 환경 변수 계열(ADMIN_EMAIL_LOGIN, BIBLE_SEARCH, ACTIVITY, AI_HISTORY, SCRIPTURE_COPY, ACHIEVEMENT; 총18개)을 한 단계로 합치고, 모든 기존 선택 클래스13개를 한 `./gradlew test ... --rerun-tasks --no-daemon` 명령에서 실행합니다. 강제 재실행도 한 번 유지해 실제 PostgreSQL 검사가 캐시 결과로 대체되지 않게 합니다.
+- Reason: 각 단계의 필수 테스트를 유지하면서 동일 소스의 반복 컴파일·Gradle 프로세스 시작 시간을 줄여 현재15분 job 예산 안에 검증을 마칩니다.
+- Impact: .github/workflows/ci.yml의 postgres-auth 단계 통합만 실행 동작이 바뀝니다. 사용자 기능/API/DB와 다른 CI job, trigger, service, timeout, 보호 규칙, 검증 조건은 동일합니다. 서로 다른 클래스의 Spring context와 JDBC 환경이 동시에 존재하는 위험은 같은 여섯 계열을 한 표준 Gradle 명령에 지정한 실제 로컬 PostgreSQL101개 통과 결과로 확인했습니다.
+- Compatibility: AdminEmailLoginControllerTests, BibleCursorSearchControllerTests, ActivityCalendarControllerTests, ReadingActivityIntegrationTests, AiAnswerHistoryTests, AiHistoryControllerTests, AiContextSnapshotTests, AiContextDeletionGuardPostgresTests, ScriptureCopyControllerTests, ScriptureCopyLegacyInsertPostgresTests, AchievementControllerTests, AchievementCatalogTests, AchievementErasureGuardPostgresTests 전체를 유지합니다. 로컬 통과 명령의 `*Achievement*Tests`를 CI의 업적 클래스 세 개로 전개했을 때 선택 집합이 일치합니다.
+- 담당/검증: Lead가 변경 범위와 수정안을 승인하고 /root/achievement에 해당 CI·작업기록 경로를 배정했습니다. Agent는 YAML 구조, 이전/이후13개 클래스와18개 env 값의 보존, 실제 로컬 exit0·101개 결과와의 명령 일치를 검증합니다. 독립 Reviewer가 실제 diff를 검토하고 Root가 최종 커밋을 push하여 전체 CI를 재확인합니다. 로컬 애플리케이션 소스/테스트/설정은 바뀌지 않아 동일 대상의 기존 전체323개 및 PostgreSQL101개 결과를 재사용하며 새 CI 실행을 생략하지 않습니다.
+- 근거: /private/tmp/mypasture-growth-20261008/server-ci-pg-cancelled.log, server-pg-ci-consolidation-verification.json, server-pg.result.json 및 server-pg-erasure-guard-xml. 취소 원본은 보존합니다. CI 최종 결과는 재실행 후 별도 갱신합니다.

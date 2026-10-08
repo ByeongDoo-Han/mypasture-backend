@@ -1,5 +1,6 @@
 package com.example.mypasture.bible.application
 
+import com.example.mypasture.achievement.application.AchievementService
 import com.example.mypasture.bible.domain.BibleBookmarkEntity
 import com.example.mypasture.bible.infrastructure.BibleBookEntityRepository
 import com.example.mypasture.bible.infrastructure.BibleBookmarkRepository
@@ -16,13 +17,17 @@ class BibleBookmarkService(
     private val bookRepository: BibleBookEntityRepository,
     private val verseRepository: BibleVerseEntityRepository,
     private val bookmarkRepository: BibleBookmarkRepository,
+    private val achievements: AchievementService,
 ) {
     @Transactional
     fun save(userId: UUID, version: String, bookCode: String, chapter: Int, verse: Int): BibleBookmarkEntity {
         val verseEntity = findVerse(version, bookCode, chapter, verse)
-        checkNotNull(bookmarkRepository.lockUser(userId)) { "Active user was not found." }
-        return bookmarkRepository.findByUserIdAndVerse_Id(userId, verseEntity.id)
-            ?: bookmarkRepository.save(BibleBookmarkEntity(userId = userId, verse = verseEntity))
+        achievements.lockUser(userId)
+        val existing = bookmarkRepository.findByUserIdAndVerse_Id(userId, verseEntity.id)
+        if (existing != null) return existing
+        val saved = bookmarkRepository.save(BibleBookmarkEntity(userId = userId, verse = verseEntity))
+        achievements.recordProgress(userId)
+        return saved
     }
 
     @Transactional(readOnly = true)
@@ -44,6 +49,8 @@ class BibleBookmarkService(
     @Transactional
     fun delete(userId: UUID, version: String, bookCode: String, chapter: Int, verse: Int) {
         val verseEntity = findVerse(version, bookCode, chapter, verse)
+        achievements.lockUser(userId)
+        achievements.recordProgress(userId)
         bookmarkRepository.deleteByUserIdAndVerse_Id(userId, verseEntity.id)
     }
 

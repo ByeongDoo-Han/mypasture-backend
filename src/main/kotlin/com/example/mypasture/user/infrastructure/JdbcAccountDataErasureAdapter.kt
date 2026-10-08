@@ -98,6 +98,9 @@ class JdbcAccountDataErasureAdapter(
         )
 
         // 사용자 소유 데이터는 자식 테이블부터 물리 삭제해 원문과 토큰을 남기지 않습니다.
+        deleted += update("user_achievement_featured", "delete from user_achievement_featured where user_id = ?", command.userId)
+        deleted += update("user_achievement_awards", "delete from user_achievement_awards where user_id = ?", command.userId)
+        deleted += update("user_note_activity_days", "delete from user_note_activity_days where user_id = ?", command.userId)
         deleted += update(
             "ai_answer_feedback_reasons",
             "delete from ai_answer_feedback_reasons where feedback_id in (select id from ai_answer_feedbacks where user_id = ?)",

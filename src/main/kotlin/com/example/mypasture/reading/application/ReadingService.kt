@@ -1,5 +1,6 @@
 package com.example.mypasture.reading.application
 
+import com.example.mypasture.achievement.application.AchievementService
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.bible.application.BibleReaderService
 import com.example.mypasture.reading.domain.BibleReadingHistoryEntity
@@ -21,6 +22,7 @@ class ReadingService(
     private val stateRepository: BibleReadingStateRepository,
     private val historyRepository: BibleReadingHistoryRepository,
     private val users: UserRepository,
+    private val achievements: AchievementService,
     private val clock: Clock = Clock.systemUTC(),
 ) {
     @Transactional
@@ -31,15 +33,21 @@ class ReadingService(
         // 같은 사용자의 여러 기기 요청을 직렬화해 최초 저장 충돌과 완독 상태 유실을 막습니다.
         checkNotNull(users.findActiveByIdForUpdate(userId)) { "Active user is required" }
         val now = Instant.now(clock)
-        val state = stateRepository.findByUserIdAndBibleVersionAndBookCodeAndChapter(userId, source.version, source.book.code, chapter)
+        val existingState = stateRepository.findByUserIdAndBibleVersionAndBookCodeAndChapter(userId, source.version, source.book.code, chapter)
+        val completedNewChapter = normalizedCompleted && existingState?.completed != true
+        val state = existingState
             ?: BibleReadingStateEntity(userId = userId, bibleVersion = source.version, bookCode = source.book.code, chapter = chapter, lastVerse = lastVerse, completed = normalizedCompleted, lastReadAt = now)
         state.record(lastVerse, normalizedCompleted, now)
         val readOn = LocalDate.ofInstant(now, ZoneId.of(timezone))
-        val history = historyRepository.findByUserIdAndBibleVersionAndBookCodeAndChapterAndReadOn(userId, source.version, source.book.code, chapter, readOn)
+        val existingHistory = historyRepository.findByUserIdAndBibleVersionAndBookCodeAndChapterAndReadOn(userId, source.version, source.book.code, chapter, readOn)
+        val completedOnNewDay = normalizedCompleted && existingHistory?.completed != true
+        val history = existingHistory
             ?: BibleReadingHistoryEntity(userId = userId, bibleVersion = source.version, bookCode = source.book.code, chapter = chapter, readOn = readOn, lastVerse = lastVerse, completed = normalizedCompleted, updatedAt = now)
         history.record(lastVerse, normalizedCompleted, now)
         historyRepository.save(history)
-        return stateRepository.save(state)
+        val saved = stateRepository.save(state)
+        if (completedNewChapter || completedOnNewDay) achievements.recordProgress(userId)
+        return saved
     }
 
     @Transactional(readOnly = true)

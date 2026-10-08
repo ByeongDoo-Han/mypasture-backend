@@ -162,6 +162,11 @@ data class DailyWordAdminResponse(
     val reviewedAt: Instant?,
     val publishedAt: Instant?,
     val updatedAt: Instant,
+    val endVerse: Int? = null,
+    val passageText: String? = null,
+    val topics: List<String> = emptyList(),
+    val readingMode: String? = null,
+    val passageType: String? = null,
 )
 
 data class DailyWordGenerationJobResponse(

@@ -77,6 +77,7 @@ app:
       dispatch-batch-size: ${NOTIFICATION_DISPATCH_BATCH_SIZE:100}
       max-batches-per-run: ${NOTIFICATION_MAX_BATCHES_PER_RUN:20}
   daily-word:
+    rotation-enabled: ${DAILY_WORD_ROTATION_ENABLED:true}
     generation-enabled: ${DAILY_WORD_GENERATION_ENABLED:false}
     provider: ${DAILY_WORD_PROVIDER:disabled}
     generation-cron: ${DAILY_WORD_GENERATION_CRON:0 0 18 * * *}

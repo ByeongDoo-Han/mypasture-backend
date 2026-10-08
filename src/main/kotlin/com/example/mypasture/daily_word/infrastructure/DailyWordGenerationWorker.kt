@@ -40,6 +40,7 @@ class DailyWordGenerationWorker(
 ) {
     @Scheduled(cron = "\${app.daily-word.generation-cron:0 0 18 * * *}", zone = "\${app.daily-word.generation-zone:Asia/Seoul}")
     fun queueTomorrow() {
+        if (properties.rotationEnabled) return
         val zone = ZoneId.of(properties.generationZone)
         val targetDate = LocalDate.now(clock.withZone(zone)).plusDays(properties.targetDaysAhead)
         runCatching { dailyWordService.queueScheduled(targetDate) }
@@ -48,6 +49,7 @@ class DailyWordGenerationWorker(
 
     @Scheduled(fixedDelayString = "\${app.daily-word.poll-delay-ms:5000}")
     suspend fun processNext() = withContext(Dispatchers.IO) {
+        if (properties.rotationEnabled) return@withContext
         val claim = claimNext() ?: return@withContext
         try {
             val theme = themes[Math.floorMod(claim.wordDate.toEpochDay(), themes.size.toLong()).toInt()]

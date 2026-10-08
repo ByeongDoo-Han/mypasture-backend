@@ -101,6 +101,7 @@ private fun DailyWordEntity.toAdminResponse() = DailyWordAdminResponse(
     meditation, actionQuestion, status, source, contentRevision, model, promptVersion,
     retrievalStrategy?.name, embeddingTokens, promptTokens, completionTokens, estimatedCostUsd,
     reviewedBy, rejectionReason, generatedAt, reviewedAt, publishedAt, updatedAt,
+    endVerse, passageText, topics, readingMode?.name, passageType?.name,
 )
 
 private fun DailyWordGenerationJobEntity.toResponse() = DailyWordGenerationJobResponse(

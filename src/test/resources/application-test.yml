@@ -26,6 +26,7 @@ app:
     api-key: test
     mock-enabled: true
   daily-word:
+    rotation-enabled: false
     generation-enabled: false
     incident-detection-enabled: false
   security:

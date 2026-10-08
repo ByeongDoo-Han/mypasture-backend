@@ -1,0 +1,26 @@
+@baseUrl = http://localhost:8080
+@adminToken = {{accessToken}}
+
+### 오늘: 한국 날짜 snapshot, 첫 절 계약과 전체 passageText/선택적 topics
+# CONTINUOUS 자동 게시본은 readingGuide(position,total,previous,next)를 추가 제공한다.
+# 인접 ref는 version/bookCode/bookName/chapter/verse/endVerse이며 양끝은 null이다.
+# readingGuide는 카탈로그 순서이며 개인 완독 또는 다음 날짜 게시본을 의미하지 않는다.
+GET {{baseUrl}}/api/v1/today-word
+
+### 저장된 날짜의 본문: 새로고침에도 같은 id와 본문, 과거 미게시본은 기존404
+GET {{baseUrl}}/api/v1/today-word?date=2026-10-09
+
+### 관리자 조회: 자동 게시본은 source CURATED, reviewedBy/reviewedAt null
+GET {{baseUrl}}/api/v1/admin/daily-words?from=2026-10-09&to=2026-10-11
+Authorization: Bearer {{adminToken}}
+
+### 순환 모드에서 AI 초안 예약은409: 수동 복구 경로를 사용한다
+POST {{baseUrl}}/api/v1/admin/daily-words/2026-10-10/generation-jobs
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "operationId": "6014d2bf-1cf1-4c65-aec4-6f9159b430ee",
+  "regenerate": false,
+  "reason": "순환 제공 중 AI 작업 예약 차단 확인"
+}

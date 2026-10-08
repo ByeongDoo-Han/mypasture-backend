@@ -9,10 +9,16 @@ import java.time.LocalDate
 /** 모바일 홈에 오늘의 말씀과 묵상을 제공합니다. */
 @RestController
 @RequestMapping("/api/v1/today-word")
-class DailyWordController(private val service: DailyWordService) : DailyWordApi {
-    override fun today(date: LocalDate?) = (date?.let(service::getPublished) ?: service.getPublished()).toResponse()
+class DailyWordController(
+    private val service: DailyWordService,
+    private val readingGuideMapper: DailyWordReadingGuideMapper,
+) : DailyWordApi {
+    override fun today(date: LocalDate?): DailyWordResponse {
+        val word = date?.let(service::getPublished) ?: service.getPublished()
+        return word.toResponse(readingGuideMapper.from(word))
+    }
 }
-private fun DailyWordEntity.toResponse() = DailyWordResponse(
+private fun DailyWordEntity.toResponse(readingGuide: DailyWordReadingGuideResponse?) = DailyWordResponse(
     id, wordDate, bibleVersion, bookCode, bookName, chapter, verse, verseText, meditation, actionQuestion, publishedAt,
-    endVerse, passageText, topics, readingMode?.name, passageType?.name,
+    endVerse, passageText, topics, readingMode?.name, passageType?.name, readingGuide,
 )

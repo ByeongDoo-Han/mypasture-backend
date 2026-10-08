@@ -30,3 +30,12 @@ data class DailyWordRotationEntry(
     val topics: Set<DailyWordTopic>,
     val passageType: DailyWordPassageType,
 )
+
+/** 카탈로그의 현재 위치와 인접 본문을 제공하며 개인 읽기 상태는 포함하지 않습니다. */
+data class DailyWordReadingGuide(
+    val current: DailyWordRotationEntry,
+    val position: Int,
+    val total: Int,
+    val previous: DailyWordRotationEntry?,
+    val next: DailyWordRotationEntry?,
+)

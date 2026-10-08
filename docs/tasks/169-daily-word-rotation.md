@@ -105,3 +105,48 @@ Remaining: 클라이언트최종화면/독립통합Review/PR CI 확인 후 결�
 최초 성공 PG 검사 이후 CI 공유DB의 public schema를 초기화할 가능성을 발견해 service test만 UUID schema/currentSchema/Flyway·Hibernate defaultSchema/qualified TRUNCATE/current_schema assertion으로 격리했다. 실제PG19개를85.90초에 다시 실행해 모두 통과했다. 런타임 소스와 전체 H2에서 실행한327개는 바뀌지 않았고 수정된13개service tests는 전체H2에서 조건부skip이었으므로 전체 결과를 재사용한다. PG 재실행에서 최종 검사 컴파일도 완료했다.
 
 Reviewer LOW: pg_stat_activity의 경합 관측 count는 같은DB의 다른 lock도 포함할 수 있다. 이번 실행은 격리testDB 단독이며 CI job은 순차검사이고, 실제 lock holder와 successor의 완료/단일snapshot·단일broadcast도 별도로 단언하므로 현재 근거는 유효하다. Lead가 이 잔여 관측 한계를 수용했으며 실행 중인 최종fixture를 다시 바꾸거나 같은 전체 검사를 불필요 반복하지 않는다.
+
+## CHANGE REQUEST: CR-006 — 연속 읽기 확대와 승인된 운영 반영
+Current: 주말 창세기1~5장24본문, 홈은 본문에서 성경 첫 절로 이동하며 순서 안내가 없다. PR170/137/57은 검증 완료 후 미병합.
+Proposed: 기존24개 entry ID와 순서를 유지하고 창세기6~50장까지 문맥 단위 범위를 추가한다. 각 범위는20절 이하이며 각 장의 모든 절을 누락·중복 없이 포함한다. 오늘의 공개 응답에 optional readingGuide(position,total,previous,next)를 추가한다. previous/next는 카탈로그상 바로 인접한 본문이며 처음/마지막에서는 null로 표시한다. 실제 다음 날짜의 게시본 또는 개인 완독을 보장하는 의미가 아니다. 앱은 주말 읽기에 순서·이전/다음 성경 이동과 기존 장 완독 기록 기반 상태를 표시한다.
+Reason: 사용자 요청 1(운영 반영),4(연속 읽기 확대/읽은 본문·다음 안내)를 같은 최종 버전으로 제공한다.
+Impact: server catalog/public DTO·mapper/HTTP/담당검사, 앱 홈 type/표시/담당 unit/PWA만. 관리자 소스 변경 없음. DB/Event/인증/개인기록 API는 추가 변경 없음; 선행 V42.8 및 기존 snapshot/잠금/알림 동작은 유지한다. 신규 deps 없음.
+Compatibility: readingGuide는 nullable additive 필드. 수동/legacy/카탈로그 ID 불일치 row는 null. 기존 게시본을 재선택하거나 수정하지 않으며 API 서버 한국날짜 기준 유지. 앱은 metadata 없는 응답을 기존대로 표시한다. 기존 reading/progress의 completed=true만 장 완독으로 표시하고 lastVerse를 범위 완독으로 해석하지 않는다.
+Lead Decision: root 수락 v1.4, 기능 담당 verse_card/QA stability/Reviewer review에 전달. 기존 PR에 통합하고 최종 해당커밋 CI가 통과한 뒤 병합·원격branch삭제.
+
+### 역할·허용 경로
+- root Lead/Backend/Infra: 카탈로그, 공개guide DTO/mapper/application/domain, http와 본 문서; 공유 설정·migration은 기존 구현 이외 변경 없음. 서버/웹/관리자/기존 Android·iOS 테스트 채널 배포 통합.
+- verse_card Implementation: mobile src/features/home/** 및 기존 home PWA spec/해당 docs. navigation/shared/API 공통 변경이 필요하면 CR 요청. 기존 auth/query 키/개인 데이터 보관 정책 유지.
+- stability 독립 QA: catalog/source/guide 담당 tests와 실행 근거. 기능코드 수정 없음.
+- review 독립 Reviewer: 실제diff·계약·검사 원본·화면과 CI read-only 검토.
+
+### 검증·완료 조건
+- 담당/인접 server tests 및 수정된 source/catalog/guide 검사를 실행한다. V42.8 포함 배포의 고위험 기준으로 최종server 전체와 실제PG19개를 갱신하며 source Genesis50장 전체를 별도 확인한다.
+- 앱은 공개홈 표시와 기존 사용자별 progress read 내부의 좁은 변화로 저위험: type/build/담당unit/인접PWA/휴대폰·desktop 검증, local전체는 정책상 생략하고 최종전체CI 유지. 관리자 동일3add소스의 통과한 로컬 결과/CI를 재사용하며 mainpush의 전체CI/자동배포는 유지한다.
+- 독립QA/Review, 최종PR CI→병합→main CI→기존 운영 배포 순서, migration42.8/실제ready·imageSHA·트래픽·공개오늘말씀·내일노출시각·본문공급/캐시를 확인한다.
+- 사용자 “1,4 진행해줘”는 해당 기능의 main병합과 실제연결 api/app/admin 도메인 배포 승인이다. 기존 네이티브 채널은 Android internal/iOS TestFlight이며 정식스토어출시는 포함하지 않는다. 추가 사용자 승인 반복하지 않는다.
+- 배포 준비·로컬 전체/PG/원문·웹 검사·UI·CI 증거는 /private/tmp/mypasture-reading-release-20261009/evidence에 저장한다. 이전84본문/3repo 검증 증거는 기존daily-rotation 폴더에 보존한다.
+
+### CR006 API / Interface 상세
+GET /api/v1/today-word의 optional readingGuide: {position:Int>=1,total:Int>=position,previous:ReadingPassage|null,next:ReadingPassage|null}|null. ReadingPassage: {version:String,bookCode:String,bookName:String,chapter:Int>=1,verse:Int>=1,endVerse:Int>=verse}. 기존GET query/date·404·공개인증·권한·쓰기멱등성은 그대로. THEMED/legacy/missing·불일치rotationEntryId는guide null. guide가 존재해도 private read 상태는 넣지 않는다.
+Application catalog guide(entryId,version)의 결과는 현재 카탈로그 위치와 인접 entry이며 null 의미는 unknown entry/양끝 경계. public DTO mapper는 CONTINUOUS와 entry ID 및 실제snapshot range의 일치가 확인될 때만 호출하고 bookName은 BibleCatalog 고정 메타데이터를 사용한다. UI 인증된 장완독은 기존 ReadingState(version,bookCode,chapter,completed=true) exactmatch만 사용; 일부 lastVerse만 있으면 완독으로 표시하지 않는다. metadata없는 legacy응답은 추가안내없이기존본문표시.
+
+## CHANGE REQUEST: CR-007 — 실제 원문 공급 한계에 따른 연속 읽기 끝 범위
+Current: CR006에서 자체선정한 창세기50장 전체(사용자4번은 이후 장 확장 요청).
+Proposed: 이번 목록은 기존24본문 뒤 창세기6~29장까지 완전한 문맥 순서로 확대. GEN30:32~43 및33:20 원문 보강 후50장까지 후속확장한다.
+Reason: 로컬HTML50장1520절과 공식ebible kor HTML/USFM/VPL 공급 모두30장31절/33장19절로13절이없다. 현재다른번역을혼합하거나누락본문을건너뛰지않고원문이완전한1~29장을연속으로운영한다.
+Impact: 카탈로그/QA expected끝장29로조정. guideAPI와앱계약은총수동적이라불변. 원래Bible원문/기존importer/DB/migration수정없음.
+Compatibility: 기존24entries/이미게시된snapshot보존. 사용자요청4의분량확대+이전다음안내는달성하며50장완독완료를주장하지않는다.
+Lead Decision: root 수락v1.5, verse_card/stability/review 전달. 누락은별도후속Issue로추적. 근거는새evidence/qa-genesis-local-source.json 및upstream-genesis-format-check.json(공식USFM+VPL); 공식publisher https://ebible.org/details.php?id=kor.
+
+## CR006/007 최종 구현 인수인계
+
+현재 범위는 창세기1~29장 연속본문85개(기존24개+61개)와 주제본문60개, 전체145개다. 원문 공급의13절 누락은 Issue171로 추적하며 다른 번역을 섞거나 누락구간을 건너뛰지 않는다. readingGuide는 공개CURATED/PUBLISHED/CONTINUOUS/KOR1910 및ID·범위 일치에서만 제공한다. 카탈로그 순서와 이전/다음 본문은 실제 다음날 게시 또는 개인 완독을 뜻하지 않는다. 앱의 장 완독 표시는 인증된 기존 progress의 exact version/book/chapter completed=true에서만 나온다. DB/설정/이벤트는 선행42.8 구현 이외 추가 변경이 없다.
+
+검증 원본: /private/tmp/mypasture-reading-release-20261009/evidence. 담당·인접56발견/41통과/15PG조건부skip/실패0 exit0/46.87초; 전체366발견/336통과/30PG조건부skip/실패0 exit0/180.90초. 실제PG는 표준선택 명령으로28발견/28통과/skip0/실패0 exit0/98.81초(service13+migration2+catalog6+guide7). 처음PG는 로컬컨테이너중지로 연결거부15실패였으며 첫실패log/result/XML을 server-pg-initial-db-stopped*에 보존했다. 동일기존컨테이너재시작과pg_isready확인 후 같은표준검사를 재실행했으며 코드나검사조건을완화하지않았다. 현재원문과공개API에서145범위/81장의모든절이존재함을확인했다. 첫3장의cold-start timeout은초기실패원본을보존하고그3장만재조회해통과했다.
+
+앱4955f433의담당unit11개/홈및계정분리인접PWA38개통과, type/webbuild/diff 통과. 독립QA stability/Reviewer review는원본과휴대폰·desktop화면4장을각각확인했으며앱local MERGE READY다. 앱local전체는저위험경계변경으로정책상생략하고최종전체CI유지한다. 관리자3add20d4 소스변경없어이미통과한전체CI37833660198과검증원본을재사용한다.
+
+서버최종bootJar·독립QA/Review·새head CI를확인한후사용자의1,4운영승인범위로병합한다. migration42.8→API/worker Ready→앱/관리자와기존Androidinternal/iOSTestFlight 순서다. 병합/운영/테스트채널배포는각각실제커밋과원본검증으로별도기록한다. 실제휴대폰사용자흐름검증이나일반스토어출시를검증/완료로간주하지않는다.
+
+서버 표준 bootJar는 exit0/10.84초, finaldiffcheck0. Reviewer는현재frozen소스와새PG원본28/28을직접검토하여server local MERGE READY로판정했다. 최종commit/CI와운영ready는별도확인한다.

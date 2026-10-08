@@ -90,7 +90,7 @@ jobs:
           SCRIPTURE_COPY_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           SCRIPTURE_COPY_TEST_JDBC_USER: otp_test
           SCRIPTURE_COPY_TEST_JDBC_PASSWORD: disposable-ci-password
-        run: ./gradlew test --tests '*ScriptureCopyControllerTests' --rerun-tasks --no-daemon
+        run: ./gradlew test --tests '*ScriptureCopyControllerTests' --tests '*ScriptureCopyLegacyInsertPostgresTests' --rerun-tasks --no-daemon
 
   container-build:
     name: container-build

@@ -7,6 +7,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.context.TestPropertySource
@@ -22,7 +23,7 @@ import kotlin.test.assertTrue
 
 /** JWT 인증된 AI SSE 요청이 ASYNC 재-dispatch 뒤에도 정상 완료되는지 검증합니다. */
 @SpringBootTest
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 @TestPropertySource(
     properties = [
         "app.bible.kor1910-html-path=src/test/resources/bible/kor_html",

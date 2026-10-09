@@ -104,7 +104,7 @@ app:
     qr:
       default-meeting-duration-minutes: ${QUIET_TIME_DEFAULT_MEETING_DURATION_MINUTES:120}
       expiry-grace-minutes: ${QUIET_TIME_QR_EXPIRY_GRACE_MINUTES:30}
-      invite-base-url: ${QUIET_TIME_INVITE_BASE_URL:https://mypasture.app/q/qt}
+      invite-base-url: ${QUIET_TIME_INVITE_BASE_URL:https://app.mypasture.app/q/qt}
     realtime:
       redis-enabled: ${QUIET_TIME_REALTIME_REDIS_ENABLED:false}
       sse-timeout-ms: ${QUIET_TIME_SSE_TIMEOUT_MS:1800000}

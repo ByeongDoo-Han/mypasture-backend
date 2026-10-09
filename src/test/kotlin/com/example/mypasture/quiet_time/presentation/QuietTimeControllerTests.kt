@@ -223,7 +223,7 @@ class QuietTimeControllerTests(
             .andExpect {
                 status { isOk() }
                 jsonPath("$.offlineCode") { value(offlineCode) }
-                jsonPath("$.inviteUrl") { value("https://mypasture.app/q/qt/$offlineCode") }
+                jsonPath("$.inviteUrl") { value("https://app.mypasture.app/q/qt/$offlineCode") }
                 jsonPath("$.qrStatus") { value("OPEN") }
                 jsonPath("$.joinStartsAt") { exists() }
                 jsonPath("$.expiresAt") { exists() }
@@ -407,6 +407,7 @@ class QuietTimeControllerTests(
         }.andExpect {
             status { isOk() }
             jsonPath("$.qrStatus") { value("OPEN") }
+            jsonPath("$.inviteUrl") { value(org.hamcrest.Matchers.startsWith("https://app.mypasture.app/q/qt/")) }
         }.andReturn()
         val newCode = objectMapper.readTree(result.response.contentAsString)["offlineCode"].asText()
         val newJoinCode = objectMapper.readTree(result.response.contentAsString)["joinCode"].asText()

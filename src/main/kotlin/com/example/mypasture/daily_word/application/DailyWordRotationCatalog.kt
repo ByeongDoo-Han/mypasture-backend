@@ -167,7 +167,7 @@ class DailyWordRotationCatalog {
         entry("reading-GEN-29-1", "GEN", 29, 1, 14, emptySet(), DailyWordPassageType.NARRATIVE),
         entry("reading-GEN-29-15", "GEN", 29, 15, 30, emptySet(), DailyWordPassageType.NARRATIVE),
         entry("reading-GEN-29-31", "GEN", 29, 31, 35, emptySet(), DailyWordPassageType.NARRATIVE),
-    )
+    ) + generatedGenesisEntries(30..50)
     val entries: List<DailyWordRotationEntry> = themedEntries.values.flatten() + continuousEntries
 
     /** 게시본의 고정된 ID를 기준으로 본문 순서만 안내하며 개인 완독 여부는 판단하지 않습니다. */
@@ -203,5 +203,37 @@ class DailyWordRotationCatalog {
     private fun entry(id: String, book: String, chapter: Int, verse: Int, end: Int, topics: Set<DailyWordTopic>, type: DailyWordPassageType) =
         DailyWordRotationEntry(id, book, chapter, verse, end, topics, type)
 
-    companion object { val ANCHOR: LocalDate = LocalDate.of(2026, 10, 5) }
+    /** 검증이 끝난 나머지 창세기를 20절 이하의 순차 범위로 확장합니다. */
+    private fun generatedGenesisEntries(chapters: IntRange): List<DailyWordRotationEntry> = chapters.flatMap { chapter ->
+        val passageType = if (chapter in GENESIS_GENEALOGY_CHAPTERS) {
+            DailyWordPassageType.GENEALOGY
+        } else {
+            DailyWordPassageType.NARRATIVE
+        }
+        (1..GENESIS_VERSE_COUNTS[chapter]).chunked(MAX_CONTINUOUS_PASSAGE_VERSES).map { verses ->
+            entry(
+                "reading-GEN-$chapter-${verses.first()}",
+                "GEN",
+                chapter,
+                verses.first(),
+                verses.last(),
+                emptySet(),
+                passageType,
+            )
+        }
+    }
+
+    companion object {
+        val ANCHOR: LocalDate = LocalDate.of(2026, 10, 5)
+        private const val MAX_CONTINUOUS_PASSAGE_VERSES = 20
+        private val GENESIS_GENEALOGY_CHAPTERS = setOf(36, 46)
+        private val GENESIS_VERSE_COUNTS = listOf(
+            0,
+            31, 25, 24, 26, 32, 22, 24, 22, 29, 32,
+            32, 20, 18, 24, 21, 16, 27, 33, 38, 18,
+            34, 24, 20, 67, 34, 35, 46, 22, 35, 43,
+            55, 32, 20, 31, 29, 43, 36, 30, 23, 23,
+            57, 38, 34, 34, 28, 34, 31, 22, 33, 26,
+        )
+    }
 }

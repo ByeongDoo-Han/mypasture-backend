@@ -30,7 +30,7 @@ V42.8 migration → 서버 → 앱/관리자 순서입니다. 기존 V42.7 및 �
 
 공개 `GET /api/v1/today-word`의 nullable `readingGuide`는 현재 카탈로그의 순서(`position`, `total`)와 인접 본문(`previous`, `next`)을 제공합니다. 각 참조는 `version`, `bookCode`, `bookName`, `chapter`, `verse`, `endVerse`입니다. 최초/마지막 본문에는 이전/다음 참조가 null이며 날짜별 실제 다음 게시본이나 개인 완독 여부를 의미하지 않습니다. 자동 CURATED 게시본의 버전·카탈로그ID·범위가 일치할 때만 표시하고 legacy/수동/AI 콘텐츠는 null로 유지합니다. 개인 장 완독 표시는 기존 사용자별 읽기 기록의 `completed=true`와 정확한 버전/책/장이 일치할 때만 앱에서 판단합니다.
 
-원문 공급의 GEN30:32~43 및 GEN33:20이 HTML/USFM/VPL 모두 누락되어 현재 연속 목록은 완전성을 확인한29장까지 제공합니다. 같은 번역의 원문 보강과50장까지의 확대는 [후속Issue171](https://github.com/ByeongDoo-Han/mypasture-backend/issues/171)에서 추적합니다.
+공급 원본에서 누락됐던 GEN30:32~43 및 GEN33:20을 검증된 개역한글 본문으로 보강했습니다. 연속 읽기 목록은 기존 1~29장 순서를 유지하고 창세기 50장, 총 1,533절까지 이어집니다. 원문 근거와 재현용 해시는 [KOR1910 원문 관리 문서](kor1910-source.ko.md)에 기록합니다.
 
 
 ## 기존 AI 모드와 수동 복구 운영 원칙

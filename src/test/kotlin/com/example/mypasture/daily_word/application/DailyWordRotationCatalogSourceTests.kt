@@ -31,7 +31,7 @@ class DailyWordRotationCatalogSourceTests {
         assertTrue(continuous.all { it.bookCode == "GEN" && it.topics.isEmpty() })
         assertTrue(continuous.all { it.verse >= 1 && it.endVerse >= it.verse && it.endVerse - it.verse + 1 <= 20 })
         assertEquals(continuous.size, continuous.map { it.id }.distinct().size)
-        assertEquals((1..29).toList(), continuous.map { it.chapter }.distinct())
+        assertEquals((1..50).toList(), continuous.map { it.chapter }.distinct())
         for ((offset, count) in VERIFIED_GENESIS_COUNTS.withIndex()) {
             val chapter = offset + 1
             assertEquals((1..count).toList(), continuous.filter { it.chapter == chapter }.flatMap { (it.verse..it.endVerse).toList() },
@@ -133,10 +133,12 @@ class DailyWordRotationCatalogSourceTests {
     }
 
     companion object {
-        // CR007는 누락된 GEN30/33을 건너뛰지 않고 원문이 완전한 1~29장에서 끝납니다.
+        // 기존 1~29장 순서를 유지하면서 보강한 원문 기준으로 창세기 전체를 검증합니다.
         private val VERIFIED_GENESIS_COUNTS = listOf(
             31, 25, 24, 26, 32, 22, 24, 22, 29, 32, 32, 20, 18, 24, 21,
-            16, 27, 33, 38, 18, 34, 24, 20, 67, 34, 35, 46, 22, 35,
+            16, 27, 33, 38, 18, 34, 24, 20, 67, 34, 35, 46, 22, 35, 43,
+            55, 32, 20, 31, 29, 43, 36, 30, 23, 23, 57, 38, 34, 34, 28,
+            34, 31, 22, 33, 26,
         )
     }
 }

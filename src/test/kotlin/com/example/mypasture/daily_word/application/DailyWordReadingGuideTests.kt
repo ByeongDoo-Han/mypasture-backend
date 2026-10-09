@@ -31,15 +31,15 @@ class DailyWordReadingGuideTests {
         }
         assertNull(requireNotNull(catalog.guide(entries.first().id)).previous)
         assertNull(requireNotNull(catalog.guide(entries.last().id)).next)
-        assertEquals(29, entries.last().chapter)
-        assertEquals(35, entries.last().endVerse)
+        assertEquals(50, entries.last().chapter)
+        assertEquals(26, entries.last().endVerse)
     }
 
     @Test
     fun `null unknown and themed catalog ids never receive continuous guide`() {
         assertNull(catalog.guide(null))
         assertNull(catalog.guide(""))
-        assertNull(catalog.guide("reading-GEN-30-1"))
+        assertNull(catalog.guide("reading-GEN-51-1"))
         for (entry in catalog.themedEntries.values.flatten()) assertNull(catalog.guide(entry.id), entry.id)
     }
 
@@ -88,7 +88,7 @@ class DailyWordReadingGuideTests {
             "missing end verse" to { it.endVerse = null },
             "missing id" to { it.rotationEntryId = null },
             "blank id" to { it.rotationEntryId = "" },
-            "unknown id" to { it.rotationEntryId = "reading-GEN-30-1" },
+            "unknown id" to { it.rotationEntryId = "reading-GEN-51-1" },
             "another valid id" to { it.rotationEntryId = catalog.continuousEntries[1].id },
             "themed id" to { it.rotationEntryId = catalog.themedEntries.values.first().first().id },
             "themed mode" to { it.readingMode = DailyWordReadingMode.THEMED },

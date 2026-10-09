@@ -29,7 +29,7 @@ module "platform" {
   api_max_instances               = 10
   cors_allowed_origins            = var.cors_allowed_origins
   password_reset_url              = "https://mypasture.app/password-reset"
-  quiet_time_invite_base_url      = "https://mypasture.app/q/qt"
+  quiet_time_invite_base_url      = "https://app.mypasture.app/q/qt"
   smtp_host                       = var.smtp_host
   smtp_port                       = var.smtp_port
   smtp_starttls_enabled           = var.smtp_starttls_enabled

@@ -3,7 +3,6 @@ package com.example.mypasture.bible.presentation
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.bible.application.BibleCommentaryBatchService
 import com.example.mypasture.bible.domain.BibleCatalog
-import com.example.mypasture.bible.domain.BibleBookEntity
 import com.example.mypasture.bible.domain.BibleChapterContentStatus
 import com.example.mypasture.bible.domain.BibleChapterEntity
 import com.example.mypasture.bible.domain.BibleVerseEntity
@@ -19,13 +18,15 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.springframework.test.annotation.DirtiesContext
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 import kotlin.test.assertEquals
 
 /** 실제 PostgreSQL과 Flyway 스키마에서 사전 생성 범위의 영속적 중복 방지를 검증합니다. */
 @EnabledIfEnvironmentVariable(named = "COMMENTARY_PRELOAD_TEST_JDBC_URL", matches = ".+")
-@SpringBootTest(properties = ["app.bible.import-enabled=false"])
+@SpringBootTest(properties = ["app.bible.import-enabled=false", "spring.datasource.hikari.maximum-pool-size=2"])
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional
 class BibleCommentaryPreloadPostgresTests(
     @Autowired private val batchService: BibleCommentaryBatchService,
@@ -41,11 +42,9 @@ class BibleCommentaryPreloadPostgresTests(
         assertEquals("PostgreSQL", jdbc.dataSource!!.connection.use { it.metaData.databaseProductName })
         val user = userRepository.saveAndFlush(UserEntity(displayName = "해설 사전 생성 검증 관리자"))
         val genesis = BibleCatalog.findBook("GEN")!!
-        val book = bookRepository.saveAndFlush(BibleBookEntity(
-            version = "KOR1910", code = genesis.code, name = genesis.name,
-            testament = genesis.testament, displayOrder = genesis.displayOrder,
-        ))
-        for (number in 1..2) {
+        val book = bookRepository.findByVersionAndCode("KOR1910", genesis.code)!!
+        // Flyway V5가 창세기 1장 본문을 적재합니다. 두 번째 장만 합성 본문을 더합니다.
+        for (number in 2..2) {
             chapterRepository.saveAndFlush(BibleChapterEntity(
                 version = "KOR1910", book = book, chapter = number,
                 contentStatus = BibleChapterContentStatus.AVAILABLE, verseCount = 1,

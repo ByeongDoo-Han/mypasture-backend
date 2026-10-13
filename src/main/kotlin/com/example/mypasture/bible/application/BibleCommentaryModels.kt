@@ -180,6 +180,38 @@ data class BibleCommentaryBookGenerationResult(
     val unavailableChapters: List<Int>,
 )
 
+/** 제한된 장 범위의 사전 생성 작업 등록 결과입니다. */
+data class BibleCommentaryRangeGenerationResult(
+    val version: String,
+    val bookCode: String,
+    val startChapter: Int,
+    val endChapter: Int,
+    val queuedChapters: List<Int>,
+    val skippedChapters: List<Int>,
+    val unavailableChapters: List<Int>,
+)
+
+/** 관리자가 한 장의 사전 생성과 게시 진행 상태를 확인하는 결과입니다. */
+data class BibleCommentaryChapterCoverage(
+    val chapter: Int,
+    val status: BibleCommentaryCoverageStatus,
+    val publishedRevision: Int?,
+    val draftRevision: Int?,
+    val latestJobStatus: BibleCommentaryJobStatus?,
+)
+
+/** 장별 본문·초안·작업 상태를 관리자에게 간단히 보여줍니다. */
+enum class BibleCommentaryCoverageStatus {
+    UNAVAILABLE, MISSING, PENDING, PROCESSING, DRAFT, PUBLISHED, REJECTED, FAILED, STALE,
+}
+
+/** 책의 모든 장에 대한 사전 생성·검수 현황입니다. */
+data class BibleCommentaryBookCoverage(
+    val version: String,
+    val bookCode: String,
+    val chapters: List<BibleCommentaryChapterCoverage>,
+)
+
 /** 관리자 검수 이력을 화면에 노출하기 위한 application model입니다. */
 data class BibleCommentaryReviewEvent(
     val id: Long,

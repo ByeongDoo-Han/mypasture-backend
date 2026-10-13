@@ -44,6 +44,20 @@ class BibleCommentaryAdminController(
             ).toResponse(),
         )
 
+    override fun queueRangeGeneration(
+        principal: JwtPrincipal,
+        request: QueueBibleCommentaryRangeGenerationRequest,
+    ): ResponseEntity<BibleCommentaryRangeGenerationResponse> =
+        ResponseEntity.accepted().body(
+            batchService.queueRangeGeneration(
+                request.version, request.bookCode, request.startChapter, request.endChapter,
+                request.includePublished, principal.userId,
+            ).toResponse(),
+        )
+
+    override fun coverage(version: String, bookCode: String): BibleCommentaryBookCoverageResponse =
+        batchService.getBookCoverage(version, bookCode).toResponse()
+
     override fun edit(
         principal: JwtPrincipal,
         commentaryId: UUID,

@@ -32,6 +32,18 @@ interface BibleCommentaryAdminApi {
         @Valid @RequestBody request: QueueBibleCommentaryBookGenerationRequest,
     ): ResponseEntity<BibleCommentaryBookGenerationResponse>
 
+    @PostMapping("/generation-jobs/ranges")
+    fun queueRangeGeneration(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @Valid @RequestBody request: QueueBibleCommentaryRangeGenerationRequest,
+    ): ResponseEntity<BibleCommentaryRangeGenerationResponse>
+
+    @GetMapping("/coverage")
+    fun coverage(
+        @RequestParam version: String,
+        @RequestParam bookCode: String,
+    ): BibleCommentaryBookCoverageResponse
+
     @PutMapping("/{commentaryId}")
     fun edit(
         @AuthenticationPrincipal principal: JwtPrincipal,

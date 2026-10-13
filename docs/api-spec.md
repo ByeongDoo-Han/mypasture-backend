@@ -581,6 +581,8 @@ GET /api/v1/bibles/{version}/books/{bookCode}/chapters/{chapter}/commentary
 
 ```http
 POST /api/v1/admin/bible-commentaries/generation-jobs
+POST /api/v1/admin/bible-commentaries/generation-jobs/ranges
+GET  /api/v1/admin/bible-commentaries/coverage?version={version}&bookCode={bookCode}
 GET  /api/v1/admin/bible-commentaries/generation-jobs
 GET  /api/v1/admin/bible-commentaries
 POST /api/v1/admin/bible-commentaries/{commentaryId}/publish

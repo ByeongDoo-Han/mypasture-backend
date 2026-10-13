@@ -38,6 +38,10 @@
 
 ## 책 단위 생성
 
+운영에서는 먼저 `POST /api/v1/admin/bible-commentaries/generation-jobs/ranges`로 50개 장 이하의 범위를 등록합니다. 응답의 `queuedChapters`, `skippedChapters`, `unavailableChapters`를 확인하고 `GET /api/v1/admin/bible-commentaries/coverage?version=KOR1910&bookCode=GEN`에서 장별 상태와 게시·초안 revision을 조회합니다. 같은 범위를 다시 요청해도 현재 원문과 맞는 초안·게시본 및 활성 작업은 다시 등록하지 않습니다. `includePublished=true`는 게시본 개정을 명시적으로 요청할 때만 사용합니다. 원문이 바뀌어 해설의 해시가 오래된 장은 재생성 대상입니다.
+
+기존 책 단위 API는 호환을 위해 유지하며, 큰 책과 운영 대량 생성은 범위 API로 나누어 등록합니다. API 등록은 작업 예약일 뿐이며 워커가 활성화되어야 초안이 생성됩니다. 자동 평가 이후에도 사람의 검수·게시가 필요합니다.
+
 책 단위 요청은 다음 장을 건너뜁니다.
 
 - 이미 생성 대기 또는 처리 중인 장

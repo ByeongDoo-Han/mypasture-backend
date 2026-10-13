@@ -69,6 +69,9 @@ jobs:
           BIBLE_SEARCH_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           BIBLE_SEARCH_TEST_JDBC_USER: otp_test
           BIBLE_SEARCH_TEST_JDBC_PASSWORD: disposable-ci-password
+          COMMENTARY_PRELOAD_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
+          COMMENTARY_PRELOAD_TEST_JDBC_USER: otp_test
+          COMMENTARY_PRELOAD_TEST_JDBC_PASSWORD: disposable-ci-password
           ACTIVITY_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           ACTIVITY_TEST_JDBC_USER: otp_test
           ACTIVITY_TEST_JDBC_PASSWORD: disposable-ci-password
@@ -88,6 +91,7 @@ jobs:
           ./gradlew test
           --tests '*AdminEmailLoginControllerTests'
           --tests '*BibleCursorSearchControllerTests'
+          --tests '*BibleCommentaryPreloadPostgresTests'
           --tests '*ActivityCalendarControllerTests'
           --tests '*ReadingActivityIntegrationTests'
           --tests '*AiAnswerHistoryTests'

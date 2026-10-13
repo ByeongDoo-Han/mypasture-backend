@@ -91,32 +91,37 @@ class DailyWordRotationCatalogSourceTests {
             for (number in entry.verse..entry.endVerse) {
                 assertFalse(source[number].isNullOrBlank(), "${entry.id}: ${entry.bookCode} ${entry.chapter}:$number")
             }
+            entry.topics.forEach { topic ->
+                assertEquals(entry.verse, entry.endVerse, entry.id)
+                assertTrue(topic.appearsIn(source.getValue(entry.verse)), "${entry.id} does not express ${topic.label} in its own verse")
+            }
         }
     }
 
     @Test
-    fun `weekday topics and weekend unclassified reading retain complete minimum catalogs`() {
+    fun `every day uses a single verse from an existing theme and legacy reading catalog remains available`() {
         val monday = LocalDate.of(2026, 10, 5)
         for ((offset, topic) in DailyWordTopic.entries.withIndex()) {
             val entries = catalog.themedEntries.getValue(topic)
             assertTrue(entries.size >= 10, topic.name)
-            assertTrue(entries.all { topic in it.topics }, topic.name)
+            assertTrue(entries.all { topic in it.topics && it.verse == it.endVerse }, topic.name)
             assertEquals(topic, catalog.topic(monday.plusDays(offset.toLong())))
         }
         assertTrue(catalog.continuousEntries.size >= 20)
         assertTrue(catalog.continuousEntries.all { it.topics.isEmpty() })
-        assertNull(catalog.topic(monday.plusDays(5)))
-        assertNull(catalog.topic(monday.plusDays(6)))
+        (0L..13L).forEach { day ->
+            val date = monday.plusDays(day)
+            assertTrue(catalog.candidates(date).all { it.topics == setOf(catalog.topic(date)) && it.verse == it.endVerse })
+        }
     }
 
     @Test
-    fun `consecutive weekend dates advance context without resetting every week`() {
+    fun `weekend dates rotate among existing themes without returning unclassified passages`() {
         val dates = listOf(LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 11), LocalDate.of(2026, 10, 17))
-        val references = dates.map { catalog.candidates(it).first() }
-        assertEquals(listOf(1, 6, 9), references.map { it.verse })
-        assertEquals(listOf(5, 8, 13), references.map { it.endVerse })
-        assertTrue(references.all { it.bookCode == "GEN" && it.chapter == 1 })
-        assertEquals(catalog.continuousEntries.last().id, catalog.candidates(LocalDate.of(2026, 10, 4)).first().id)
+        assertEquals(3, dates.map(catalog::topic).distinct().size)
+        dates.forEach { date ->
+            assertEquals(catalog.topic(date), catalog.candidates(date).first().topics.single())
+        }
     }
 
     @Test

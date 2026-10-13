@@ -26,7 +26,10 @@ interface BibleContentRepository {
 class BibleReaderService(
     private val bibleContentRepository: BibleContentRepository,
 ) {
-    fun getVersions(): List<BibleVersion> = BibleCatalog.versions
+    fun getVersions(): List<BibleVersion> = BibleCatalog.versions.filter { version ->
+        version.code != BibleCatalog.KRV_VERSION ||
+            bibleContentRepository.getChapter(BibleCatalog.KRV_VERSION, BibleCatalog.books.first(), 1) != null
+    }
 
     fun getBooks(version: String): List<BibleBook> {
         requireSupportedVersion(version)

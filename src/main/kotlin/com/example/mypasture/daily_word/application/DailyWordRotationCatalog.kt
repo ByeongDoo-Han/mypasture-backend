@@ -6,79 +6,79 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-/** 주제별 대표 본문과 주제 미지정 문맥 읽기를 날짜 기준으로 순환하는 카탈로그입니다. */
+/** 새 게시에는 주제별 단일 절을, 과거 연속 읽기 안내에는 기존 본문 목록을 제공합니다. */
 @Component
 class DailyWordRotationCatalog {
     val themedEntries: Map<DailyWordTopic, List<DailyWordRotationEntry>> = mapOf(
         DailyWordTopic.HOPE to listOf(
-            entry("hope-PSA-27-13", "PSA", 27, 13, 14, setOf(DailyWordTopic.HOPE), DailyWordPassageType.POETRY),
-            entry("hope-PSA-42-11", "PSA", 42, 11, 11, setOf(DailyWordTopic.HOPE), DailyWordPassageType.POETRY),
-            entry("hope-PSA-62-5", "PSA", 62, 5, 6, setOf(DailyWordTopic.HOPE), DailyWordPassageType.POETRY),
-            entry("hope-PSA-121-1", "PSA", 121, 1, 2, setOf(DailyWordTopic.HOPE), DailyWordPassageType.POETRY),
-            entry("hope-ISA-40-28", "ISA", 40, 28, 31, setOf(DailyWordTopic.HOPE), DailyWordPassageType.TEACHING),
-            entry("hope-ISA-41-10", "ISA", 41, 10, 10, setOf(DailyWordTopic.HOPE), DailyWordPassageType.TEACHING),
-            entry("hope-ISA-43-18", "ISA", 43, 18, 19, setOf(DailyWordTopic.HOPE), DailyWordPassageType.TEACHING),
-            entry("hope-LAM-3-21", "LAM", 3, 21, 24, setOf(DailyWordTopic.HOPE), DailyWordPassageType.TEACHING),
-            entry("hope-ROM-5-3", "ROM", 5, 3, 5, setOf(DailyWordTopic.HOPE), DailyWordPassageType.TEACHING),
-            entry("hope-ROM-8-24", "ROM", 8, 24, 25, setOf(DailyWordTopic.HOPE), DailyWordPassageType.TEACHING),
-            entry("hope-ROM-15-13", "ROM", 15, 13, 13, setOf(DailyWordTopic.HOPE), DailyWordPassageType.TEACHING),
-            entry("hope-HEB-10-23", "HEB", 10, 23, 23, setOf(DailyWordTopic.HOPE), DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.HOPE, "PSA", 42, 11, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.HOPE, "PSA", 62, 5, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.HOPE, "PSA", 71, 5, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.HOPE, "PSA", 130, 5, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.HOPE, "PSA", 39, 7, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.HOPE, "PSA", 31, 24, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.HOPE, "ROM", 8, 24, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.HOPE, "ROM", 15, 13, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.HOPE, "1PE", 1, 3, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.HOPE, "ISA", 40, 31, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.HOPE, "PRO", 23, 18, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.HOPE, "LAM", 3, 24, DailyWordPassageType.TEACHING),
         ),
         DailyWordTopic.GRATITUDE to listOf(
-            entry("gratitude-PSA-100-1", "PSA", 100, 1, 5, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.POETRY),
-            entry("gratitude-PSA-103-1", "PSA", 103, 1, 5, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.POETRY),
-            entry("gratitude-PSA-107-1", "PSA", 107, 1, 3, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.POETRY),
-            entry("gratitude-PSA-118-1", "PSA", 118, 1, 4, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.POETRY),
-            entry("gratitude-PSA-136-1", "PSA", 136, 1, 3, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.POETRY),
-            entry("gratitude-COL-3-15", "COL", 3, 15, 17, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.TEACHING),
-            entry("gratitude-1TH-5-16", "1TH", 5, 16, 18, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.TEACHING),
-            entry("gratitude-EPH-5-19", "EPH", 5, 19, 20, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.TEACHING),
-            entry("gratitude-PHP-4-6", "PHP", 4, 6, 7, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.TEACHING),
-            entry("gratitude-HEB-13-15", "HEB", 13, 15, 15, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.TEACHING),
-            entry("gratitude-1CH-16-8", "1CH", 16, 8, 12, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.TEACHING),
-            entry("gratitude-1CO-15-57", "1CO", 15, 57, 58, setOf(DailyWordTopic.GRATITUDE), DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.GRATITUDE, "PSA", 107, 1, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.GRATITUDE, "PSA", 118, 1, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.GRATITUDE, "PSA", 136, 1, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.GRATITUDE, "1CH", 16, 8, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.GRATITUDE, "COL", 3, 15, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.GRATITUDE, "COL", 3, 17, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.GRATITUDE, "1TH", 5, 18, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.GRATITUDE, "PHP", 4, 6, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.GRATITUDE, "1CO", 15, 57, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.GRATITUDE, "PSA", 9, 1, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.GRATITUDE, "PSA", 100, 4, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.GRATITUDE, "EPH", 5, 20, DailyWordPassageType.TEACHING),
         ),
         DailyWordTopic.LOVE to listOf(
-            entry("love-JHN-3-16", "JHN", 3, 16, 17, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
-            entry("love-JHN-13-34", "JHN", 13, 34, 35, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
-            entry("love-JHN-15-9", "JHN", 15, 9, 12, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
-            entry("love-1CO-13-4", "1CO", 13, 4, 7, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
-            entry("love-1CO-13-13", "1CO", 13, 13, 13, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
-            entry("love-ROM-12-9", "ROM", 12, 9, 13, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
-            entry("love-ROM-13-8", "ROM", 13, 8, 10, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
-            entry("love-1JN-3-16", "1JN", 3, 16, 18, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
-            entry("love-1JN-4-7", "1JN", 4, 7, 12, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
-            entry("love-1JN-4-19", "1JN", 4, 19, 21, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
-            entry("love-GAL-5-13", "GAL", 5, 13, 14, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
-            entry("love-COL-3-12", "COL", 3, 12, 14, setOf(DailyWordTopic.LOVE), DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "JHN", 3, 16, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "JHN", 13, 34, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "JHN", 15, 9, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "1CO", 13, 4, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "1CO", 13, 13, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "ROM", 12, 9, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "ROM", 13, 8, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "1JN", 3, 16, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "1JN", 4, 7, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "1JN", 4, 19, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "GAL", 5, 13, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.LOVE, "COL", 3, 14, DailyWordPassageType.TEACHING),
         ),
         DailyWordTopic.PEACE to listOf(
-            entry("peace-PSA-23-1", "PSA", 23, 1, 6, setOf(DailyWordTopic.PEACE), DailyWordPassageType.POETRY),
-            entry("peace-PSA-46-1", "PSA", 46, 1, 3, setOf(DailyWordTopic.PEACE), DailyWordPassageType.POETRY),
-            entry("peace-PSA-55-22", "PSA", 55, 22, 22, setOf(DailyWordTopic.PEACE), DailyWordPassageType.POETRY),
-            entry("peace-PSA-91-1", "PSA", 91, 1, 4, setOf(DailyWordTopic.PEACE), DailyWordPassageType.POETRY),
-            entry("peace-ISA-26-3", "ISA", 26, 3, 4, setOf(DailyWordTopic.PEACE), DailyWordPassageType.TEACHING),
-            entry("peace-ISA-40-1", "ISA", 40, 1, 2, setOf(DailyWordTopic.PEACE), DailyWordPassageType.TEACHING),
-            entry("peace-MAT-6-25", "MAT", 6, 25, 34, setOf(DailyWordTopic.PEACE), DailyWordPassageType.TEACHING),
-            entry("peace-MAT-11-28", "MAT", 11, 28, 30, setOf(DailyWordTopic.PEACE), DailyWordPassageType.TEACHING),
-            entry("peace-JHN-14-27", "JHN", 14, 27, 27, setOf(DailyWordTopic.PEACE), DailyWordPassageType.TEACHING),
-            entry("peace-JHN-16-33", "JHN", 16, 33, 33, setOf(DailyWordTopic.PEACE), DailyWordPassageType.TEACHING),
-            entry("peace-PHP-4-6", "PHP", 4, 6, 7, setOf(DailyWordTopic.PEACE), DailyWordPassageType.TEACHING),
-            entry("peace-2TH-3-16", "2TH", 3, 16, 16, setOf(DailyWordTopic.PEACE), DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.PEACE, "ISA", 26, 3, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.PEACE, "JHN", 14, 27, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.PEACE, "JHN", 16, 33, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.PEACE, "2TH", 3, 16, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.PEACE, "PHP", 4, 7, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.PEACE, "ROM", 5, 1, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.PEACE, "ROM", 15, 13, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.PEACE, "COL", 3, 15, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.PEACE, "NUM", 6, 26, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.PEACE, "PSA", 4, 8, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.PEACE, "PSA", 29, 11, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.PEACE, "PSA", 119, 165, DailyWordPassageType.POETRY),
         ),
         DailyWordTopic.JOY to listOf(
-            entry("joy-PHP-1-3", "PHP", 1, 3, 5, setOf(DailyWordTopic.JOY), DailyWordPassageType.TEACHING),
-            entry("joy-PSA-30-4", "PSA", 30, 4, 5, setOf(DailyWordTopic.JOY), DailyWordPassageType.POETRY),
-            entry("joy-PSA-32-10", "PSA", 32, 10, 11, setOf(DailyWordTopic.JOY), DailyWordPassageType.POETRY),
-            entry("joy-PSA-95-1", "PSA", 95, 1, 3, setOf(DailyWordTopic.JOY), DailyWordPassageType.POETRY),
-            entry("joy-PSA-98-4", "PSA", 98, 4, 6, setOf(DailyWordTopic.JOY), DailyWordPassageType.POETRY),
-            entry("joy-PSA-126-1", "PSA", 126, 1, 3, setOf(DailyWordTopic.JOY), DailyWordPassageType.POETRY),
-            entry("joy-HAB-3-17", "HAB", 3, 17, 19, setOf(DailyWordTopic.JOY), DailyWordPassageType.TEACHING),
-            entry("joy-JHN-15-9", "JHN", 15, 9, 11, setOf(DailyWordTopic.JOY), DailyWordPassageType.TEACHING),
-            entry("joy-ROM-14-17", "ROM", 14, 17, 19, setOf(DailyWordTopic.JOY), DailyWordPassageType.TEACHING),
-            entry("joy-PHP-4-4", "PHP", 4, 4, 5, setOf(DailyWordTopic.JOY), DailyWordPassageType.TEACHING),
-            entry("joy-1TH-5-16", "1TH", 5, 16, 18, setOf(DailyWordTopic.JOY), DailyWordPassageType.TEACHING),
-            entry("joy-JAS-1-2", "JAS", 1, 2, 4, setOf(DailyWordTopic.JOY), DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.JOY, "PSA", 95, 1, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.JOY, "PSA", 98, 4, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.JOY, "ROM", 14, 17, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.JOY, "PHP", 4, 4, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.JOY, "1TH", 5, 16, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.JOY, "JAS", 1, 2, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.JOY, "PSA", 30, 5, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.JOY, "PSA", 32, 11, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.JOY, "PSA", 126, 3, DailyWordPassageType.POETRY),
+            themedVerse(DailyWordTopic.JOY, "HAB", 3, 18, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.JOY, "JHN", 15, 11, DailyWordPassageType.TEACHING),
+            themedVerse(DailyWordTopic.JOY, "PSA", 100, 2, DailyWordPassageType.POETRY),
         ),
     )
     val continuousEntries: List<DailyWordRotationEntry> = listOf(
@@ -181,24 +181,25 @@ class DailyWordRotationCatalog {
         )
     }
 
-    fun topic(date: LocalDate): DailyWordTopic? = when (date.dayOfWeek) {
+    fun topic(date: LocalDate): DailyWordTopic = when (date.dayOfWeek) {
         DayOfWeek.MONDAY -> DailyWordTopic.HOPE
         DayOfWeek.TUESDAY -> DailyWordTopic.GRATITUDE
         DayOfWeek.WEDNESDAY -> DailyWordTopic.LOVE
         DayOfWeek.THURSDAY -> DailyWordTopic.PEACE
         DayOfWeek.FRIDAY -> DailyWordTopic.JOY
-        else -> null
+        else -> DailyWordTopic.entries[Math.floorMod(date.toEpochDay(), DailyWordTopic.entries.size.toLong()).toInt()]
     }
 
     /** 후보 오류 시 같은 목록의 다음 항목으로 이동하며 모든 후보의 실패는 게시를 중단합니다. */
     fun candidates(date: LocalDate): List<DailyWordRotationEntry> {
-        val topic = topic(date)
-        val pool = topic?.let { themedEntries.getValue(it) } ?: continuousEntries
+        val pool = themedEntries.getValue(topic(date))
         val week = Math.floorDiv(ChronoUnit.DAYS.between(ANCHOR, date), 7L)
-        val occurrence = if (topic != null) week else week * 2 + if (date.dayOfWeek == DayOfWeek.SUNDAY) 1 else 0
-        val index = Math.floorMod(occurrence, pool.size.toLong()).toInt()
+        val index = Math.floorMod(week, pool.size.toLong()).toInt()
         return pool.drop(index) + pool.take(index)
     }
+
+    private fun themedVerse(topic: DailyWordTopic, book: String, chapter: Int, verse: Int, type: DailyWordPassageType) =
+        entry("${topic.name.lowercase()}-$book-$chapter-$verse", book, chapter, verse, verse, setOf(topic), type)
 
     private fun entry(id: String, book: String, chapter: Int, verse: Int, end: Int, topics: Set<DailyWordTopic>, type: DailyWordPassageType) =
         DailyWordRotationEntry(id, book, chapter, verse, end, topics, type)

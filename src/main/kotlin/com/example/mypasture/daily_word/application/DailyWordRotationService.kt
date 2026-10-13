@@ -42,8 +42,7 @@ class DailyWordRotationService(
         if (current != null && (current.source != DailyWordSource.AI || current.status != DailyWordStatus.DRAFT)) return null
 
         val topic = catalog.topic(date)
-        val recent = if (topic == null) emptyList() else
-            words.findForAdmin(date.minusDays(30), date.minusDays(1), DailyWordStatus.PUBLISHED)
+        val recent = words.findForAdmin(date.minusDays(30), date.minusDays(1), DailyWordStatus.PUBLISHED)
         val candidates = catalog.candidates(date)
         // 최근 본문과 겹치지 않는 후보를 우선하되 작은 목록 고갈이 게시 누락을 만들지 않게 합니다.
         val ordered = candidates.filter { entry -> recent.none { old ->
@@ -51,7 +50,8 @@ class DailyWordRotationService(
                 old.verse <= entry.endVerse && (old.endVerse ?: old.verse) >= entry.verse
         } } + candidates
         val selection = ordered.distinctBy { it.id }.firstNotNullOfOrNull { entry ->
-            reader.read(entry)?.let { entry to it }
+            reader.read(entry)?.takeIf { entry.verse == entry.endVerse && topic.appearsIn(it.first.text) }
+                ?.let { entry to it }
         } ?: throw DailyWordGenerationException("순환 목록에서 게시할 수 있는 성경 원문을 찾지 못했습니다.")
         val (entry, passage) = selection
         val now = Instant.now(clock)
@@ -70,13 +70,11 @@ class DailyWordRotationService(
         word.endVerse = entry.endVerse
         word.passageText = passage.text
         word.topicTags = entry.topics.joinToString(",") { it.name }
-        word.readingMode = if (topic == null) DailyWordReadingMode.CONTINUOUS else DailyWordReadingMode.THEMED
+        word.readingMode = DailyWordReadingMode.THEMED
         word.passageType = entry.passageType
         word.rotationEntryId = entry.id
-        word.meditation = if (topic == null) "앞뒤 이야기를 이어 읽으며 이 본문에 등장하는 인물과 사건, 말씀의 흐름을 천천히 살펴보세요."
-            else "오늘의 주제는 ${topic.label}입니다. 이 말씀을 천천히 읽으며 오늘의 삶에 어떻게 적용할 수 있을지 생각해 보세요."
-        word.actionQuestion = if (topic == null) "이 본문에서 새롭게 발견하거나 더 알고 싶은 것은 무엇인가요?"
-            else "오늘 이 말씀을 따라 실천할 한 가지는 무엇인가요?"
+        word.meditation = "오늘의 주제는 ${topic.label}입니다. 이 말씀을 천천히 읽으며 오늘의 삶에 어떻게 적용할 수 있을지 생각해 보세요."
+        word.actionQuestion = "오늘 이 말씀을 따라 실천할 한 가지는 무엇인가요?"
         word.source = DailyWordSource.CURATED
         if (current != null) word.contentRevision += 1
         word.generatedAt = now

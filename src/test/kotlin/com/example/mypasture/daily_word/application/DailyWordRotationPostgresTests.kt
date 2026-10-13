@@ -85,8 +85,12 @@ class DailyWordRotationPostgresTests(
                 val numbers = ranges.flatMap { (it.verse..it.endVerse).toList() }.distinct()
                 chapters.saveAndFlush(BibleChapterEntity(version = "KOR1910", book = book, chapter = chapter,
                     contentStatus = BibleChapterContentStatus.AVAILABLE, verseCount = numbers.size))
-                verses.saveAllAndFlush(numbers.map { number -> BibleVerseEntity(version = "KOR1910", book = book,
-                    chapter = chapter, verse = number, text = "QA 합성 본문 $code $chapter:$number") })
+                verses.saveAllAndFlush(numbers.map { number ->
+                    val labels = ranges.filter { number in it.verse..it.endVerse }
+                        .flatMap { it.topics }.distinct().joinToString(" ") { it.label }
+                    BibleVerseEntity(version = "KOR1910", book = book,
+                        chapter = chapter, verse = number, text = "QA 합성 본문 $code $chapter:$number $labels")
+                })
             }
         }
         assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM daily_word_rotation_lock WHERE id=1", Int::class.java))
@@ -127,11 +131,12 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `old first verse API remains canonical while optional passage includes complete numbered range`() {
+    fun `new publication exposes the same one verse in both legacy and passage fields`() {
         val word = rotation.ensurePublished(TODAY)!!
         assertEquals(source(catalog.candidates(TODAY).first()).text, word.verseText)
-        assertTrue(word.passageText!!.startsWith("${word.verse}. ${word.verseText}"))
-        assertTrue(word.passageText!!.contains("${word.endVerse}. QA 합성 본문"))
+        assertEquals(word.verse, word.endVerse)
+        assertEquals(word.verseText, word.passageText)
+        assertEquals(listOf(catalog.topic(TODAY).name), word.topics)
         mvc.get("/api/v1/today-word") .andExpect {
             status { isOk() }; jsonPath("$.verseText") { value(word.verseText) }
             jsonPath("$.passageText") { value(word.passageText!!) }
@@ -199,6 +204,15 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
+    fun `verse without its topic is skipped even when the source is otherwise valid`() {
+        val candidates = catalog.candidates(TODAY)
+        source(candidates[0]).let { it.text = "QA 합성 본문에 해당 주제가 없습니다"; verses.saveAndFlush(it) }
+        val word = rotation.ensurePublished(TODAY)!!
+        assertEquals(candidates[1].id, word.rotationEntryId)
+        assertTrue(catalog.topic(TODAY).appearsIn(word.verseText))
+    }
+
+    @Test
     fun `no valid source leaves no publication or broadcast and dates outside recovery scope remain absent`() {
         verses.deleteAllInBatch()
         assertThrows(DailyWordGenerationException::class.java) { rotation.ensurePublished(TODAY) }
@@ -224,16 +238,17 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `continuous reading preserves chronological context even when its first range was recently published`() {
+    fun `weekend publication uses a themed single verse and skips a recently published candidate`() {
         val saturday = LocalDate.of(2026, 10, 10)
         clock.set(saturday.atTime(12, 0).atZone(SEOUL).toInstant())
         val first = catalog.candidates(saturday).first()
         draft(saturday.minusDays(1), DailyWordSource.MANUAL, DailyWordStatus.PUBLISHED, first)
         val word = rotation.ensurePublished(saturday)!!
-        assertEquals(first.id, word.rotationEntryId)
-        assertEquals(DailyWordReadingMode.CONTINUOUS, word.readingMode)
-        assertEquals("", word.topicTags)
-        assertEquals(first.verse, word.verse); assertEquals(first.endVerse, word.endVerse)
+        assertEquals(catalog.candidates(saturday)[1].id, word.rotationEntryId)
+        assertEquals(DailyWordReadingMode.THEMED, word.readingMode)
+        assertEquals(listOf(catalog.topic(saturday).name), word.topics)
+        assertEquals(word.verse, word.endVerse)
+        assertEquals(word.verseText, word.passageText)
     }
 
     @Test

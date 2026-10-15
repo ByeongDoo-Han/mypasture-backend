@@ -174,3 +174,7 @@ app:
       user-info-uri: ${KAKAO_USER_INFO_URI:https://kapi.kakao.com/v2/user/me}
       token-info-uri: ${KAKAO_TOKEN_INFO_URI:https://kapi.kakao.com/v1/user/access_token_info}
       app-ids: ${KAKAO_APP_IDS:}
+      web:
+        rest-api-key: ${KAKAO_WEB_REST_API_KEY:}
+        client-secret: ${KAKAO_WEB_CLIENT_SECRET:}
+        redirect-uri: ${KAKAO_WEB_REDIRECT_URI:}

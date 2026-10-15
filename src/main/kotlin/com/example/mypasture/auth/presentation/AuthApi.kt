@@ -6,6 +6,7 @@ import com.example.mypasture.auth.presentation.dto.EmailVerificationConfirmReque
 import com.example.mypasture.auth.presentation.dto.EmailVerificationConfirmedResponse
 import com.example.mypasture.auth.presentation.dto.EmailVerificationRequest
 import com.example.mypasture.auth.presentation.dto.EmailVerificationRequestedResponse
+import com.example.mypasture.auth.presentation.dto.KakaoWebLoginRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetConfirmRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequestedResponse
@@ -61,6 +62,9 @@ interface AuthApi {
 
     @PostMapping("/social-login")
     fun socialLogin(@Valid @RequestBody request: SocialLoginRequest): UserLoginResponse
+
+    @PostMapping("/social-login/kakao/web")
+    fun webKakaoLogin(@Valid @RequestBody request: KakaoWebLoginRequest): UserLoginResponse
 
     @PostMapping("/social-login/challenges")
     fun createSocialLoginChallenge(): SocialLoginChallengeResponse

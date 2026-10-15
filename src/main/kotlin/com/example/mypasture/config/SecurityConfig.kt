@@ -97,6 +97,7 @@ class SecurityConfig {
                     "/api/v1/auth/admin-email-login/requests",
                     "/api/v1/auth/admin-email-login/confirm",
                     "/api/v1/auth/social-login",
+                    "/api/v1/auth/social-login/kakao/web",
                     "/api/v1/auth/social-login/challenges",
                     "/api/v1/auth/refresh",
                     "/api/v1/auth/password-reset/requests",

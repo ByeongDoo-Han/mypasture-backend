@@ -116,6 +116,15 @@ data class SocialLoginRequest(
     val displayName: String? = null,
 )
 
+/** 웹 카카오 인가 코드와 해당 요청의 PKCE verifier만 서버로 전달합니다. */
+data class KakaoWebLoginRequest(
+    @field:NotBlank
+    @field:Size(max = 2048)
+    val code: String,
+    @field:Pattern(regexp = "[A-Za-z0-9._~-]{43,128}")
+    val codeVerifier: String,
+)
+
 /** 클라이언트가 OIDC 요청에 넣고 서버가 일회성으로 검증하는 nonce challenge입니다. */
 data class SocialLoginChallengeResponse(
     val challengeId: UUID,

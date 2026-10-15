@@ -33,6 +33,9 @@ GOOGLE_OAUTH_IOS_CLIENT_IDS=
 GOOGLE_OAUTH_ANDROID_CLIENT_IDS=
 APPLE_OAUTH_CLIENT_IDS=
 KAKAO_USER_INFO_URI=https://kapi.kakao.com/v2/user/me
+KAKAO_WEB_REST_API_KEY=
+KAKAO_WEB_CLIENT_SECRET=
+KAKAO_WEB_REDIRECT_URI=https://app.mypasture.app/oauth/kakao
 ```
 
 - Google은 모바일 앱에서 발급받은 토큰의 `aud`와 일치하도록 Web, iOS, Android Client ID를 각각 등록합니다.

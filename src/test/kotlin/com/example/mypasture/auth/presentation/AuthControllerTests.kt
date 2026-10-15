@@ -8,6 +8,8 @@ import com.example.mypasture.auth.domain.AuthProvider
 import com.example.mypasture.auth.infrastructure.AppleOidcOAuthClient
 import com.example.mypasture.auth.infrastructure.GoogleOidcOAuthClient
 import com.example.mypasture.auth.infrastructure.KakaoOAuthClient
+import com.example.mypasture.auth.infrastructure.KakaoWebCodeExchangeClient
+import com.example.mypasture.auth.infrastructure.InvalidSocialTokenException
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.any
@@ -43,6 +45,9 @@ import kotlin.test.assertTrue
         "app.oauth.google.web-client-ids=google-review-client.apps.googleusercontent.com",
         "app.oauth.apple.client-ids=com.mypasture.app",
         "app.oauth.kakao.app-ids=123456789",
+        "app.oauth.kakao.web.rest-api-key=test-rest-key",
+        "app.oauth.kakao.web.client-secret=test-client-secret",
+        "app.oauth.kakao.web.redirect-uri=https://app.mypasture.app/oauth/kakao",
     ],
 )
 class AuthControllerTests(
@@ -57,6 +62,9 @@ class AuthControllerTests(
 
     @MockitoBean
     private lateinit var kakaoOAuthClient: KakaoOAuthClient
+
+    @MockitoBean
+    private lateinit var kakaoWebCodeExchangeClient: KakaoWebCodeExchangeClient
 
     @MockitoBean
     private lateinit var passwordResetNotificationSender: PasswordResetNotificationSender
@@ -79,6 +87,7 @@ class AuthControllerTests(
                 jsonPath("$.providers.GOOGLE") { value(true) }
                 jsonPath("$.providers.APPLE") { value(true) }
                 jsonPath("$.providers.KAKAO") { value(true) }
+                jsonPath("$.providers.KAKAO_WEB") { value(true) }
                 jsonPath("$.providers.clientIds") { doesNotExist() }
             }
     }
@@ -284,6 +293,62 @@ class AuthControllerTests(
             jsonPath("$.token") { exists() }
             jsonPath("$.tokenType") { value("Bearer") }
             jsonPath("$.user.email") { value("kakao-user@example.com") }
+        }
+    }
+
+    @Test
+    fun `web kakao code exchange issues the same social login session`() {
+        val verifier = "A".repeat(43)
+        given(kakaoWebCodeExchangeClient.exchange("single-use-code", verifier)).willReturn("web-kakao-access-token")
+        given(kakaoOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.KAKAO, null, "web-kakao-access-token", null))).willReturn(
+            SocialUserProfile(
+                provider = AuthProvider.KAKAO,
+                providerUserId = "web-kakao-sub-001",
+                email = "web-kakao-user@example.com",
+                emailVerified = true,
+                displayName = "Web Kakao User",
+            ),
+        )
+
+        mockMvc.post("/api/v1/auth/social-login/kakao/web") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"code":"single-use-code","codeVerifier":"$verifier"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.tokenType") { value("Bearer") }
+            jsonPath("$.token") { exists() }
+            jsonPath("$.user.email") { value("web-kakao-user@example.com") }
+            jsonPath("$.accessToken") { doesNotExist() }
+        }
+        verify(kakaoWebCodeExchangeClient).exchange("single-use-code", verifier)
+    }
+
+    @Test
+    fun `web kakao login rejects invalid code without returning the code`() {
+        val verifier = "A".repeat(43)
+        given(kakaoWebCodeExchangeClient.exchange("invalid-code", verifier))
+            .willThrow(InvalidSocialTokenException("Kakao authorization code is invalid"))
+
+        val result = mockMvc.post("/api/v1/auth/social-login/kakao/web") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"code":"invalid-code","codeVerifier":"$verifier"}"""
+        }.andExpect {
+            status { isUnauthorized() }
+            jsonPath("$.code") { value("INVALID_SOCIAL_TOKEN") }
+        }.andReturn()
+        assertTrue(!result.response.contentAsString.contains("invalid-code"))
+    }
+
+    @Test
+    fun `web kakao login validates code and PKCE verifier`() {
+        for (body in listOf(
+            """{"code":"","codeVerifier":"${"A".repeat(43)}"}""",
+            """{"code":"valid-code","codeVerifier":"short"}""",
+        )) {
+            mockMvc.post("/api/v1/auth/social-login/kakao/web") {
+                contentType = MediaType.APPLICATION_JSON
+                content = body
+            }.andExpect { status { isBadRequest() } }
         }
     }
 

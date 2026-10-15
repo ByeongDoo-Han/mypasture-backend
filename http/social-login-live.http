@@ -112,3 +112,23 @@ client.test("Kakao JWT resolves current user", function () {
   client.assert(!!response.body.id, "Expected user id");
 });
 %}
+
+### Kakao 웹 인가 코드 서버 교환
+# 브라우저 AuthSession의 단일 사용 code 및 해당 요청의 PKCE verifier를 입력합니다. 값은 로그·공유 문서에 남기지 마세요.
+# @name kakaoWebSocialLogin
+POST {{baseUrl}}/api/v1/auth/social-login/kakao/web
+Content-Type: application/json
+
+{
+  "code": "{{kakaoWebAuthorizationCode}}",
+  "codeVerifier": "{{kakaoWebCodeVerifier}}"
+}
+
+> {%
+client.test("Kakao web code exchange returns My Pasture JWT", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.tokenType === "Bearer", "Expected Bearer token");
+  client.assert(!!response.body.token, "Expected access token");
+  client.assert(!response.body.accessToken, "Kakao access token must not be returned");
+});
+%}

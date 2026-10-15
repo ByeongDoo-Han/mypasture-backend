@@ -48,6 +48,7 @@
 - `APP_CORS_ALLOWED_ORIGINS`: 쉼표로 구분한 정확한 HTTPS origin
 - `GOOGLE_OAUTH_*_CLIENT_IDS`, `APPLE_OAUTH_CLIENT_IDS`
 - `KAKAO_APP_IDS`: Kakao 숫자 앱 ID
+- `KAKAO_WEB_CLIENT_SECRET`: 웹 인가 코드 교환용 서버 전용 시크릿. `KAKAO_WEB_REST_API_KEY`와 정확한 HTTPS `KAKAO_WEB_REDIRECT_URI`를 함께 설정하며, 웹 빌드에는 시크릿을 넣지 않는다.
 
 예시는 `.env.prod.example`에 있으며 실제 값은 작성하지 않는다.
 

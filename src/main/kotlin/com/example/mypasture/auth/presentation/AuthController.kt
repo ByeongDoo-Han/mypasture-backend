@@ -6,6 +6,7 @@ import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.auth.presentation.dto.DeleteAccountRequest
 import com.example.mypasture.auth.presentation.dto.EmailVerificationConfirmRequest
 import com.example.mypasture.auth.presentation.dto.EmailVerificationRequest
+import com.example.mypasture.auth.presentation.dto.KakaoWebLoginRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetConfirmRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequest
 import com.example.mypasture.auth.presentation.dto.RefreshAccessTokenRequest
@@ -32,6 +33,7 @@ class AuthController(
             "GOOGLE" to oauthProperties.google.acceptedClientIds().isNotEmpty(),
             "APPLE" to oauthProperties.apple.acceptedClientIds().isNotEmpty(),
             "KAKAO" to oauthProperties.kakao.appIds.isNotEmpty(),
+            "KAKAO_WEB" to (oauthProperties.kakao.appIds.isNotEmpty() && oauthProperties.kakao.web.isConfigured()),
         ),
     )
 
@@ -46,6 +48,8 @@ class AuthController(
     override fun login(request: UserLoginRequest) = authService.login(request)
 
     override fun socialLogin(request: SocialLoginRequest) = authService.socialLogin(request)
+
+    override fun webKakaoLogin(request: KakaoWebLoginRequest) = authService.webKakaoLogin(request)
 
     override fun createSocialLoginChallenge() = authService.createSocialLoginChallenge()
 

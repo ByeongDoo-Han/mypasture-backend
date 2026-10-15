@@ -12,6 +12,7 @@ import com.example.mypasture.auth.infrastructure.RefreshTokenRepository
 import com.example.mypasture.auth.infrastructure.SocialLoginChallengeRepository
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.auth.presentation.dto.DeleteAccountRequest
+import com.example.mypasture.auth.presentation.dto.KakaoWebLoginRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetConfirmRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequestedResponse
@@ -56,6 +57,7 @@ class AuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenProvider: JwtTokenProvider,
     private val socialOAuthClients: List<SocialOAuthClient>,
+    private val kakaoWebCodeExchange: KakaoWebCodeExchange,
     private val authSecurityProperties: AuthSecurityProperties,
     private val jwtProperties: JwtProperties,
     private val oauthProperties: OAuthProperties,
@@ -142,6 +144,13 @@ class AuthService(
         )
 
         return issueLoginResponse(user)
+    }
+
+    /** 웹 인가 코드를 서버 시크릿으로 교환한 뒤 기존 카카오 계정 검증과 세션 발급을 재사용합니다. */
+    @Transactional
+    fun webKakaoLogin(request: KakaoWebLoginRequest): UserLoginResponse {
+        val accessToken = kakaoWebCodeExchange.exchange(request.code.trim(), request.codeVerifier)
+        return socialLogin(SocialLoginRequest(provider = AuthProvider.KAKAO, accessToken = accessToken))
     }
 
     /** 서버에서 생성한 nonce를 저장하고 OIDC 로그인 한 번에만 사용할 challenge를 발급합니다. */

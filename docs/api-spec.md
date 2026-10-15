@@ -268,6 +268,19 @@ Content-Type: application/json
 
 Response `200`: Email login과 동일한 JWT 응답.
 
+웹 카카오 로그인은 브라우저에 시크릿을 두지 않고 서버에서 인가 코드를 교환한다.
+
+```http
+POST /api/v1/auth/social-login/kakao/web
+Content-Type: application/json
+
+{"code":"one-time-authorization-code","codeVerifier":"43-to-128-character-pkce-verifier"}
+```
+
+- 서버가 설정한 `KAKAO_WEB_REDIRECT_URI`만 카카오 토큰 요청에 사용한다. 요청 본문에서 redirect URI나 클라이언트 시크릿을 받지 않는다.
+- `GET /api/v1/auth/social-login/providers`의 `KAKAO_WEB`이 `true`인 경우에만 웹 버튼을 표시한다. 기존 `KAKAO`는 네이티브 토큰 검증 준비 상태다.
+- 성공 `200`: 기존 JWT 응답. 잘못되거나 재사용된 코드 `401 INVALID_SOCIAL_TOKEN`, 웹 설정 누락 `503 SOCIAL_PROVIDER_MISCONFIGURED`.
+
 ### 1.7 Request password reset
 
 Status: `IMPLEMENTED`

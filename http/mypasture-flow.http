@@ -38,14 +38,23 @@ client.test("Email verification returns a signup token", function () {
 client.global.set("emailVerificationToken", response.body.verificationToken);
 %}
 
-### 01-2. Sign up with the one-time verification token
+### 01-2. Check nickname availability before signing up
+GET {{baseUrl}}/api/v1/auth/nicknames/availability?nickname=FlowTester
+
+> {%
+client.test("Nickname is available", function () {
+  client.assert(response.status === 200 && response.body.available === true, "Choose another nickname");
+});
+%}
+
+### 01-3. Sign up with the one-time verification token
 POST {{baseUrl}}/api/v1/auth/signup
 Content-Type: application/json
 
 {
   "email": "{{email}}",
   "password": "{{password}}",
-  "displayName": "Flow Tester",
+  "displayName": "FlowTester",
   "verificationToken": "{{emailVerificationToken}}"
 }
 
@@ -72,6 +81,16 @@ client.test("Login returns token", function () {
   client.assert(!!response.body.token, "Expected token");
 });
 client.global.set("accessToken", response.body.token);
+%}
+
+### 02-1. Check a new nickname before changing it in My Page
+GET {{baseUrl}}/api/v1/auth/me/nickname-availability?nickname=FriendlyFox
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Nickname availability is returned", function () {
+  client.assert(response.status === 200 && typeof response.body.available === "boolean", "Expected availability result");
+});
 %}
 
 ### 03. Bible versions

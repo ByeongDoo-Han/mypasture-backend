@@ -39,7 +39,7 @@ data class UserDto(
 /** 사용자가 직접 변경할 수 있는 공개 프로필 필드만 받는 요청 DTO입니다. */
 data class UpdateMyProfileRequest(
     @field:NotBlank
-    @field:Size(max = 40)
+    @field:Size(max = 10)
     val displayName: String,
 )
 
@@ -53,7 +53,7 @@ data class UserSignupRequest(
     @field:Size(min = 8, max = 72)
     val password: String,
     @field:NotBlank
-    @field:Size(min = 1, max = 80)
+    @field:Size(min = 1, max = 10)
     val displayName: String,
     @field:Size(max = 1000)
     val verificationToken: String? = null,

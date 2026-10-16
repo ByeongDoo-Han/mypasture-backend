@@ -1,5 +1,7 @@
 package com.example.mypasture.quiet_time.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
@@ -198,7 +200,7 @@ class QuietTimeAdminControllerTests(
 
     private fun adminToken(): String =
         cachedAdminToken ?: run {
-            val email = signup("운영 관리자")
+            val email = signup("운영관리자")
             jdbcTemplate.update("update users set role = 'ADMIN' where email = ?", email)
             login(email, DEFAULT_PASSWORD).also { cachedAdminToken = it }
         }
@@ -213,7 +215,7 @@ class QuietTimeAdminControllerTests(
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(
-                mapOf("email" to email, "password" to DEFAULT_PASSWORD, "displayName" to displayName),
+                mapOf("email" to email, "password" to DEFAULT_PASSWORD, "displayName" to uniqueTestNickname(displayName)),
             )
         }.andExpect { status { isCreated() } }
         return email

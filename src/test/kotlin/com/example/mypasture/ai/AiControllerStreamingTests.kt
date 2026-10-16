@@ -1,5 +1,7 @@
 package com.example.mypasture.ai
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.example.mypasture.config.AiStreamingCoroutineRunner
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.hamcrest.Matchers.containsString
@@ -21,7 +23,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.util.UUID
 import kotlin.test.assertTrue
 
-/** JWT 인증된 AI SSE 요청이 ASYNC 재-dispatch 뒤에도 정상 완료되는지 검증합니다. */
+/** JWT 인증된 AiStream 요청이 ASYNC 재-dispatch 뒤에도 정상 완료되는지 검증합니다. */
 @SpringBootTest
 @AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 @TestPropertySource(
@@ -48,7 +50,7 @@ class AiControllerStreamingTests(
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"AI SSE"}"""
+            content = """{"email":"$email","password":"$password","displayName":"${uniqueTestNickname()}"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON
@@ -183,7 +185,7 @@ class AiControllerStreamingTests(
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"AI Test"}"""
+            content = """{"email":"$email","password":"$password","displayName":"${uniqueTestNickname()}"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON

@@ -1,5 +1,7 @@
 package com.example.mypasture.quiet_time.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
@@ -28,6 +30,7 @@ class QuietTimeControllerTests(
     @Autowired private val jdbcTemplate: JdbcTemplate,
 ) {
     private var cachedLeaderToken: String? = null
+    private var cachedLeaderDisplayName: String? = null
 
     @Test
     fun `recommended passages return selection criteria`() {
@@ -286,7 +289,7 @@ class QuietTimeControllerTests(
 
         check(session["scope"].asText() == "STANDALONE")
         check(session["pasture"].isNull)
-        check(session["hostDisplayName"].asText() == "큐티 리더")
+        check(session["hostDisplayName"].asText() == cachedLeaderDisplayName)
 
         joinSession(offlineCode).andExpect {
             status { isOk() }
@@ -330,7 +333,7 @@ class QuietTimeControllerTests(
             content = """{"content":"일회성 모임 생성자가 작성한 묵상입니다."}"""
         }.andExpect {
             status { isOk() }
-            jsonPath("$.authorDisplayName") { value("큐티 리더") }
+            jsonPath("$.authorDisplayName") { value(cachedLeaderDisplayName!!) }
             jsonPath("$.content") { value("일회성 모임 생성자가 작성한 묵상입니다.") }
         }
     }
@@ -637,9 +640,15 @@ class QuietTimeControllerTests(
     }
 
     private fun leaderToken(): String =
-        cachedLeaderToken ?: createUserToken().also { cachedLeaderToken = it }
+        cachedLeaderToken ?: run {
+            val displayName = uniqueTestNickname("큐티리더")
+            createUserToken(displayName).also {
+                cachedLeaderToken = it
+                cachedLeaderDisplayName = displayName
+            }
+        }
 
-    private fun createUserToken(): String {
+    private fun createUserToken(displayName: String = uniqueTestNickname()): String {
         val email = "quiet-time-${UUID.randomUUID()}@example.com"
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
@@ -649,7 +658,7 @@ class QuietTimeControllerTests(
                 {
                   "email": "$email",
                   "password": "$password",
-                  "displayName": "큐티 리더"
+                  "displayName": "$displayName"
                 }
                 """.trimIndent()
         }.andExpect {

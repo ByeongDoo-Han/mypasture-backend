@@ -48,7 +48,7 @@ class EmailVerificationControllerTests(
                 {
                   "email": "$email",
                   "password": "password123!",
-                  "displayName": "Verified User",
+                  "displayName": "Verified",
                   "verificationToken": "$verificationToken"
                 }
                 """.trimIndent()

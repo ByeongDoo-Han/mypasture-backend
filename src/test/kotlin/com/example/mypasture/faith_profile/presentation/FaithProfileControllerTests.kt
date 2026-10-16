@@ -1,5 +1,7 @@
 package com.example.mypasture.faith_profile.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
@@ -28,7 +30,7 @@ class FaithProfileControllerTests(
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"Faith Test"}"""
+            content = """{"email":"$email","password":"$password","displayName":"${uniqueTestNickname()}"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON
@@ -184,7 +186,7 @@ class FaithProfileControllerTests(
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"Other Faith User"}"""
+            content = """{"email":"$email","password":"$password","displayName":"${uniqueTestNickname()}"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON

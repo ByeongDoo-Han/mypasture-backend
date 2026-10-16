@@ -72,13 +72,13 @@ class AuthService(
     @Transactional
     fun signup(request: UserSignupRequest): UserSignupResponse {
         policyConsentService.validateSignup(request.policyConsents)
-        val nickname = validAvailableNickname(request.displayName)
         val email = normalizeEmail(request.email)
         if (userRepository.existsByEmailAndDeletedAtIsNull(email) ||
             authAccountRepository.existsByProviderAndProviderUserId(AuthProvider.EMAIL, email)
         ) {
             throw EmailAlreadyRegisteredException()
         }
+        val nickname = validAvailableNickname(request.displayName)
         emailVerificationService.consumeForSignup(email, request.verificationToken)
 
         val user =

@@ -11,7 +11,8 @@ object NicknamePolicy {
 
     fun isValid(raw: String): Boolean {
         val value = normalize(raw)
-        return value.isNotEmpty() && allowed.matches(value) && value.sumOf { if (it in '가'..'힣') 5 else 4 } <= 40
+        val weight = value.fold(0) { total, character -> total + if (character in '가'..'힣') 5 else 4 }
+        return value.isNotEmpty() && allowed.matches(value) && weight <= 40
     }
 
     fun key(raw: String): String = normalize(raw).lowercase(Locale.ROOT)

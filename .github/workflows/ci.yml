@@ -87,6 +87,9 @@ jobs:
           DAILY_WORD_ROTATION_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           DAILY_WORD_ROTATION_TEST_JDBC_USER: otp_test
           DAILY_WORD_ROTATION_TEST_JDBC_PASSWORD: disposable-ci-password
+          NICKNAME_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
+          NICKNAME_TEST_JDBC_USER: otp_test
+          NICKNAME_TEST_JDBC_PASSWORD: disposable-ci-password
         run: >-
           ./gradlew test
           --tests '*AdminEmailLoginControllerTests'
@@ -104,6 +107,7 @@ jobs:
           --tests '*AchievementCatalogTests'
           --tests '*AchievementErasureGuardPostgresTests'
           --tests '*DailyWordRotation*PostgresTests'
+          --tests '*NicknameMigrationPostgresTests'
           --rerun-tasks --no-daemon
 
   container-build:

@@ -1,5 +1,7 @@
 package com.example.mypasture.moderation.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.example.mypasture.ai.domain.AiRequestReceiptEntity
 import com.example.mypasture.ai.domain.AiUsageLogEntity
 import com.example.mypasture.ai.domain.AiUsageStatus
@@ -115,7 +117,7 @@ class ModerationControllerTests(
     @Test
     fun `ordinary user cannot inspect the moderation queue`() {
         mockMvc.get("/api/v1/admin/moderation/reports") {
-            header("Authorization", "Bearer ${createUser("일반 사용자").token}")
+            header("Authorization", "Bearer ${createUser("일반사용자").token}")
         }.andExpect {
             status { isForbidden() }
             jsonPath("$.code") { value("ACCESS_DENIED") }
@@ -213,8 +215,8 @@ class ModerationControllerTests(
     }
 
     private fun createJoinedSession(): Fixture {
-        val leader = createUser("큐티 리더")
-        val member = createUser("목원 한나")
+        val leader = createUser("큐티리더")
+        val member = createUser("목원한나")
         val pasture = mockMvc.post("/api/v1/quiet-time/pastures") {
             header("Authorization", "Bearer ${leader.token}")
             contentType = MediaType.APPLICATION_JSON
@@ -250,7 +252,7 @@ class ModerationControllerTests(
         val email = "moderation-${UUID.randomUUID()}@example.com"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = objectMapper.writeValueAsString(mapOf("email" to email, "password" to PASSWORD, "displayName" to displayName))
+            content = objectMapper.writeValueAsString(mapOf("email" to email, "password" to PASSWORD, "displayName" to uniqueTestNickname(displayName)))
         }.andExpect { status { isCreated() } }
         val token = login(email)
         val userId = objectMapper.readTree(
@@ -263,7 +265,7 @@ class ModerationControllerTests(
         val email = "moderation-admin-${UUID.randomUUID()}@example.com"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = objectMapper.writeValueAsString(mapOf("email" to email, "password" to PASSWORD, "displayName" to "신고 관리자"))
+            content = objectMapper.writeValueAsString(mapOf("email" to email, "password" to PASSWORD, "displayName" to uniqueTestNickname()))
         }.andExpect { status { isCreated() } }
         jdbcTemplate.update("update users set role = 'ADMIN' where email = ?", email)
         return login(email)

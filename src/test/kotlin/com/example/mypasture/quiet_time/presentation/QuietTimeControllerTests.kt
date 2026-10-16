@@ -1,5 +1,7 @@
 package com.example.mypasture.quiet_time.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
@@ -649,7 +651,7 @@ class QuietTimeControllerTests(
                 {
                   "email": "$email",
                   "password": "$password",
-                  "displayName": "큐티 리더"
+                  "displayName": "${uniqueTestNickname()}"
                 }
                 """.trimIndent()
         }.andExpect {

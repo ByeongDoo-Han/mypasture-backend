@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.ResponseStatus
 
@@ -34,8 +35,17 @@ data class SocialProviderReadinessResponse(
     val providers: Map<String, Boolean>,
 )
 
+/** 닉네임 중복 확인 결과입니다. 최종 저장 시 서버에서 다시 검사합니다. */
+data class NicknameAvailabilityResponse(val available: Boolean)
+
 /** Swagger/OpenAPI 문서화를 controller 구현과 분리하기 위한 인증 API contract입니다. */
 interface AuthApi {
+    @GetMapping("/nicknames/availability")
+    fun nicknameAvailability(@RequestParam nickname: String): NicknameAvailabilityResponse
+
+    @GetMapping("/me/nickname-availability")
+    fun myNicknameAvailability(@AuthenticationPrincipal principal: JwtPrincipal, @RequestParam nickname: String): NicknameAvailabilityResponse
+
     @GetMapping("/health")
     fun health(): Map<String, String>
 

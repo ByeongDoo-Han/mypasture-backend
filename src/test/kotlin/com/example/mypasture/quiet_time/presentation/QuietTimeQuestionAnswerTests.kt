@@ -1,5 +1,7 @@
 package com.example.mypasture.quiet_time.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
@@ -140,8 +142,8 @@ class QuietTimeQuestionAnswerTests(
     }
 
     private fun createJoinedSession(): Fixture {
-        val leader = createUser("큐티 리더")
-        val member = createUser("목원 한나")
+        val leader = createUser("큐티리더")
+        val member = createUser("목원한나")
         val pastureResult = mockMvc.post("/api/v1/quiet-time/pastures") {
             header("Authorization", "Bearer ${leader.token}")
             contentType = MediaType.APPLICATION_JSON
@@ -186,7 +188,7 @@ class QuietTimeQuestionAnswerTests(
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(
-                mapOf("email" to email, "password" to password, "displayName" to displayName),
+                mapOf("email" to email, "password" to password, "displayName" to uniqueTestNickname(displayName)),
             )
         }.andExpect { status { isCreated() } }
 

@@ -1,5 +1,7 @@
 package com.example.mypasture.ai
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.example.mypasture.ai.application.AskBibleAssistantUseCase
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.user.domain.SubscriptionTier
@@ -205,7 +207,7 @@ class AiHistoryControllerTests(
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"History Test"}"""
+            content = """{"email":"$email","password":"$password","displayName":"${uniqueTestNickname()}"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON

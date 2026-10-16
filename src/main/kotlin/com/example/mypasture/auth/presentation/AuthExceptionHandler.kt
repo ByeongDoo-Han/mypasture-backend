@@ -6,6 +6,8 @@ import com.example.mypasture.auth.application.EmailAlreadyRegisteredException
 import com.example.mypasture.auth.application.EmailVerificationRequiredException
 import com.example.mypasture.auth.application.InvalidEmailVerificationCodeException
 import com.example.mypasture.auth.application.InvalidDisplayNameException
+import com.example.mypasture.auth.application.NicknameAlreadyUsedException
+import com.example.mypasture.auth.application.NicknamePoolExhaustedException
 import com.example.mypasture.auth.application.InvalidCredentialsException
 import com.example.mypasture.auth.application.InvalidPasswordResetTokenException
 import com.example.mypasture.auth.application.InvalidRefreshTokenException
@@ -19,11 +21,14 @@ import com.example.mypasture.auth.infrastructure.InvalidSocialTokenException
 import com.example.mypasture.auth.infrastructure.MissingSocialTokenException
 import com.example.mypasture.auth.infrastructure.SocialOAuthProviderMisconfiguredException
 import com.example.mypasture.common.error.ErrorCode
+import com.example.mypasture.common.error.ApiErrorResponse
 import com.example.mypasture.common.error.toResponse
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.core.Ordered
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.core.annotation.Order
 import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -32,6 +37,26 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 @RestControllerAdvice(assignableTypes = [AuthController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class AuthExceptionHandler {
+    /** 조회 후 동시 저장 경합에서도 DB 고유 제약을 안정적인 중복 오류로 변환합니다. */
+    @ExceptionHandler(DataIntegrityViolationException::class)
+    fun handleNicknameConstraint(error: DataIntegrityViolationException, request: HttpServletRequest): ResponseEntity<ApiErrorResponse> {
+        val details = generateSequence(error as Throwable) { it.cause }.mapNotNull { it.message }.joinToString(" ")
+        val code = when {
+            details.contains("ux_users_nickname_key", ignoreCase = true) -> AuthErrorCode.NICKNAME_ALREADY_USED
+            details.contains("ux_users_email_active", ignoreCase = true) -> AuthErrorCode.EMAIL_ALREADY_REGISTERED
+            else -> throw error
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(code.toResponse(request))
+    }
+
+    @ExceptionHandler(NicknameAlreadyUsedException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handleNicknameAlreadyUsed(request: HttpServletRequest) = AuthErrorCode.NICKNAME_ALREADY_USED.toResponse(request)
+
+    @ExceptionHandler(NicknamePoolExhaustedException::class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    fun handleNicknamePoolExhausted(request: HttpServletRequest) = AuthErrorCode.NICKNAME_POOL_EXHAUSTED.toResponse(request)
+
     @ExceptionHandler(InvalidEmailVerificationCodeException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleInvalidEmailVerificationCode(request: HttpServletRequest) =
@@ -145,5 +170,7 @@ enum class AuthErrorCode(
     PASSWORD_REUSE_NOT_ALLOWED("PASSWORD_REUSE_NOT_ALLOWED", "기존 비밀번호와 다른 비밀번호를 사용해 주세요."),
     INVALID_DELETION_CONFIRMATION("INVALID_DELETION_CONFIRMATION", "회원탈퇴 확인값이 올바르지 않습니다."),
     REAUTHENTICATION_FAILED("REAUTHENTICATION_FAILED", "회원탈퇴를 위해 현재 비밀번호를 확인해 주세요."),
-    INVALID_DISPLAY_NAME("INVALID_DISPLAY_NAME", "이름은 공백을 제외하고 1자 이상 40자 이하로 입력해 주세요."),
+    INVALID_DISPLAY_NAME("INVALID_DISPLAY_NAME", "닉네임은 공백·특수문자 없이 한글 8자 또는 영문 10자까지 입력해 주세요."),
+    NICKNAME_ALREADY_USED("NICKNAME_ALREADY_USED", "이미 사용 중인 닉네임입니다."),
+    NICKNAME_POOL_EXHAUSTED("NICKNAME_POOL_EXHAUSTED", "새 닉네임을 만들 수 없습니다. 잠시 후 다시 시도해 주세요."),
 }

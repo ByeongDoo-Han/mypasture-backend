@@ -74,7 +74,7 @@ class ApiErrorHandlingTests(
         val email = "error-contract-${UUID.randomUUID()}@example.com"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"password123!","displayName":"Error Contract"}"""
+            content = """{"email":"$email","password":"password123!","displayName":"ErrorTest"}"""
         }.andExpect {
             status { isCreated() }
         }

@@ -62,7 +62,7 @@ class PolicyControllerTests(
         val email = "ai-history-policy-$suffix@example.com"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"password123","displayName":"AI 정책 목원","policyConsents":[
+            content = """{"email":"$email","password":"password123","displayName":"정책목원하나","policyConsents":[
                 {"type":"TERMS_OF_SERVICE","version":"1.0.0","agreed":true},
                 {"type":"PRIVACY_COLLECTION","version":"1.0.0","agreed":true}
             ]}"""
@@ -107,7 +107,7 @@ class PolicyControllerTests(
             {
               "email":"$email",
               "password":"password123",
-              "displayName":"정책 목원",
+              "displayName":"정책목원",
               "policyConsents":[
                 {"type":"TERMS_OF_SERVICE","version":"1.0.0","agreed":true},
                 {"type":"PRIVACY_COLLECTION","version":"1.0.0","agreed":true},
@@ -141,7 +141,7 @@ class PolicyControllerTests(
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content = """
-                {"email":"$email","password":"password123","displayName":"AI 정책 목원","policyConsents":[
+                {"email":"$email","password":"password123","displayName":"정책목원둘","policyConsents":[
                   {"type":"TERMS_OF_SERVICE","version":"1.0.0","agreed":true},
                   {"type":"PRIVACY_COLLECTION","version":"1.0.0","agreed":true}
                 ]}

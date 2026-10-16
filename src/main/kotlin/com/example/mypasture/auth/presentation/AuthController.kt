@@ -26,6 +26,11 @@ class AuthController(
     private val emailVerificationService: EmailVerificationService,
     private val oauthProperties: OAuthProperties,
 ) : AuthApi {
+    override fun nicknameAvailability(nickname: String) = NicknameAvailabilityResponse(authService.nicknameAvailable(nickname))
+
+    override fun myNicknameAvailability(principal: JwtPrincipal, nickname: String) =
+        NicknameAvailabilityResponse(authService.nicknameAvailable(nickname, principal.userId))
+
     override fun health(): Map<String, String> = mapOf("status" to "auth-ready")
 
     override fun socialProviderReadiness() = SocialProviderReadinessResponse(

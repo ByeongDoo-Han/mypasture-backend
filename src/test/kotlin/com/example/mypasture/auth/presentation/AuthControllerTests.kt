@@ -1,5 +1,7 @@
 package com.example.mypasture.auth.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.example.mypasture.ai.application.AiCachePort
 import com.example.mypasture.auth.application.PasswordResetNotificationSender
 import com.example.mypasture.auth.application.SocialLoginCommand
@@ -101,14 +103,14 @@ class AuthControllerTests(
                 {
                   "email": "signup-success@example.com",
                   "password": "password123!",
-                  "displayName": "Signup User"
+                  "displayName": "SignupUser"
                 }
                 """.trimIndent()
         }.andExpect {
             status { isCreated() }
             jsonPath("$.user.id") { exists() }
             jsonPath("$.user.email") { value("signup-success@example.com") }
-            jsonPath("$.user.displayName") { value("Signup User") }
+            jsonPath("$.user.displayName") { value("SignupUser") }
             jsonPath("$.user.subscriptionTier") { value("FREE") }
         }
     }
@@ -120,7 +122,7 @@ class AuthControllerTests(
             {
               "email": "duplicate@example.com",
               "password": "password123!",
-              "displayName": "Duplicate User"
+              "displayName": "Duplicate"
             }
             """.trimIndent()
 
@@ -141,6 +143,31 @@ class AuthControllerTests(
     }
 
     @Test
+    fun `nickname availability rejects invalid and taken names and signup rechecks uniqueness`() {
+        mockMvc.get("/api/v1/auth/nicknames/availability") { param("nickname", "중복검사") }
+            .andExpect { status { isOk() }; jsonPath("$.available") { value(true) } }
+        mockMvc.get("/api/v1/auth/nicknames/availability") { param("nickname", "띄어 쓰기") }
+            .andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_DISPLAY_NAME") } }
+
+        val first = """{"email":"nickname-first@example.com","password":"password123!","displayName":"중복검사"}"""
+        mockMvc.post("/api/v1/auth/signup") { contentType = MediaType.APPLICATION_JSON; content = first }
+            .andExpect { status { isCreated() } }
+        mockMvc.get("/api/v1/auth/nicknames/availability") { param("nickname", "중복검사") }
+            .andExpect { status { isOk() }; jsonPath("$.available") { value(false) } }
+        val second = """{"email":"nickname-second@example.com","password":"password123!","displayName":"중복검사"}"""
+        mockMvc.post("/api/v1/auth/signup") { contentType = MediaType.APPLICATION_JSON; content = second }
+            .andExpect { status { isConflict() }; jsonPath("$.code") { value("NICKNAME_ALREADY_USED") } }
+    }
+
+    @Test
+    fun `availability rejects emoji symbols and names beyond Korean or English limit`() {
+        listOf("가 나", "사랑🙂", "안녕!", "한글123", "가".repeat(9), "a".repeat(11)).forEach { nickname ->
+            mockMvc.get("/api/v1/auth/nicknames/availability") { param("nickname", nickname) }
+                .andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_DISPLAY_NAME") } }
+        }
+    }
+
+    @Test
     fun `login returns jwt access token and me returns current user`() {
         val email = "jwt-login@example.com"
         val password = "password123!"
@@ -151,7 +178,7 @@ class AuthControllerTests(
                 {
                   "email": "$email",
                   "password": "$password",
-                  "displayName": "JWT User"
+                  "displayName": "JWTUser"
                 }
                 """.trimIndent()
         }.andExpect {
@@ -178,13 +205,12 @@ class AuthControllerTests(
         val token = com.fasterxml.jackson.databind.ObjectMapper()
             .readTree(loginResult.response.contentAsString)["token"]
             .asText()
-
         mockMvc.get("/api/v1/auth/me") {
             header("Authorization", "Bearer $token")
         }.andExpect {
             status { isOk() }
             jsonPath("$.email") { value(email) }
-            jsonPath("$.displayName") { value("JWT User") }
+            jsonPath("$.displayName") { value("JWTUser") }
         }
     }
 
@@ -218,8 +244,14 @@ class AuthControllerTests(
             jsonPath("$.token") { exists() }
             jsonPath("$.tokenType") { value("Bearer") }
             jsonPath("$.user.email") { value("google-user@example.com") }
-            jsonPath("$.user.displayName") { value("Google User") }
+            jsonPath("$.user.displayName") { exists() }
         }.andReturn()
+
+        val generatedNickname = com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(loginResult.response.contentAsString)["user"]["displayName"].asText()
+        assertTrue(generatedNickname.length in 5..6)
+        assertTrue(generatedNickname.all { it in '가'..'힣' })
+        assertTrue(generatedNickname != "Google User")
 
         val token = com.fasterxml.jackson.databind.ObjectMapper()
             .readTree(loginResult.response.contentAsString)["token"]
@@ -390,25 +422,33 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `update me normalizes display name and keeps current token valid`() {
+    fun `update me saves a checked nickname and keeps current token valid`() {
         val email = "profile-${java.util.UUID.randomUUID()}@example.com"
-        val token = signupAndLoginWithDisplayName(email, "Profile User")
+        val token = signupAndLoginWithDisplayName(email, "ProfileOne")
+
+        mockMvc.get("/api/v1/auth/me/nickname-availability") {
+            header("Authorization", "Bearer $token")
+            param("nickname", "ProfileOne")
+        }.andExpect { status { isOk() }; jsonPath("$.available") { value(true) } }
+
+        mockMvc.get("/api/v1/auth/me/nickname-availability") { param("nickname", "새이름") }
+            .andExpect { status { isUnauthorized() } }
 
         mockMvc.patch("/api/v1/auth/me") {
             header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
-            content = """{"displayName":"  새   이름  "}"""
+            content = """{"displayName":"새이름"}"""
         }.andExpect {
             status { isOk() }
             jsonPath("$.email") { value(email) }
-            jsonPath("$.displayName") { value("새 이름") }
+            jsonPath("$.displayName") { value("새이름") }
         }
 
         mockMvc.get("/api/v1/auth/me") {
             header("Authorization", "Bearer $token")
         }.andExpect {
             status { isOk() }
-            jsonPath("$.displayName") { value("새 이름") }
+            jsonPath("$.displayName") { value("새이름") }
         }
     }
 
@@ -419,7 +459,7 @@ class AuthControllerTests(
             content = """{"displayName":"새 이름"}"""
         }.andExpect { status { isUnauthorized() } }
 
-        val token = signupAndLoginWithDisplayName("profile-validation-${java.util.UUID.randomUUID()}@example.com", "Profile User")
+        val token = signupAndLoginWithDisplayName("profile-validation-${java.util.UUID.randomUUID()}@example.com", "ProfileTwo")
         mockMvc.patch("/api/v1/auth/me") {
             header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
@@ -449,7 +489,7 @@ class AuthControllerTests(
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"Refresh User"}"""
+            content = """{"email":"$email","password":"$password","displayName":"RefreshOne"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON
@@ -486,7 +526,7 @@ class AuthControllerTests(
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"Logout User"}"""
+            content = """{"email":"$email","password":"$password","displayName":"LogoutOne"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON
@@ -661,12 +701,12 @@ class AuthControllerTests(
                 {
                   "email": "$email",
                   "password": "$password",
-                  "displayName": "Rejoined User"
+                  "displayName": "Rejoined"
                 }
                 """.trimIndent()
         }.andExpect {
             status { isCreated() }
-            jsonPath("$.user.displayName") { value("Rejoined User") }
+            jsonPath("$.user.displayName") { value("Rejoined") }
         }
     }
 
@@ -798,7 +838,7 @@ class AuthControllerTests(
                 {
                   "email": "$email",
                   "password": "$password",
-                  "displayName": "Auth Test User"
+                  "displayName": "${uniqueTestNickname()}"
                 }
                 """.trimIndent()
         }.andExpect {

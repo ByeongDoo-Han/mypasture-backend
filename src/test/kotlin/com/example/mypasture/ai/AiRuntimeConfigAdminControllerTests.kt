@@ -1,5 +1,7 @@
 package com.example.mypasture.ai
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.example.mypasture.ai.domain.AiUseCase
 import com.example.mypasture.ai.infrastructure.AiRuntimeConfigVersionRepository
 import com.fasterxml.jackson.databind.JsonNode
@@ -176,7 +178,7 @@ class AiRuntimeConfigAdminControllerTests(
         )
 
     private fun adminToken(): String {
-        val email = signup("AI 운영 관리자")
+        val email = signup("운영관리자")
         jdbcTemplate.update("update users set role = 'ADMIN' where email = ?", email)
         return login(email)
     }
@@ -188,7 +190,7 @@ class AiRuntimeConfigAdminControllerTests(
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(
-                mapOf("email" to email, "password" to DEFAULT_PASSWORD, "displayName" to displayName),
+                mapOf("email" to email, "password" to DEFAULT_PASSWORD, "displayName" to uniqueTestNickname(displayName)),
             )
         }.andExpect { status { isCreated() } }
         return email

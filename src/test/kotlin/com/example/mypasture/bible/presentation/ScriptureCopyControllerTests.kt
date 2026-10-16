@@ -1,5 +1,7 @@
 package com.example.mypasture.bible.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.example.mypasture.auth.application.AuthService
 import com.example.mypasture.auth.application.InvalidCredentialsException
 import com.example.mypasture.auth.infrastructure.UserRepository
@@ -495,7 +497,7 @@ class ScriptureCopyControllerTests(
         val email = "copy-${UUID.randomUUID()}@example.com"
         mvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"password123!","displayName":"필사 독자"}"""
+            content = """{"email":"$email","password":"password123!","displayName":"${uniqueTestNickname()}"}"""
         }.andExpect { status { isCreated() } }
         val result = mvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON

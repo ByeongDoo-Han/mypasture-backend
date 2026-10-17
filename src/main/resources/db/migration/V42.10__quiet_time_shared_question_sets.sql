@@ -10,7 +10,7 @@ create table quiet_time_shared_question_sets (
   question_style varchar(30) not null,
   generator_version int not null,
   source_hash varchar(64) not null,
-  created_by_user_id uuid not null references users(id),
+  created_by_user_id uuid references users(id),
   status varchar(20) not null,
   claim_token uuid not null,
   lease_expires_at timestamptz not null,

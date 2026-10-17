@@ -17,6 +17,8 @@ import com.example.mypasture.quiet_time.infrastructure.QuietTimeSharedQuestionSt
 import com.example.mypasture.quiet_time.infrastructure.QuietTimeGenerationLimitException
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.user.domain.UserEntity
+import com.example.mypasture.user.application.AccountDataErasure
+import com.example.mypasture.user.application.AccountDataErasureCommand
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -27,6 +29,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.annotation.DirtiesContext
+import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
@@ -47,6 +50,7 @@ class QuietTimeSharedQuestionTests(
     @Autowired private val jdbc: JdbcTemplate,
     @Autowired private val users: UserRepository,
     @Autowired private val store: QuietTimeSharedQuestionStore,
+    @Autowired private val accountErasure: AccountDataErasure,
 ) {
     @Test
     fun `same verse has one passage and one shared question set across concurrent requests`() = runBlocking {
@@ -70,7 +74,7 @@ class QuietTimeSharedQuestionTests(
         assertEquals(1, jdbc.queryForObject("select count(*) from quiet_time_shared_question_sets where passage_id = ? and question_style = 'BALANCED'", Int::class.java, first.id))
 
         sharedQuestions.generate(first.id, QuietTimeQuestionStyle.REFLECTION, a.id)
-        assertEquals(2, jdbc.queryForObject("select count(*) from quiet_time_shared_question_sets where passage_id = ?", Int::class.java, first.id))
+        assertEquals(2, jdbc.queryForObject("select count(*) from quiet_time_shared_question_sets where passage_id = ? and generator_version = 2", Int::class.java, first.id))
         assertNotEquals(ready.questionSet?.style, sharedQuestions.status(first.id, QuietTimeQuestionStyle.REFLECTION).questionSet?.style)
     }
 
@@ -98,6 +102,25 @@ class QuietTimeSharedQuestionTests(
             store.claim(passage.id, QuietTimeQuestionStyle.SHARING, 106, "6b".padEnd(64, 'b'), limited.id, now)
         }
         assertEquals(5, jdbc.queryForObject("select count(*) from quiet_time_question_generation_attempts where user_id = ?", Int::class.java, limited.id))
+    }
+
+    @Test
+    fun `account erasure removes generation attempts and anonymizes reusable questions`() {
+        seedVerse(34)
+        val passage = selectedPassages.select("KOR1910", "JHN", 13, 34, 34)
+        val user = users.saveAndFlush(UserEntity(displayName = "QT생성기록삭제"))
+        assertNotNull(store.claim(passage.id, QuietTimeQuestionStyle.ACTION, 199, "c".repeat(64), user.id, java.time.Instant.now()))
+
+        accountErasure.erase(AccountDataErasureCommand(
+            userId = user.id, email = null, requestedAt = java.time.Instant.now(),
+        ))
+
+        assertEquals(0, jdbc.queryForObject("select count(*) from quiet_time_question_generation_attempts where user_id = ?", Int::class.java, user.id))
+        assertNull(jdbc.queryForObject(
+            "select created_by_user_id from quiet_time_shared_question_sets where passage_id = ? and generator_version = 199",
+            UUID::class.java, passage.id,
+        ))
+        assertEquals(1, jdbc.queryForObject("select count(*) from quiet_time_shared_question_sets where passage_id = ? and generator_version = 199", Int::class.java, passage.id))
     }
 
     private fun seedVerse(number: Int) {

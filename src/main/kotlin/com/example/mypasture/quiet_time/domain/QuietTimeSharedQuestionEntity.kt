@@ -22,7 +22,7 @@ class QuietTimeSharedQuestionEntity(
     @Column(length = 30) val questionStyle: String,
     val generatorVersion: Int,
     @Column(length = 64) val sourceHash: String,
-    val createdByUserId: UUID,
+    val createdByUserId: UUID?,
     @Column(length = 20) val status: String,
     val claimToken: UUID,
     val leaseExpiresAt: Instant,

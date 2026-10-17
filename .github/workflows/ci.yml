@@ -69,6 +69,7 @@ jobs:
           docker exec "$POSTGRES_CONTAINER" psql -U otp_test -d otp_test -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;'
       - name: Validate all required PostgreSQL regression suites
         env:
+          SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 4
           ADMIN_EMAIL_LOGIN_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           ADMIN_EMAIL_LOGIN_TEST_JDBC_USER: otp_test
           ADMIN_EMAIL_LOGIN_TEST_JDBC_PASSWORD: disposable-ci-password
@@ -99,6 +100,9 @@ jobs:
           QT_SHARED_QUESTION_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           QT_SHARED_QUESTION_TEST_JDBC_USER: otp_test
           QT_SHARED_QUESTION_TEST_JDBC_PASSWORD: disposable-ci-password
+          AVATAR_PLATFORM_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
+          AVATAR_PLATFORM_TEST_JDBC_USER: otp_test
+          AVATAR_PLATFORM_TEST_JDBC_PASSWORD: disposable-ci-password
         run: >-
           ./gradlew test
           --tests '*AdminEmailLoginControllerTests'
@@ -118,6 +122,7 @@ jobs:
           --tests '*DailyWordRotation*PostgresTests'
           --tests '*NicknameMigrationPostgresTests'
           --tests '*QuietTimeSharedQuestionTests'
+          --tests '*AvatarPlatformControllerTests'
           --rerun-tasks --no-daemon
 
   container-build:

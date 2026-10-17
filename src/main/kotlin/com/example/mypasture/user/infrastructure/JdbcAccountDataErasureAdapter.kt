@@ -192,6 +192,7 @@ class JdbcAccountDataErasureAdapter(
             command.userId,
         )
 
+        deleted += update("user_avatar_platforms", "delete from user_avatar_platforms where user_id = ?", command.userId)
         deleted += update("user_collectibles", "delete from user_collectibles where user_id = ?", command.userId)
         deleted += update("user_entitlements", "delete from user_entitlements where user_id = ?", command.userId)
         deleted += update("coupon_redemptions", "delete from coupon_redemptions where user_id = ?", command.userId)

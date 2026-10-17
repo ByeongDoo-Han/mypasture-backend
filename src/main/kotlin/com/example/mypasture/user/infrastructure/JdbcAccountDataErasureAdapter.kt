@@ -57,6 +57,11 @@ class JdbcAccountDataErasureAdapter(
             """.trimIndent(),
             command.userId,
         )
+        anonymized += update(
+            "quiet_time_shared_question_sets",
+            "update quiet_time_shared_question_sets set created_by_user_id = null where created_by_user_id = ?",
+            command.userId,
+        )
         anonymized += update("ai_runtime_config_versions", "update ai_runtime_config_versions set created_by = null where created_by = ?", command.userId)
         anonymized += update("daily_words", "update daily_words set reviewed_by = null where reviewed_by = ?", command.userId)
         anonymized += update("daily_word_generation_jobs", "update daily_word_generation_jobs set requested_by = null where requested_by = ?", command.userId)
@@ -98,6 +103,11 @@ class JdbcAccountDataErasureAdapter(
         )
 
         // 사용자 소유 데이터는 자식 테이블부터 물리 삭제해 원문과 토큰을 남기지 않습니다.
+        deleted += update(
+            "quiet_time_question_generation_attempts",
+            "delete from quiet_time_question_generation_attempts where user_id = ?",
+            command.userId,
+        )
         deleted += update("user_achievement_featured", "delete from user_achievement_featured where user_id = ?", command.userId)
         deleted += update("user_achievement_awards", "delete from user_achievement_awards where user_id = ?", command.userId)
         deleted += update("user_note_activity_days", "delete from user_note_activity_days where user_id = ?", command.userId)

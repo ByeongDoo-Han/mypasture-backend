@@ -5,6 +5,9 @@ import com.example.mypasture.quiet_time.application.QuietTimeService
 import com.example.mypasture.quiet_time.application.QuietTimeReflectionService
 import com.example.mypasture.quiet_time.application.QuietTimeQuestionAnswerService
 import com.example.mypasture.quiet_time.application.QuietTimeQuestionSetService
+import com.example.mypasture.quiet_time.application.QuietTimeSelectedPassageService
+import com.example.mypasture.quiet_time.application.QuietTimeSharedQuestionService
+import com.example.mypasture.quiet_time.domain.QuietTimeQuestionStyle
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionCategory
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -18,6 +21,8 @@ class QuietTimeController(
     private val reflectionService: QuietTimeReflectionService,
     private val answerService: QuietTimeQuestionAnswerService,
     private val questionSetService: QuietTimeQuestionSetService,
+    private val selectedPassageService: QuietTimeSelectedPassageService,
+    private val sharedQuestionService: QuietTimeSharedQuestionService,
     private val answerStreamRegistry: QuietTimeAnswerStreamRegistry,
 ) : QuietTimeApi {
     override fun recommendedPassages(
@@ -26,6 +31,17 @@ class QuietTimeController(
         size: Int,
     ): List<QuietTimePassageResponse> =
         quietTimeService.recommendPassages(theme, beginnerOnly, size).map { it.toResponse() }
+
+    override fun selectPassage(principal: JwtPrincipal, request: SelectQuietTimePassageRequest): QuietTimePassageResponse =
+        selectedPassageService.select(request.version, request.bookCode, request.chapter, request.startVerse, request.endVerse).toResponse()
+
+    override suspend fun generateSelectedQuestions(
+        principal: JwtPrincipal, passageId: UUID, request: GenerateQuietTimeQuestionsRequest,
+    ): QuietTimeGenerationResponse = sharedQuestionService.generate(passageId, request.style, principal.userId).toResponse()
+
+    override fun selectedQuestionStatus(
+        passageId: UUID, style: QuietTimeQuestionStyle,
+    ): QuietTimeGenerationResponse = sharedQuestionService.status(passageId, style).toResponse()
 
     override fun passageThemes(passageId: UUID): List<QuietTimePassageThemeResponse> =
         questionSetService.themesForPassage(passageId).map { it.toResponse() }

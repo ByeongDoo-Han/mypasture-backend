@@ -55,6 +55,7 @@ class QuietTimeService(
         val normalizedTheme = theme?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
         return passageRepository.findByActiveTrue()
             .asSequence()
+            .filter { it.origin == "CURATED" }
             .filter { passage -> normalizedTheme == null || passage.normalizedTags().any { it.contains(normalizedTheme) || normalizedTheme.contains(it) } }
             .filter { passage -> !beginnerOnly || passage.beginnerScore >= 4 && passage.sensitivityLevel != QuietTimeSensitivityLevel.HIGH }
             .sortedWith(compareByDescending<QuietTimePassageEntity> { it.totalRecommendationScore() }.thenBy { it.estimatedMinutes })
@@ -465,7 +466,7 @@ class QuietTimeService(
         }
 
     private fun ensureDefaultPassages() {
-        if (passageRepository.countByActiveTrue() > 0) return
+        if (passageRepository.countByActiveTrueAndOrigin("CURATED") > 0) return
         passageRepository.saveAll(defaultPassages())
     }
 

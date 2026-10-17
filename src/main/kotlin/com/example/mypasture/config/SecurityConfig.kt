@@ -37,11 +37,17 @@ class SecurityConfig {
             allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             allowedHeaders = listOf(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE, "X-App-Environment")
             exposedHeaders = listOf(HttpHeaders.LOCATION, RequestCorrelationFilter.TRACE_ID_HEADER)
-            // JWT와 refresh token은 Authorization/body로 전달하므로 cross-origin cookie를 허용하지 않습니다.
+            // 일반 API는 bearer 인증만 사용합니다.
             allowCredentials = false
             maxAge = 3_600
         }
         return UrlBasedCorsConfigurationSource().apply {
+            val webSessionConfiguration = CorsConfiguration(configuration).apply {
+                allowedOrigins = properties.webSessionAllowedOrigins
+                allowedMethods = listOf("POST", "OPTIONS")
+                allowCredentials = true
+            }
+            registerCorsConfiguration("/api/v1/auth/web/**", webSessionConfiguration)
             registerCorsConfiguration("/**", configuration)
         }
     }
@@ -100,6 +106,9 @@ class SecurityConfig {
                     "/api/v1/auth/social-login/kakao/web",
                     "/api/v1/auth/social-login/challenges",
                     "/api/v1/auth/refresh",
+                    "/api/v1/auth/web/session",
+                    "/api/v1/auth/web/refresh",
+                    "/api/v1/auth/web/logout",
                     "/api/v1/auth/password-reset/requests",
                     "/api/v1/auth/password-reset/confirm",
                 ).permitAll()

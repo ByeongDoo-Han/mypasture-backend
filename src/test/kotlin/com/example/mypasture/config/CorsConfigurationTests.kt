@@ -38,4 +38,28 @@ class CorsConfigurationTests(
             header { doesNotExist("Access-Control-Allow-Origin") }
         }
     }
+
+    @Test
+    fun `only web session endpoints accept credentialed browser requests`() {
+        mockMvc.options("/api/v1/auth/web/refresh") {
+            header("Origin", "http://localhost:8084")
+            header("Access-Control-Request-Method", "POST")
+            header("Access-Control-Request-Headers", "content-type,x-app-environment")
+        }.andExpect {
+            status { isOk() }
+            header { string("Access-Control-Allow-Credentials", "true") }
+        }
+        mockMvc.options("/api/v1/auth/login") {
+            header("Origin", "http://localhost:8084")
+            header("Access-Control-Request-Method", "POST")
+            header("Access-Control-Request-Headers", "content-type")
+        }.andExpect {
+            status { isOk() }
+            header { doesNotExist("Access-Control-Allow-Credentials") }
+        }
+        mockMvc.options("/api/v1/auth/web/refresh") {
+            header("Origin", "https://mypasture.app")
+            header("Access-Control-Request-Method", "POST")
+        }.andExpect { status { isForbidden() } }
+    }
 }

@@ -15,6 +15,9 @@ app:
     allowed-origins:
       - http://localhost:8084
       - http://localhost:3000
+    web-session-allowed-origins:
+      - http://localhost:8084
+      - http://localhost:3000
   worker:
     enabled: false
   firebase:

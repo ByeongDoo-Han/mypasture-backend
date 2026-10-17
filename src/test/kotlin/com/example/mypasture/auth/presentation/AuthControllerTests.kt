@@ -640,6 +640,10 @@ class AuthControllerTests(
             UUID.randomUUID(), deletedUserId,
         )
         jdbcTemplate.update(
+            "insert into user_avatar_platforms(user_id, selected_code, updated_at) values (?, 'WOOD', current_timestamp)",
+            deletedUserId,
+        )
+        jdbcTemplate.update(
             "insert into bible_notes(id, user_id, content, revision, created_at, updated_at) values (?, ?, ?, ?, current_timestamp, current_timestamp)",
             UUID.randomUUID(),
             deletedUserId,
@@ -685,6 +689,7 @@ class AuthControllerTests(
         }
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from bible_notes where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from user_visits where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from user_avatar_platforms where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from faith_assessments where id = ?", Long::class.java, assessmentId) ?: -1L)
 
         mockMvc.post("/api/v1/auth/login") {

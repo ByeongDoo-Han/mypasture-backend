@@ -99,6 +99,9 @@ jobs:
           QT_SHARED_QUESTION_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           QT_SHARED_QUESTION_TEST_JDBC_USER: otp_test
           QT_SHARED_QUESTION_TEST_JDBC_PASSWORD: disposable-ci-password
+          AVATAR_PLATFORM_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
+          AVATAR_PLATFORM_TEST_JDBC_USER: otp_test
+          AVATAR_PLATFORM_TEST_JDBC_PASSWORD: disposable-ci-password
         run: >-
           ./gradlew test
           --tests '*AdminEmailLoginControllerTests'
@@ -118,6 +121,7 @@ jobs:
           --tests '*DailyWordRotation*PostgresTests'
           --tests '*NicknameMigrationPostgresTests'
           --tests '*QuietTimeSharedQuestionTests'
+          --tests '*AvatarPlatformControllerTests'
           --rerun-tasks --no-daemon
 
   container-build:

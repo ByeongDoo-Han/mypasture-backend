@@ -12,6 +12,7 @@ import com.example.mypasture.quiet_time.application.QuietTimeQuestionNotReadyExc
 import com.example.mypasture.quiet_time.application.QuietTimeQuestionSetService
 import com.example.mypasture.quiet_time.application.QuietTimeSelectedPassageService
 import com.example.mypasture.quiet_time.application.QuietTimeSharedQuestionService
+import com.example.mypasture.quiet_time.application.QuietTimeService
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionStyle
 import com.example.mypasture.quiet_time.infrastructure.QuietTimeSharedQuestionStore
 import com.example.mypasture.quiet_time.infrastructure.QuietTimeGenerationLimitException
@@ -43,6 +44,7 @@ import kotlin.test.assertTrue
 class QuietTimeSharedQuestionTests(
     @Autowired private val selectedPassages: QuietTimeSelectedPassageService,
     @Autowired private val sharedQuestions: QuietTimeSharedQuestionService,
+    @Autowired private val quietTimeService: QuietTimeService,
     @Autowired private val questionSets: QuietTimeQuestionSetService,
     @Autowired private val books: BibleBookEntityRepository,
     @Autowired private val chapters: BibleChapterEntityRepository,
@@ -60,6 +62,7 @@ class QuietTimeSharedQuestionTests(
         val a = users.saveAndFlush(UserEntity(displayName = "큐티질문목자A"))
         val b = users.saveAndFlush(UserEntity(displayName = "큐티질문목자B"))
         assertEquals(first.id, second.id)
+        assertTrue(quietTimeService.recommendPassages(null, false, 20).none { it.id == first.id })
         assertFailsWith<QuietTimeQuestionNotReadyException> {
             questionSets.selectForSession(first, "GENERAL", null, QuietTimeQuestionStyle.BALANCED)
         }

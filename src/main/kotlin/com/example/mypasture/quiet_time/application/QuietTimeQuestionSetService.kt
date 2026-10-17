@@ -17,10 +17,18 @@ class QuietTimeQuestionSetService(
     private val passageRepository: QuietTimePassageRepository,
     private val themeRepository: QuietTimeThemeRepository,
     private val passageThemeRepository: QuietTimePassageThemeRepository,
+    private val sharedQuestionService: QuietTimeSharedQuestionService,
 ) {
     @Transactional
     fun themesForPassage(passageId: UUID): List<QuietTimePassageThemeView> {
         val passage = findPassage(passageId)
+        if (passage.origin == "USER_SELECTED") {
+            return listOf(QuietTimePassageThemeView(
+                code = "GENERAL", name = "기본 묵상", parentCode = null,
+                description = "선택한 말씀을 관찰하고 삶에 적용합니다.", relevanceScore = 100,
+                primary = true, evidenceReference = passage.reference(),
+            ))
+        }
         return ensurePassageThemes(passage).map { it.toView() }
     }
 
@@ -29,8 +37,14 @@ class QuietTimeQuestionSetService(
         passageId: UUID,
         focusThemeCode: String,
         style: QuietTimeQuestionStyle,
-    ): QuietTimeQuestionSet =
-        buildQuestionSet(findPassage(passageId), focusThemeCode, style)
+    ): QuietTimeQuestionSet {
+        val passage = findPassage(passageId)
+        if (passage.origin == "USER_SELECTED") {
+            require(focusThemeCode.trim().uppercase() == "GENERAL") { "직접 선택한 말씀은 기본 묵상 주제를 사용합니다." }
+            return sharedQuestionService.readyForSession(passage, style)
+        }
+        return buildQuestionSet(passage, focusThemeCode, style)
+    }
 
     @Transactional
     fun selectForSession(
@@ -39,6 +53,10 @@ class QuietTimeQuestionSetService(
         legacyTheme: String?,
         style: QuietTimeQuestionStyle?,
     ): QuietTimeQuestionSet {
+        if (passage.origin == "USER_SELECTED") {
+            require(focusThemeCode == null || focusThemeCode.trim().uppercase() == "GENERAL") { "직접 선택한 말씀은 기본 묵상 주제를 사용합니다." }
+            return sharedQuestionService.readyForSession(passage, style ?: QuietTimeQuestionStyle.BALANCED)
+        }
         val themes = ensurePassageThemes(passage)
         val requested = focusThemeCode?.trim()?.uppercase()?.takeIf(String::isNotBlank)
         val legacyRequested = legacyTheme?.trim()?.lowercase()?.takeIf(String::isNotBlank)

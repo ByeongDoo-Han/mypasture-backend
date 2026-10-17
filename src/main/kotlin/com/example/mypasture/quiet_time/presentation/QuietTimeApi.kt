@@ -14,6 +14,22 @@ interface QuietTimeApi {
     @GetMapping("/passages/recommendations")
     fun recommendedPassages(@RequestParam(required = false) theme: String?, @RequestParam(defaultValue = "true") beginnerOnly: Boolean, @RequestParam(defaultValue = "5") size: Int): List<QuietTimePassageResponse>
 
+    @PostMapping("/passages/selected")
+    fun selectPassage(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: SelectQuietTimePassageRequest): QuietTimePassageResponse
+
+    @PostMapping("/passages/{passageId}/question-generations")
+    suspend fun generateSelectedQuestions(
+        @AuthenticationPrincipal principal: JwtPrincipal,
+        @PathVariable passageId: UUID,
+        @Valid @RequestBody request: GenerateQuietTimeQuestionsRequest,
+    ): QuietTimeGenerationResponse
+
+    @GetMapping("/passages/{passageId}/question-generations")
+    fun selectedQuestionStatus(
+        @PathVariable passageId: UUID,
+        @RequestParam(defaultValue = "BALANCED") style: com.example.mypasture.quiet_time.domain.QuietTimeQuestionStyle,
+    ): QuietTimeGenerationResponse
+
     @GetMapping("/passages/{passageId}/themes")
     fun passageThemes(@PathVariable passageId: UUID): List<QuietTimePassageThemeResponse>
 

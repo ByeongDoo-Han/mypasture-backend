@@ -10,6 +10,7 @@ import com.example.mypasture.quiet_time.application.QuietTimeQuestionAnswerView
 import com.example.mypasture.quiet_time.application.QuietTimeSessionQrView
 import com.example.mypasture.quiet_time.application.QuietTimePassageThemeView
 import com.example.mypasture.quiet_time.application.QuietTimeQuestionSet
+import com.example.mypasture.quiet_time.application.QuietTimeGenerationView
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionCategory
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionStyle
 import jakarta.validation.constraints.NotBlank
@@ -25,6 +26,28 @@ data class CreateQuietTimePastureRequest(
     @field:Size(min = 2, max = 80)
     val leaderName: String,
 )
+
+/** 목자가 QT에 사용할 실제 성경 절 범위를 선택하는 요청입니다. */
+data class SelectQuietTimePassageRequest(
+    @field:NotBlank val version: String,
+    @field:NotBlank val bookCode: String,
+    val chapter: Int,
+    val startVerse: Int,
+    val endVerse: Int,
+)
+
+/** 직접 고른 말씀의 공용 질문 생성 요청입니다. */
+data class GenerateQuietTimeQuestionsRequest(
+    val style: QuietTimeQuestionStyle = QuietTimeQuestionStyle.BALANCED,
+)
+
+/** 완료·진행 중·실패 상태를 같은 계약으로 전달합니다. */
+data class QuietTimeGenerationResponse(
+    val status: String,
+    val questionSet: QuietTimeQuestionSetResponse?,
+)
+
+fun QuietTimeGenerationView.toResponse() = QuietTimeGenerationResponse(status, questionSet?.toResponse())
 
 /** 오프라인 큐티 세션 생성 요청 DTO입니다. */
 data class CreateQuietTimeSessionRequest(

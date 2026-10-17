@@ -5,6 +5,8 @@ import com.example.mypasture.quiet_time.application.QuietTimeAdminOperationConfl
 import com.example.mypasture.quiet_time.application.QuietTimeNotFoundException
 import com.example.mypasture.quiet_time.application.QuietTimeParticipationRequiredException
 import com.example.mypasture.quiet_time.application.QuietTimePassageLockedException
+import com.example.mypasture.quiet_time.application.QuietTimeQuestionNotReadyException
+import com.example.mypasture.quiet_time.infrastructure.QuietTimeGenerationLimitException
 import com.example.mypasture.quiet_time.application.QuietTimeQrExpiredException
 import com.example.mypasture.quiet_time.application.QuietTimeQrNotOpenException
 import com.example.mypasture.quiet_time.application.QuietTimeQrRevokedException
@@ -24,6 +26,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 @RestControllerAdvice(assignableTypes = [QuietTimeController::class, QuietTimeAdminController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class QuietTimeExceptionHandler {
+    @ExceptionHandler(QuietTimeGenerationLimitException::class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    fun handleGenerationLimit(request: HttpServletRequest) =
+        QuietTimeErrorCode.GENERATION_LIMIT.toResponse(request)
+    @ExceptionHandler(QuietTimeQuestionNotReadyException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handleQuestionNotReady(request: HttpServletRequest) =
+        QuietTimeErrorCode.QUESTION_NOT_READY.toResponse(request)
     @ExceptionHandler(QuietTimeAdminOperationConflictException::class)
     @ResponseStatus(HttpStatus.CONFLICT)
     fun handleAdminOperationConflict(request: HttpServletRequest) =
@@ -93,6 +103,8 @@ enum class QuietTimeErrorCode(
     QR_REVOKED("QUIET_TIME_QR_REVOKED", "폐기되었거나 새 QR로 교체된 코드입니다."),
     SESSION_CLOSED("QUIET_TIME_SESSION_CLOSED", "종료된 큐티 모임입니다."),
     PASSAGE_LOCKED("QUIET_TIME_PASSAGE_LOCKED", "참여·답변·묵상이 시작된 이후에는 주제 말씀을 변경할 수 없습니다."),
+    QUESTION_NOT_READY("QUIET_TIME_QUESTION_NOT_READY", "질문 생성이 완료된 뒤 모임을 만들어 주세요."),
+    GENERATION_LIMIT("QUIET_TIME_GENERATION_LIMIT", "오늘 생성할 수 있는 새 QT 질문은 5개까지입니다."),
     ADMIN_OPERATION_CONFLICT("QUIET_TIME_ADMIN_OPERATION_CONFLICT", "이미 다른 관리자 작업에 사용된 operationId입니다."),
     CONTENT_REJECTED("QUIET_TIME_CONTENT_REJECTED", "공동체 운영 정책에 따라 게시할 수 없는 표현이 포함되어 있습니다."),
     INVALID_REQUEST("INVALID_QUIET_TIME_REQUEST", "큐티목장 요청이 올바르지 않습니다."),

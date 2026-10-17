@@ -61,6 +61,12 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
+      - name: Prepare PostgreSQL extensions in public schema
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$POSTGRES_CONTAINER" psql -U otp_test -d otp_test -c 'CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;'
+          docker exec "$POSTGRES_CONTAINER" psql -U otp_test -d otp_test -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;'
       - name: Validate all required PostgreSQL regression suites
         env:
           ADMIN_EMAIL_LOGIN_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
@@ -90,6 +96,9 @@ jobs:
           NICKNAME_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           NICKNAME_TEST_JDBC_USER: otp_test
           NICKNAME_TEST_JDBC_PASSWORD: disposable-ci-password
+          QT_SHARED_QUESTION_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
+          QT_SHARED_QUESTION_TEST_JDBC_USER: otp_test
+          QT_SHARED_QUESTION_TEST_JDBC_PASSWORD: disposable-ci-password
         run: >-
           ./gradlew test
           --tests '*AdminEmailLoginControllerTests'
@@ -108,6 +117,7 @@ jobs:
           --tests '*AchievementErasureGuardPostgresTests'
           --tests '*DailyWordRotation*PostgresTests'
           --tests '*NicknameMigrationPostgresTests'
+          --tests '*QuietTimeSharedQuestionTests'
           --rerun-tasks --no-daemon
 
   container-build:

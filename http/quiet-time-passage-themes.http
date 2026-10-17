@@ -22,3 +22,31 @@ Content-Type: application/json
   "focusThemeCode": "{{quietTimeFocusThemeCode}}",
   "questionStyle": "SHARING"
 }
+
+### 직접 선택한 연속 말씀 등록 (최대 10절, 동일 장)
+POST {{baseUrl}}/api/v1/quiet-time/passages/selected
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "version": "KOR1910",
+  "bookCode": "JHN",
+  "chapter": 13,
+  "startVerse": 34,
+  "endVerse": 34
+}
+
+> {% client.global.set("selectedQuietTimePassageId", response.body.id); %}
+
+### 같은 말씀·진행 방식에는 기존 공용 질문을 재사용
+POST {{baseUrl}}/api/v1/quiet-time/passages/{{selectedQuietTimePassageId}}/question-generations
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "style": "BALANCED"
+}
+
+### 다른 목자의 생성 진행 상태 및 완성된 질문 확인
+GET {{baseUrl}}/api/v1/quiet-time/passages/{{selectedQuietTimePassageId}}/question-generations?style=BALANCED
+Authorization: Bearer {{accessToken}}

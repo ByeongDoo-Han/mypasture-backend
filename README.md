@@ -164,6 +164,7 @@ Terraform 구성은 다음을 관리합니다.
 - [Security hardening](docs/security-hardening.ko.md)
 - [AI RAG operations](docs/ai-rag-operations.ko.md)
 - [GCP Terraform deployment](docs/gcp-terraform-deployment.ko.md)
+- API 명세: 서버 실행 후 `/swagger-ui/index.html`에서 Swagger UI를 열거나 `/v3/api-docs`에서 OpenAPI JSON을 확인합니다. 예배 기록 API는 **예배 기록** 항목에 있으며, 요청 시험에는 우측 **Authorize**에 본인 JWT를 입력합니다.
 - [QT QR policy](docs/quiet-time-qr-policy.ko.md)
 - [Today word operations](docs/daily-word-publishing-operations.ko.md)
 

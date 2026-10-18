@@ -1,6 +1,7 @@
 package com.example.mypasture.config
 
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
+import com.example.mypasture.auth.presentation.WebSessionCookie
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -48,6 +49,10 @@ class RedisRequestRateLimitFilter(
     }
 
     private fun policyFor(request: HttpServletRequest): Policy? = when {
+        request.requestURI == "/api/v1/auth/web/refresh" && request.method == HttpMethod.POST.name() &&
+            request.cookies?.any { it.name == WebSessionCookie.NAME } != true -> null
+        request.requestURI.startsWith("/api/v1/auth/web/") && request.method == HttpMethod.POST.name() ->
+            Policy("web-session", properties.webSessionRequestsPerWindow)
         request.requestURI.startsWith("/api/v1/auth/") && request.method == HttpMethod.POST.name() ->
             Policy("auth", properties.authRequestsPerWindow)
         request.requestURI.startsWith("/api/v1/ai/") ->

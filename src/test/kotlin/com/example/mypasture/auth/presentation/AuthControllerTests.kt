@@ -56,6 +56,79 @@ class AuthControllerTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val jdbcTemplate: JdbcTemplate,
 ) {
+    @Test
+    fun `web session cookie restores login and logout removes it`() {
+        val email = "web-session-${UUID.randomUUID()}@example.com"
+        mockMvc.post("/api/v1/auth/signup") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"password123!","displayName":"WebSession"}"""
+        }.andExpect { status { isCreated() } }
+        val login = mockMvc.post("/api/v1/auth/login") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"password123!"}"""
+        }.andExpect { status { isOk() } }.andReturn()
+        val originalRefresh = com.fasterxml.jackson.databind.ObjectMapper().readTree(login.response.contentAsString)["refreshToken"].asText()
+
+        val created = mockMvc.post("/api/v1/auth/web/session") {
+            header("Origin", "http://localhost:8084")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"$originalRefresh"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.refreshToken") { doesNotExist() }
+            jsonPath("$.user.email") { value(email) }
+            header { string("Cache-Control", "no-store") }
+        }.andReturn()
+        val firstCookie = created.response.getHeader("Set-Cookie")!!
+        assertTrue(firstCookie.startsWith("__Host-mypasture-web-refresh="))
+        assertTrue(firstCookie.contains("HttpOnly"))
+        assertTrue(firstCookie.contains("Secure"))
+        assertTrue(firstCookie.contains("SameSite=Strict"))
+        assertTrue(firstCookie.contains("Path=/"))
+        val cookieValue = firstCookie.substringAfter('=').substringBefore(';')
+
+        val restored = mockMvc.post("/api/v1/auth/web/refresh") {
+            header("Origin", "http://localhost:8084")
+            cookie(jakarta.servlet.http.Cookie("__Host-mypasture-web-refresh", cookieValue))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.refreshToken") { doesNotExist() }
+            jsonPath("$.user.email") { value(email) }
+        }.andReturn()
+        val rotatedCookie = restored.response.getHeader("Set-Cookie")!!.substringAfter('=').substringBefore(';')
+        assertTrue(rotatedCookie != cookieValue)
+
+        mockMvc.post("/api/v1/auth/web/logout") {
+            header("Origin", "http://localhost:8084")
+            cookie(jakarta.servlet.http.Cookie("__Host-mypasture-web-refresh", rotatedCookie))
+        }.andExpect {
+            status { isNoContent() }
+            header { string("Set-Cookie", org.hamcrest.Matchers.containsString("Max-Age=0")) }
+        }
+        mockMvc.post("/api/v1/auth/web/refresh") {
+            header("Origin", "http://localhost:8084")
+            cookie(jakarta.servlet.http.Cookie("__Host-mypasture-web-refresh", rotatedCookie))
+        }.andExpect { status { isUnauthorized() } }
+    }
+
+    @Test
+    fun `web session rejects untrusted or missing origin and missing cookie`() {
+        for (origin in listOf(null, "https://attacker.example")) {
+            mockMvc.post("/api/v1/auth/web/refresh") {
+                if (origin != null) header("Origin", origin)
+            }.andExpect { status { isForbidden() } }
+        }
+        mockMvc.post("/api/v1/auth/web/refresh") {
+            header("Origin", "http://localhost:8084")
+        }.andExpect {
+            status { isUnauthorized() }
+            header { string("Set-Cookie", org.hamcrest.Matchers.containsString("Max-Age=0")) }
+        }
+        mockMvc.post("/api/v1/auth/web/refresh") {
+            header("Origin", "http://localhost:8084")
+            cookie(jakarta.servlet.http.Cookie("__Host-mypasture-web-refresh", "x".repeat(1001)))
+        }.andExpect { status { isUnauthorized() } }
+    }
     @MockitoBean
     private lateinit var googleOidcOAuthClient: GoogleOidcOAuthClient
 

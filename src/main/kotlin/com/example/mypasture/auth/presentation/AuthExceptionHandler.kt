@@ -28,6 +28,7 @@ import org.springframework.core.Ordered
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.core.annotation.Order
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -37,6 +38,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 @RestControllerAdvice(assignableTypes = [AuthController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class AuthExceptionHandler {
+    @ExceptionHandler(InvalidWebSessionOriginException::class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    fun handleInvalidWebSessionOrigin(request: HttpServletRequest) =
+        AuthErrorCode.WEB_SESSION_ORIGIN_FORBIDDEN.toResponse(request)
+
     /** 조회 후 동시 저장 경합에서도 DB 고유 제약을 안정적인 중복 오류로 변환합니다. */
     @ExceptionHandler(DataIntegrityViolationException::class)
     fun handleNicknameConstraint(error: DataIntegrityViolationException, request: HttpServletRequest): ResponseEntity<ApiErrorResponse> {
@@ -103,9 +109,15 @@ class AuthExceptionHandler {
         AuthErrorCode.SOCIAL_ACCOUNT_LINK_REQUIRED.toResponse(request)
 
     @ExceptionHandler(InvalidRefreshTokenException::class)
-    @ResponseStatus(HttpStatus.UNAUTHORIZED)
     fun handleInvalidRefreshToken(request: HttpServletRequest) =
-        AuthErrorCode.INVALID_REFRESH_TOKEN.toResponse(request)
+        ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .apply {
+                if (request.requestURI == "/api/v1/auth/web/refresh") {
+                    header(HttpHeaders.SET_COOKIE, WebSessionCookie.cleared())
+                    header(HttpHeaders.CACHE_CONTROL, "no-store")
+                }
+            }
+            .body(AuthErrorCode.INVALID_REFRESH_TOKEN.toResponse(request))
 
     @ExceptionHandler(MissingSocialLoginChallengeException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -157,6 +169,7 @@ enum class AuthErrorCode(
     EMAIL_VERIFICATION_REQUIRED("EMAIL_VERIFICATION_REQUIRED", "이메일 인증을 완료한 뒤 회원가입해 주세요."),
     EMAIL_ALREADY_REGISTERED("EMAIL_ALREADY_REGISTERED", "이미 가입된 이메일입니다."),
     INVALID_CREDENTIALS("INVALID_CREDENTIALS", "이메일 또는 비밀번호가 올바르지 않습니다."),
+    WEB_SESSION_ORIGIN_FORBIDDEN("WEB_SESSION_ORIGIN_FORBIDDEN", "허용되지 않은 웹 출처입니다."),
     UNSUPPORTED_SOCIAL_PROVIDER("UNSUPPORTED_SOCIAL_PROVIDER", "지원하지 않는 소셜 로그인 제공자입니다."),
     MISSING_SOCIAL_TOKEN("MISSING_SOCIAL_TOKEN", "소셜 로그인 토큰이 필요합니다."),
     INVALID_SOCIAL_TOKEN("INVALID_SOCIAL_TOKEN", "소셜 로그인 토큰을 검증할 수 없습니다."),

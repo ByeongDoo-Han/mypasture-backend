@@ -24,6 +24,9 @@ app:
     allowed-origins:
       - http://localhost:8084
       - http://localhost:3000
+    web-session-allowed-origins:
+      - http://localhost:8084
+      - http://localhost:3000
   bible:
     kor1910-html-path: ${KOR1910_HTML_PATH:data/kor_html}
     import-enabled: ${BIBLE_IMPORT_ENABLED:false}

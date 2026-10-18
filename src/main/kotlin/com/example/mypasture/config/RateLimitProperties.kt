@@ -10,6 +10,7 @@ data class RateLimitProperties(
     val trustForwardedHeaders: Boolean = false,
     val windowSeconds: Long = 60,
     val authRequestsPerWindow: Long = 20,
+    val webSessionRequestsPerWindow: Long = 120,
     val aiRequestsPerWindow: Long = 15,
     val quietTimeJoinCodeRequestsPerWindow: Long = 12,
     val couponRedeemRequestsPerWindow: Long = 8,

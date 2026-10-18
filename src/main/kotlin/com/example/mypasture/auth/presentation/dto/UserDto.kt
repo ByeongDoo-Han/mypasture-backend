@@ -147,6 +147,25 @@ data class UserLoginResponse(
     val user: UserDto,
 )
 
+/** 브라우저에 refresh token을 다시 노출하지 않는 웹 세션 응답입니다. */
+data class WebSessionResponse(
+    val token: String,
+    val tokenType: String,
+    val expiresIn: Long,
+    val expiresAt: Instant,
+    val user: UserDto,
+) {
+    companion object {
+        fun from(response: UserLoginResponse) = WebSessionResponse(
+            token = response.token,
+            tokenType = response.tokenType,
+            expiresIn = response.expiresIn,
+            expiresAt = response.expiresAt,
+            user = response.user,
+        )
+    }
+}
+
 /** 만료된 access token을 회전형 refresh token으로 갱신하는 요청입니다. */
 data class RefreshAccessTokenRequest(
     @field:NotBlank

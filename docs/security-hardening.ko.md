@@ -46,6 +46,8 @@
 - `DATABASE_PASSWORD`
 - `REDIS_PASSWORD`, `REDIS_SSL_ENABLED=true`
 - `APP_CORS_ALLOWED_ORIGINS`: 쉼표로 구분한 정확한 HTTPS origin
+- `APP_WEB_SESSION_ALLOWED_ORIGINS`: 쿠키 기반 웹 세션을 사용할 앱의 정확한 HTTPS origin. 기본값은 `https://app.mypasture.app`이며 소개 사이트나 관리자 origin은 포함하지 않는다.
+- 웹 세션 갱신은 쿠키가 없으면 인증 요청 한도를 소모하지 않으며, 쿠키를 이용하는 웹 세션 요청은 별도 분당 120회/IP 한도를 적용한다. 이메일·소셜 로그인은 기존 분당 20회/IP 한도를 유지한다.
 - `GOOGLE_OAUTH_*_CLIENT_IDS`, `APPLE_OAUTH_CLIENT_IDS`
 - `KAKAO_APP_IDS`: Kakao 숫자 앱 ID
 - `KAKAO_WEB_CLIENT_SECRET`: 웹 인가 코드 교환용 서버 전용 시크릿. `KAKAO_WEB_REST_API_KEY`와 정확한 HTTPS `KAKAO_WEB_REDIRECT_URI`를 함께 설정하며, 웹 빌드에는 시크릿을 넣지 않는다.

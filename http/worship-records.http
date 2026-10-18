@@ -1,0 +1,54 @@
+### 내 예배 기록 목록
+GET {{baseUrl}}/api/v1/worship-records?page=0&size=20
+Authorization: Bearer {{accessToken}}
+
+### 새 예배 기록 (한 장 안에서 1~50절)
+POST {{baseUrl}}/api/v1/worship-records
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "worshipDate": "2026-10-18",
+  "serviceType": "SUNDAY",
+  "title": "주일 예배",
+  "bibleVersion": "KRV",
+  "bookCode": "JHN",
+  "chapter": 13,
+  "startVerse": 34,
+  "endVerse": 35,
+  "heard": "오늘 말씀에서 기억한 내용",
+  "lifeConnection": "내 삶과 연결되는 지점",
+  "personalResponse": "이번 주 실천할 응답",
+  "prayer": "기도"
+}
+
+### 단건 조회
+GET {{baseUrl}}/api/v1/worship-records/{{recordId}}
+Authorization: Bearer {{accessToken}}
+
+### 수정 (최신 revision 전송)
+PUT {{baseUrl}}/api/v1/worship-records/{{recordId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "expectedRevision": 0,
+  "record": {
+    "worshipDate": "2026-10-18",
+    "serviceType": "SUNDAY",
+    "title": "주일 예배",
+    "bibleVersion": "KRV",
+    "bookCode": "JHN",
+    "chapter": 13,
+    "startVerse": 34,
+    "endVerse": 35,
+    "heard": "기억한 말씀",
+    "lifeConnection": "삶과 연결",
+    "personalResponse": "응답",
+    "prayer": "기도"
+  }
+}
+
+### 삭제
+DELETE {{baseUrl}}/api/v1/worship-records/{{recordId}}
+Authorization: Bearer {{accessToken}}

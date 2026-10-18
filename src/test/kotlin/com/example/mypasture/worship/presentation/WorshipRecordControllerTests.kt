@@ -26,6 +26,17 @@ class WorshipRecordControllerTests(
     @Autowired private val bibleImporter: BibleImportCoordinator,
 ) {
     @Test
+    fun `swagger exposes worship record contract and bearer authentication`() {
+        mvc.get("/swagger-ui/index.html").andExpect { status { isOk() } }
+        mvc.get("/v3/api-docs").andExpect {
+            status { isOk() }
+            jsonPath("$.paths['/api/v1/worship-records'].post.summary") { value("예배 기록 작성") }
+            jsonPath("$.paths['/api/v1/worship-records'].post.security[0].bearerAuth") { exists() }
+            jsonPath("$.components.securitySchemes.bearerAuth.scheme") { value("bearer") }
+        }
+    }
+
+    @Test
     fun `owner creates updates and deletes while another user cannot read`() {
         val owner = token()
         val created = mvc.post("/api/v1/worship-records") {

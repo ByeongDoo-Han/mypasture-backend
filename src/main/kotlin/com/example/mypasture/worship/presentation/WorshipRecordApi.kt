@@ -2,6 +2,9 @@ package com.example.mypasture.worship.presentation
 
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.worship.domain.WorshipServiceType
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.security.SecurityRequirement
+import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Positive
@@ -74,21 +77,28 @@ data class WorshipRecordPageResponse(
 )
 
 /** 인증된 사용자의 비공개 예배 기록 API 계약입니다. */
+@Tag(name = "예배 기록", description = "내 예배 기록을 말씀 범위와 함께 비공개로 관리합니다.")
+@SecurityRequirement(name = "bearerAuth")
 interface WorshipRecordApi {
     @GetMapping
+    @Operation(summary = "내 예배 기록 목록", description = "로그인한 사용자의 기록만 페이지로 반환합니다.")
     fun list(@AuthenticationPrincipal principal: JwtPrincipal, @RequestParam(defaultValue = "0") page: Int, @RequestParam(defaultValue = "20") size: Int): WorshipRecordPageResponse
 
     @GetMapping("/{id}")
+    @Operation(summary = "내 예배 기록 조회")
     fun get(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable id: UUID): WorshipRecordResponse
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "예배 기록 작성", description = "같은 번역본·권·장의 연속된 1~50절만 저장할 수 있습니다.")
     fun create(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: WorshipRecordRequest): WorshipRecordResponse
 
     @PutMapping("/{id}")
+    @Operation(summary = "내 예배 기록 수정", description = "expectedRevision이 현재 revision과 다르면 409를 반환합니다.")
     fun update(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable id: UUID, @Valid @RequestBody request: UpdateWorshipRecordRequest): WorshipRecordResponse
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "내 예배 기록 삭제")
     fun delete(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable id: UUID)
 }

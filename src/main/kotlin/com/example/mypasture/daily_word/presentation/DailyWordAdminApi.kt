@@ -9,6 +9,9 @@ import com.example.mypasture.daily_word.domain.DailyWordIncidentStatus
 import com.example.mypasture.daily_word.domain.DailyWordIncidentType
 import com.example.mypasture.daily_word.domain.DailyWordIncidentEmailStatus
 import com.example.mypasture.daily_word.application.DailyWordReadinessStatus
+import io.swagger.v3.oas.annotations.tags.Tag
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.Size
@@ -27,85 +30,99 @@ import java.time.LocalDate
 import java.util.UUID
 
 /** Swagger 문서와 구현을 분리한 오늘의 말씀 생성·검수 관리자 API 계약입니다. */
+@Tag(name = "관리자 · 오늘의 말씀", description = "오늘의 말씀 생성 작업, 초안, 장애와 발행을 관리합니다.")
 interface DailyWordAdminApi {
+    @Operation(summary = "오늘의 말씀 초안 목록", description = "관리자가 날짜와 상태로 오늘의 말씀 목록을 조회합니다.")
     @GetMapping
-    fun list(@RequestParam from: LocalDate?, @RequestParam to: LocalDate?, @RequestParam status: DailyWordStatus?): List<DailyWordAdminResponse>
+    fun list(@Parameter(description = "조회 범위 시작 날짜(YYYY-MM-DD)(포함).") @RequestParam from: LocalDate?, @Parameter(description = "조회 범위 종료 날짜(YYYY-MM-DD)(포함).") @RequestParam to: LocalDate?, @Parameter(description = "결과를 제한할 처리 상태.") @RequestParam status: DailyWordStatus?): List<DailyWordAdminResponse>
 
+    @Operation(summary = "말씀 생성 작업 조회", description = "관리자가 오늘의 말씀 생성 작업과 처리 상태를 조회합니다.")
     @GetMapping("/generation-jobs")
     fun jobs(): List<DailyWordGenerationJobResponse>
 
+    @Operation(summary = "말씀 운영 현황 요약", description = "지정 기간의 오늘의 말씀 운영 지표를 조회합니다.")
     @GetMapping("/operations-summary")
     fun operationsSummary(
-        @RequestParam from: LocalDate?,
-        @RequestParam to: LocalDate?,
+        @Parameter(description = "조회 범위 시작 날짜(YYYY-MM-DD)(포함).") @RequestParam from: LocalDate?,
+        @Parameter(description = "조회 범위 종료 날짜(YYYY-MM-DD)(포함).") @RequestParam to: LocalDate?,
     ): DailyWordOperationsSummaryResponse
 
+    @Operation(summary = "말씀 운영 장애 목록", description = "관리자가 오늘의 말씀 운영 장애를 상태별로 조회합니다.")
     @GetMapping("/incidents")
-    fun incidents(@RequestParam status: DailyWordIncidentStatus?): List<DailyWordIncidentResponse>
+    fun incidents(@Parameter(description = "결과를 제한할 처리 상태.") @RequestParam status: DailyWordIncidentStatus?): List<DailyWordIncidentResponse>
 
+    @Operation(summary = "장애 이메일 발송 내역", description = "관리자가 장애 알림 이메일의 전송 상태와 내역을 조회합니다.")
     @GetMapping("/incident-email-deliveries")
     fun incidentEmailDeliveries(
-        @RequestParam status: DailyWordIncidentEmailStatus?,
-        @RequestParam incidentId: UUID?,
-        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) from: Instant?,
-        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) to: Instant?,
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "20") size: Int,
+        @Parameter(description = "결과를 제한할 처리 상태.") @RequestParam status: DailyWordIncidentEmailStatus?,
+        @Parameter(description = "발송 내역을 조회할 운영 장애 UUID.") @RequestParam incidentId: UUID?,
+        @Parameter(description = "조회 범위 시작 시각(ISO-8601)(포함).") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) from: Instant?,
+        @Parameter(description = "조회 범위 종료 시각(ISO-8601)(포함).") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) to: Instant?,
+        @Parameter(description = "0부터 시작하는 페이지 번호.") @RequestParam(defaultValue = "0") page: Int,
+        @Parameter(description = "한 번에 반환할 최대 항목 수.") @RequestParam(defaultValue = "20") size: Int,
     ): DailyWordIncidentEmailOperationsResponse
 
+    @Operation(summary = "장애 이메일 재발송 예약", description = "관리자가 실패한 장애 알림 이메일을 다시 발송 대기열에 넣습니다.")
     @PostMapping("/incident-email-deliveries/{id}/requeue")
     fun requeueIncidentEmail(
         @AuthenticationPrincipal principal: JwtPrincipal,
-        @PathVariable id: UUID,
+        @Parameter(description = "재발송 대기열에 넣을 장애 이메일 UUID.") @PathVariable id: UUID,
         @Valid @RequestBody request: ReviewDailyWordRequest,
     ): DailyWordIncidentEmailDeliveryResponse
 
+    @Operation(summary = "오늘의 말씀 수동 초안 작성", description = "관리자가 지정 날짜의 말씀을 선택해 수동 초안을 만듭니다.")
     @PostMapping("/{date}/manual-drafts")
     fun createManualDraft(
         @AuthenticationPrincipal principal: JwtPrincipal,
-        @PathVariable date: LocalDate,
+        @Parameter(description = "수동 초안을 작성할 날짜(YYYY-MM-DD).") @PathVariable date: LocalDate,
         @Valid @RequestBody request: CreateManualDailyWordRequest,
     ): DailyWordAdminResponse
 
+    @Operation(summary = "말씀 장애 확인 처리", description = "관리자가 장애를 확인했음을 기록합니다.")
     @PostMapping("/incidents/{id}/acknowledge")
     fun acknowledgeIncident(
         @AuthenticationPrincipal principal: JwtPrincipal,
-        @PathVariable id: UUID,
+        @Parameter(description = "확인 처리할 운영 장애 UUID.") @PathVariable id: UUID,
         @Valid @RequestBody request: ReviewDailyWordRequest,
     ): DailyWordIncidentResponse
 
+    @Operation(summary = "말씀 장애 해결 처리", description = "관리자가 장애의 해결 상태와 검토 내용을 기록합니다.")
     @PostMapping("/incidents/{id}/resolve")
     fun resolveIncident(
         @AuthenticationPrincipal principal: JwtPrincipal,
-        @PathVariable id: UUID,
+        @Parameter(description = "해결 처리할 운영 장애 UUID.") @PathVariable id: UUID,
         @Valid @RequestBody request: ReviewDailyWordRequest,
     ): DailyWordIncidentResponse
 
+    @Operation(summary = "오늘의 말씀 생성 요청", description = "관리자가 지정 날짜의 AI 말씀 생성 작업을 대기열에 등록합니다.")
     @PostMapping("/{date}/generation-jobs")
     suspend fun generate(
         @AuthenticationPrincipal principal: JwtPrincipal,
-        @PathVariable date: LocalDate,
+        @Parameter(description = "말씀 생성을 요청할 날짜(YYYY-MM-DD).") @PathVariable date: LocalDate,
         @Valid @RequestBody request: GenerateDailyWordRequest,
     ): ResponseEntity<DailyWordGenerationJobResponse>
 
+    @Operation(summary = "오늘의 말씀 초안 수정", description = "관리자가 선택한 말씀 초안의 내용을 수정합니다.")
     @PutMapping("/{id}")
     fun update(
         @AuthenticationPrincipal principal: JwtPrincipal,
-        @PathVariable id: UUID,
+        @Parameter(description = "수정할 오늘의 말씀 초안 UUID.") @PathVariable id: UUID,
         @Valid @RequestBody request: UpdateDailyWordRequest,
     ): DailyWordAdminResponse
 
+    @Operation(summary = "오늘의 말씀 발행", description = "관리자가 초안을 검수해 공개 상태로 전환합니다.")
     @PostMapping("/{id}/publish")
     fun publish(
         @AuthenticationPrincipal principal: JwtPrincipal,
-        @PathVariable id: UUID,
+        @Parameter(description = "발행할 오늘의 말씀 초안 UUID.") @PathVariable id: UUID,
         @Valid @RequestBody request: ReviewDailyWordRequest,
     ): DailyWordAdminResponse
 
+    @Operation(summary = "오늘의 말씀 반려", description = "관리자가 초안을 반려하고 검토 의견을 남깁니다.")
     @PostMapping("/{id}/reject")
     fun reject(
         @AuthenticationPrincipal principal: JwtPrincipal,
-        @PathVariable id: UUID,
+        @Parameter(description = "반려할 오늘의 말씀 초안 UUID.") @PathVariable id: UUID,
         @Valid @RequestBody request: ReviewDailyWordRequest,
     ): DailyWordAdminResponse
 }

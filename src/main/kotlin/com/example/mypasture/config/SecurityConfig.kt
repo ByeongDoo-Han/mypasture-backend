@@ -88,10 +88,14 @@ class SecurityConfig {
                 ).permitAll()
                 it.requestMatchers(
                     "/actuator/health/**",
-                    "/v3/api-docs/**",
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
                 ).permitAll()
+                it.requestMatchers(
+                    "/v3/api-docs",
+                    "/v3/api-docs.yaml",
+                    "/v3/api-docs/**",
+                    "/swagger-ui.html",
+                    "/swagger-ui/**",
+                ).hasRole("ADMIN")
                 it.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 it.requestMatchers(HttpMethod.GET, "/api/v1/auth/health", "/api/v1/auth/social-login/providers", "/api/v1/auth/nicknames/availability").permitAll()
                 it.requestMatchers(

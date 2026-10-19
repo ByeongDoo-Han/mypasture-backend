@@ -1,5 +1,9 @@
 package com.example.mypasture.config
 
+import com.example.mypasture.auth.infrastructure.JwtTokenProvider
+import com.example.mypasture.auth.infrastructure.UserRepository
+import com.example.mypasture.user.domain.UserEntity
+import com.example.mypasture.user.domain.UserRole
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -15,10 +19,15 @@ import org.springframework.test.web.servlet.get
 class OpenApiDescriptionTests(
     @Autowired private val mvc: MockMvc,
     @Autowired private val json: ObjectMapper,
+    @Autowired private val users: UserRepository,
+    @Autowired private val jwt: JwtTokenProvider,
 ) {
     @Test
     fun `every documented operation and path or query parameter has a description`() {
-        val body = mvc.get("/v3/api-docs").andExpect { status { isOk() } }.andReturn().response.contentAsString
+        val admin = users.saveAndFlush(UserEntity(displayName = "문서 검증 관리자", role = UserRole.ADMIN))
+        val body = mvc.get("/v3/api-docs") {
+            header("Authorization", "Bearer ${jwt.issueAccessToken(admin).accessToken}")
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsString
         val paths = json.readTree(body)["paths"]
         val methods = setOf("get", "post", "put", "patch", "delete")
         var operationCount = 0

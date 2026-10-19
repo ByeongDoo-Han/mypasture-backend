@@ -1,7 +1,11 @@
 package com.example.mypasture.worship.presentation
 
 import com.example.mypasture.auth.domain.uniqueTestNickname
+import com.example.mypasture.auth.infrastructure.JwtTokenProvider
+import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.bible.infrastructure.BibleImportCoordinator
+import com.example.mypasture.user.domain.UserEntity
+import com.example.mypasture.user.domain.UserRole
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -24,11 +28,16 @@ class WorshipRecordControllerTests(
     @Autowired private val mvc: MockMvc,
     @Autowired private val json: ObjectMapper,
     @Autowired private val bibleImporter: BibleImportCoordinator,
+    @Autowired private val users: UserRepository,
+    @Autowired private val jwt: JwtTokenProvider,
 ) {
     @Test
     fun `swagger exposes worship record contract and bearer authentication`() {
-        mvc.get("/swagger-ui/index.html").andExpect { status { isOk() } }
-        mvc.get("/v3/api-docs").andExpect {
+        val admin = users.saveAndFlush(UserEntity(displayName = "예배 문서 관리자", role = UserRole.ADMIN))
+        val adminToken = jwt.issueAccessToken(admin).accessToken
+        mvc.get("/swagger-ui/index.html") { header("Authorization", "Bearer $adminToken") }
+            .andExpect { status { isOk() } }
+        mvc.get("/v3/api-docs") { header("Authorization", "Bearer $adminToken") }.andExpect {
             status { isOk() }
             jsonPath("$.paths['/api/v1/worship-records'].post.summary") { value("예배 기록 작성") }
             jsonPath("$.paths['/api/v1/worship-records'].post.security[0].bearerAuth") { exists() }

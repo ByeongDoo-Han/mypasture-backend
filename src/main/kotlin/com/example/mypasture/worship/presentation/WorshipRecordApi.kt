@@ -5,6 +5,7 @@ import com.example.mypasture.worship.domain.WorshipServiceType
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import io.swagger.v3.oas.annotations.Parameter
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Positive
@@ -82,23 +83,23 @@ data class WorshipRecordPageResponse(
 interface WorshipRecordApi {
     @GetMapping
     @Operation(summary = "내 예배 기록 목록", description = "로그인한 사용자의 기록만 페이지로 반환합니다.")
-    fun list(@AuthenticationPrincipal principal: JwtPrincipal, @RequestParam(defaultValue = "0") page: Int, @RequestParam(defaultValue = "20") size: Int): WorshipRecordPageResponse
+    fun list(@AuthenticationPrincipal principal: JwtPrincipal, @Parameter(description = "0부터 시작하는 페이지 번호.") @RequestParam(defaultValue = "0") page: Int, @Parameter(description = "한 번에 반환할 최대 항목 수.") @RequestParam(defaultValue = "20") size: Int): WorshipRecordPageResponse
 
     @GetMapping("/{id}")
-    @Operation(summary = "내 예배 기록 조회")
-    fun get(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable id: UUID): WorshipRecordResponse
+    @Operation(summary = "내 예배 기록 조회", description = "본인이 작성한 예배 기록의 말씀 범위와 내용을 조회합니다.")
+    fun get(@AuthenticationPrincipal principal: JwtPrincipal, @Parameter(description = "조회할 본인 예배 기록 UUID.") @PathVariable id: UUID): WorshipRecordResponse
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "예배 기록 작성", description = "같은 번역본·권·장의 연속된 1~50절만 저장할 수 있습니다.")
+    @Operation(summary = "예배 기록 작성", description = "같은 번역본·권·장의 연속된 1~50절을 연결해 비공개 예배 기록을 작성합니다.")
     fun create(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: WorshipRecordRequest): WorshipRecordResponse
 
     @PutMapping("/{id}")
-    @Operation(summary = "내 예배 기록 수정", description = "expectedRevision이 현재 revision과 다르면 409를 반환합니다.")
-    fun update(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable id: UUID, @Valid @RequestBody request: UpdateWorshipRecordRequest): WorshipRecordResponse
+    @Operation(summary = "내 예배 기록 수정", description = "본인 기록을 수정합니다. expectedRevision이 현재 revision과 다르면 409를 반환합니다.")
+    fun update(@AuthenticationPrincipal principal: JwtPrincipal, @Parameter(description = "수정할 본인 예배 기록 UUID.") @PathVariable id: UUID, @Valid @RequestBody request: UpdateWorshipRecordRequest): WorshipRecordResponse
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "내 예배 기록 삭제")
-    fun delete(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable id: UUID)
+    @Operation(summary = "내 예배 기록 삭제", description = "본인이 작성한 예배 기록을 삭제합니다.")
+    fun delete(@AuthenticationPrincipal principal: JwtPrincipal, @Parameter(description = "삭제할 본인 예배 기록 UUID.") @PathVariable id: UUID)
 }

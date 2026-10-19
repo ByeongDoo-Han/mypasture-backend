@@ -1,5 +1,8 @@
 package com.example.mypasture.daily_word.presentation
 
+import io.swagger.v3.oas.annotations.tags.Tag
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestParam
 import java.time.Instant
@@ -27,6 +30,8 @@ data class DailyWordReadingPassageResponse(
 )
 
 /** 오늘의 말씀과 공통 묵상 콘텐츠 공개 API입니다. */
+@Tag(name = "오늘의 말씀", description = "날짜별 공개 말씀과 묵상 내용을 조회합니다.")
 interface DailyWordApi {
-    @GetMapping fun today(@RequestParam(required = false) date: LocalDate?): DailyWordResponse
+    @Operation(summary = "오늘의 말씀 조회", description = "선택한 날짜의 공개 말씀과 공통 묵상 내용을 반환합니다. 날짜를 생략하면 서버 기준 오늘의 말씀을 조회합니다.")
+    @GetMapping fun today(@Parameter(description = "공개 말씀을 조회할 날짜(YYYY-MM-DD). 생략하면 서버 기준 오늘입니다.") @RequestParam(required = false) date: LocalDate?): DailyWordResponse
 }

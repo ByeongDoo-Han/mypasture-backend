@@ -1,0 +1,7 @@
+### 관리자 JWT로 OpenAPI JSON 조회
+GET {{baseUrl}}/v3/api-docs
+Authorization: Bearer {{adminAccessToken}}
+
+### 관리자 JWT로 Swagger UI 리소스 조회
+GET {{baseUrl}}/swagger-ui/index.html
+Authorization: Bearer {{adminAccessToken}}

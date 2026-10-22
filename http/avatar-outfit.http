@@ -12,6 +12,13 @@ Content-Type: application/json
 
 {"slot":"HAT","itemCode":"STRAW_HAT"}
 
+### 브라운 집업 재킷 장착
+PUT {{baseUrl}}/api/v1/avatar/outfit
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"slot":"TOP","itemCode":"TAN_ZIP_JACKET"}
+
 ### 모자 해제
 PUT {{baseUrl}}/api/v1/avatar/outfit
 Authorization: Bearer {{token}}

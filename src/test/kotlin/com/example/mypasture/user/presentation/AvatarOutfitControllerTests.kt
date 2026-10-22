@@ -41,7 +41,13 @@ class AvatarOutfitControllerTests(
         mvc.put("/api/v1/avatar/outfit") { contentType = MediaType.APPLICATION_JSON; content = """{"slot":"HAT","itemCode":"STRAW_HAT"}""" }
             .andExpect { status { isUnauthorized() } }
         mvc.get("/api/v1/avatar/outfit") { header("Authorization", "Bearer $firstToken") }
-            .andExpect { status { isOk() }; jsonPath("$.equipped.HAT") { doesNotExist() }; jsonPath("$.items.length()") { value(13) } }
+            .andExpect { status { isOk() }; jsonPath("$.equipped.HAT") { doesNotExist() }; jsonPath("$.items.length()") { value(14) } }
+
+        mvc.put("/api/v1/avatar/outfit") {
+            header("Authorization", "Bearer $firstToken")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"slot":"TOP","itemCode":"TAN_ZIP_JACKET"}"""
+        }.andExpect { status { isOk() }; jsonPath("$.equipped.TOP") { value("TAN_ZIP_JACKET") } }
 
         mvc.put("/api/v1/avatar/outfit?userId=${second.id}") {
             header("Authorization", "Bearer $firstToken")
@@ -68,6 +74,11 @@ class AvatarOutfitControllerTests(
             contentType = MediaType.APPLICATION_JSON
             content = """{"slot":"HAT","itemCode":null}"""
         }.andExpect { status { isOk() }; jsonPath("$.equipped.HAT") { doesNotExist() } }
+        mvc.put("/api/v1/avatar/outfit") {
+            header("Authorization", "Bearer $firstToken")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"slot":"TOP","itemCode":null}"""
+        }.andExpect { status { isOk() }; jsonPath("$.equipped.TOP") { doesNotExist() } }
         assertTrue(outfits.findById(first.id).orElseThrow().equipped().isEmpty())
         assertTrue(outfits.findById(second.id).isEmpty)
     }

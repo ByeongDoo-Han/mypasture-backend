@@ -17,7 +17,7 @@ interface AvatarOutfitApi {
     @GetMapping
     fun mine(@AuthenticationPrincipal principal: JwtPrincipal): AvatarOutfitResponse
 
-    @Operation(summary = "내 양 아이템 장착 또는 해제", description = "slot에 해당하는 itemCode를 장착합니다. null이면 해당 부위를 해제합니다.")
+    @Operation(summary = "내 양 아이템 장착 또는 해제", description = "slot에 해당하는 itemCode를 장착합니다. 예: TOP과 TAN_ZIP_JACKET. null이면 해당 부위를 해제합니다.")
     @PutMapping
     fun equip(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: EquipAvatarItemRequest): AvatarOutfitResponse
 }

@@ -17,6 +17,7 @@ enum class AvatarEquipmentItem(val slot: AvatarSlot, val title: String) {
     ROUND_GLASSES(AvatarSlot.GLASSES, "동그란 안경"),
     BLUE_VEST(AvatarSlot.TOP, "파란 조끼"),
     GREEN_VEST(AvatarSlot.TOP, "초록 조끼"),
+    TAN_ZIP_JACKET(AvatarSlot.TOP, "브라운 집업 재킷"),
     TAN_PANTS(AvatarSlot.BOTTOM, "베이지 바지"),
     BROWN_BOOTS(AvatarSlot.SHOES, "갈색 장화"),
     BELL_NECKLACE(AvatarSlot.NECKLACE, "방울 목걸이"),

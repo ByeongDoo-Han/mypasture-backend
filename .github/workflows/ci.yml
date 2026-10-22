@@ -103,6 +103,12 @@ jobs:
           AVATAR_PLATFORM_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
           AVATAR_PLATFORM_TEST_JDBC_USER: otp_test
           AVATAR_PLATFORM_TEST_JDBC_PASSWORD: disposable-ci-password
+          AVATAR_OUTFIT_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
+          AVATAR_OUTFIT_TEST_JDBC_USER: otp_test
+          AVATAR_OUTFIT_TEST_JDBC_PASSWORD: disposable-ci-password
+          AVATAR_OUTFIT_MIGRATION_JDBC_URL: jdbc:postgresql://localhost:5432/otp_test
+          AVATAR_OUTFIT_MIGRATION_JDBC_USER: otp_test
+          AVATAR_OUTFIT_MIGRATION_JDBC_PASSWORD: disposable-ci-password
         run: >-
           ./gradlew test
           --tests '*AdminEmailLoginControllerTests'
@@ -123,6 +129,8 @@ jobs:
           --tests '*NicknameMigrationPostgresTests'
           --tests '*QuietTimeSharedQuestionTests'
           --tests '*AvatarPlatformControllerTests'
+          --tests '*AvatarOutfitControllerTests'
+          --tests '*AvatarOutfitMigrationPostgresTests'
           --rerun-tasks --no-daemon
 
   container-build:

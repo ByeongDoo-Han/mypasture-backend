@@ -1,0 +1,20 @@
+@baseUrl = http://localhost:8080
+@token = YOUR_ACCESS_TOKEN
+
+### 내 양 착용 상태와 제공 아이템 조회
+GET {{baseUrl}}/api/v1/avatar/outfit
+Authorization: Bearer {{token}}
+
+### 모자 장착
+PUT {{baseUrl}}/api/v1/avatar/outfit
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"slot":"HAT","itemCode":"STRAW_HAT"}
+
+### 모자 해제
+PUT {{baseUrl}}/api/v1/avatar/outfit
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"slot":"HAT","itemCode":null}

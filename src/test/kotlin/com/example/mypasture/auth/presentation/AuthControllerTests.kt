@@ -713,8 +713,16 @@ class AuthControllerTests(
             UUID.randomUUID(), deletedUserId,
         )
         jdbcTemplate.update(
+            "insert into prayer_profiles(user_id, sunday_reminder_enabled, updated_at) values (?, true, current_timestamp)",
+            deletedUserId,
+        )
+        jdbcTemplate.update(
             "insert into user_avatar_platforms(user_id, selected_code, updated_at) values (?, 'WOOD', current_timestamp)",
             deletedUserId,
+        )
+        jdbcTemplate.update(
+            "insert into weekly_prayer_topics(id, user_id, week_start, content, visible_to_friends, created_at, updated_at) values (?, ?, current_date, ?, false, current_timestamp, current_timestamp)",
+            UUID.randomUUID(), deletedUserId, "탈퇴 시 삭제할 기도제목",
         )
         jdbcTemplate.update(
             "insert into bible_notes(id, user_id, content, revision, created_at, updated_at) values (?, ?, ?, ?, current_timestamp, current_timestamp)",
@@ -762,7 +770,9 @@ class AuthControllerTests(
         }
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from bible_notes where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from user_visits where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from prayer_profiles where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from user_avatar_platforms where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from weekly_prayer_topics where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from faith_assessments where id = ?", Long::class.java, assessmentId) ?: -1L)
 
         mockMvc.post("/api/v1/auth/login") {

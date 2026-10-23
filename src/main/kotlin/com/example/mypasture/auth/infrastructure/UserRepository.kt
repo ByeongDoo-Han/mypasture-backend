@@ -3,6 +3,7 @@ package com.example.mypasture.auth.infrastructure
 import com.example.mypasture.user.domain.UserEntity
 import com.example.mypasture.user.domain.UserRole
 import jakarta.persistence.LockModeType
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
@@ -24,6 +25,9 @@ interface UserRepository : JpaRepository<UserEntity, UUID> {
     fun findByEmailAndDeletedAtIsNull(email: String): UserEntity?
 
     fun findByIdAndDeletedAtIsNull(id: UUID): UserEntity?
+
+    @Query("select user from UserEntity user where user.deletedAt is null and lower(user.displayName) like lower(concat('%', :query, '%')) order by user.displayName")
+    fun searchActiveDisplayNames(@Param("query") query: String, pageable: Pageable): List<UserEntity>
 
     fun findAllByRoleAndDeletedAtIsNull(role: UserRole): List<UserEntity>
 

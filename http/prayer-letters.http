@@ -1,0 +1,111 @@
+@baseUrl = http://localhost:8080
+@token = REPLACE_WITH_ACCESS_TOKEN
+
+### 내 대표 말씀
+GET {{baseUrl}}/api/v1/prayer/profile
+Authorization: Bearer {{token}}
+
+### 대표 말씀 설정
+PUT {{baseUrl}}/api/v1/prayer/profile/verse
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"version":"KOR1910","bookCode":"JHN","chapter":13,"verse":34}
+
+### 일요일 작성 알림
+PUT {{baseUrl}}/api/v1/prayer/profile/reminder
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"enabled":true}
+
+### 친구 닉네임 검색
+GET {{baseUrl}}/api/v1/prayer/friends/search?query=친절
+Authorization: Bearer {{token}}
+
+### 친구 목록
+GET {{baseUrl}}/api/v1/prayer/friends
+Authorization: Bearer {{token}}
+
+### 친구 요청
+POST {{baseUrl}}/api/v1/prayer/friends/requests
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"userId":"00000000-0000-0000-0000-000000000001"}
+
+### 친구 요청 수락
+POST {{baseUrl}}/api/v1/prayer/friends/00000000-0000-0000-0000-000000000002/accept
+Authorization: Bearer {{token}}
+
+### 친구별 새 기도제목 알림
+PUT {{baseUrl}}/api/v1/prayer/friends/00000000-0000-0000-0000-000000000002/notifications
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"enabled":true}
+
+### 친구 관계 해제
+DELETE {{baseUrl}}/api/v1/prayer/friends/00000000-0000-0000-0000-000000000002
+Authorization: Bearer {{token}}
+
+### 친구 차단
+POST {{baseUrl}}/api/v1/prayer/friends/users/00000000-0000-0000-0000-000000000001/block
+Authorization: Bearer {{token}}
+
+### 친구 차단 해제
+DELETE {{baseUrl}}/api/v1/prayer/friends/users/00000000-0000-0000-0000-000000000001/block
+Authorization: Bearer {{token}}
+
+### 이번 주 기도제목 작성
+PUT {{baseUrl}}/api/v1/prayer/topics/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"content":"이번 주 기도제목","visibleToFriends":true}
+
+### 친구 기도제목
+GET {{baseUrl}}/api/v1/prayer/topics/feed
+Authorization: Bearer {{token}}
+
+### 내 기도제목
+GET {{baseUrl}}/api/v1/prayer/topics/me
+Authorization: Bearer {{token}}
+
+### 특정 친구의 공개 기도제목
+GET {{baseUrl}}/api/v1/prayer/topics/friends/00000000-0000-0000-0000-000000000001
+Authorization: Bearer {{token}}
+
+### 주간 발송권
+GET {{baseUrl}}/api/v1/prayer/quota
+Authorization: Bearer {{token}}
+
+### 기도 편지 전송
+POST {{baseUrl}}/api/v1/prayer/topics/00000000-0000-0000-0000-000000000003/letters
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"content":"이번 주에도 함께 기도할게요."}
+
+### 받은 편지
+GET {{baseUrl}}/api/v1/prayer/letters?box=RECEIVED
+Authorization: Bearer {{token}}
+
+### 보낸 편지
+GET {{baseUrl}}/api/v1/prayer/letters?box=SENT
+Authorization: Bearer {{token}}
+
+### 기도 알림
+GET {{baseUrl}}/api/v1/prayer/notifications
+Authorization: Bearer {{token}}
+
+### 기도 알림 읽음
+POST {{baseUrl}}/api/v1/prayer/notifications/00000000-0000-0000-0000-000000000004/read
+Authorization: Bearer {{token}}
+
+### 광고 보상 요청 (네이티브 AdMob SSV가 서버로 콜백한 후 발송권 증가)
+POST {{baseUrl}}/api/v1/prayer/reward-intents
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"platform":"ANDROID"}

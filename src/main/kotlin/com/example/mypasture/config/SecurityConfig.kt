@@ -116,6 +116,7 @@ class SecurityConfig {
                     "/api/v1/auth/password-reset/requests",
                     "/api/v1/auth/password-reset/confirm",
                 ).permitAll()
+                it.requestMatchers(HttpMethod.GET, "/api/v1/prayer/admob/ssv").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/bibles/**", "/api/v1/today-word").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/policies/current", "/api/v1/policies/*/*").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/quiet-time/passages/**", "/api/v1/quiet-time/offline/**").permitAll()

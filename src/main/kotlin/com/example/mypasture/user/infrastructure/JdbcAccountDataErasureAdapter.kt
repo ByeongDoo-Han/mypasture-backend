@@ -143,6 +143,17 @@ class JdbcAccountDataErasureAdapter(
         deleted += update("user_visits", "delete from user_visits where user_id = ?", command.userId)
         deleted += update("bible_reading_history", "delete from bible_reading_history where user_id = ?", command.userId)
 
+        deleted += update("prayer_notifications", "delete from prayer_notifications where user_id = ?", command.userId)
+        deleted += update("prayer_ad_intents", "delete from prayer_ad_intents where user_id = ?", command.userId)
+        deleted += update(
+            "prayer_letters",
+            "delete from prayer_letters where sender_id = ? or recipient_id = ? or topic_id in (select id from weekly_prayer_topics where user_id = ?)",
+            command.userId, command.userId, command.userId,
+        )
+        deleted += update("weekly_prayer_topics", "delete from weekly_prayer_topics where user_id = ?", command.userId)
+        deleted += update("prayer_friendships", "delete from prayer_friendships where user_low = ? or user_high = ?", command.userId, command.userId)
+        deleted += update("prayer_profiles", "delete from prayer_profiles where user_id = ?", command.userId)
+
         deleted += update("prayers", "delete from prayers where user_id = ?", command.userId)
         deleted += update("journal_entries", "delete from journal_entries where user_id = ?", command.userId)
         deleted += update("quiet_time_question_answers", "delete from quiet_time_question_answers where user_id = ?", command.userId)

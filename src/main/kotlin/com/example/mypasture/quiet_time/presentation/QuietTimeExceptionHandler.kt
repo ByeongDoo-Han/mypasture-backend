@@ -11,6 +11,12 @@ import com.example.mypasture.quiet_time.application.QuietTimeQrExpiredException
 import com.example.mypasture.quiet_time.application.QuietTimeQrNotOpenException
 import com.example.mypasture.quiet_time.application.QuietTimeQrRevokedException
 import com.example.mypasture.quiet_time.application.QuietTimeSessionClosedException
+import com.example.mypasture.quiet_time.application.QuietTimePastureConflictException
+import com.example.mypasture.quiet_time.application.QuietTimePastureInviteInvalidException
+import com.example.mypasture.quiet_time.application.QuietTimePastureInviteLimitException
+import com.example.mypasture.quiet_time.application.QuietTimePastureRequestNotFoundException
+import com.example.mypasture.quiet_time.application.QuietTimePastureRequestExpiredException
+import com.example.mypasture.quiet_time.application.QuietTimePastureLeaderRequiredException
 import com.example.mypasture.moderation.application.UserGeneratedContentRejectedException
 import com.example.mypasture.common.error.ErrorCode
 import com.example.mypasture.common.error.toResponse
@@ -23,9 +29,39 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
 
 /** 큐티목장과 QR 정책 예외를 일관된 HTTP 응답으로 변환하는 controller advice입니다. */
-@RestControllerAdvice(assignableTypes = [QuietTimeController::class, QuietTimeAdminController::class])
+@RestControllerAdvice(assignableTypes = [QuietTimeController::class, QuietTimePastureController::class, QuietTimeAdminController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class QuietTimeExceptionHandler {
+    @ExceptionHandler(QuietTimePastureConflictException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handlePastureConflict(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_CONFLICT.toResponse(request)
+
+    @ExceptionHandler(QuietTimePastureInviteInvalidException::class)
+    @ResponseStatus(HttpStatus.GONE)
+    fun handlePastureInviteInvalid(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_INVITE_INVALID.toResponse(request)
+
+    @ExceptionHandler(QuietTimePastureInviteLimitException::class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    fun handlePastureInviteLimit(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_INVITE_LIMIT.toResponse(request)
+
+    @ExceptionHandler(QuietTimePastureRequestNotFoundException::class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    fun handlePastureRequestNotFound(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_REQUEST_NOT_FOUND.toResponse(request)
+
+    @ExceptionHandler(QuietTimePastureRequestExpiredException::class)
+    @ResponseStatus(HttpStatus.GONE)
+    fun handlePastureRequestExpired(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_REQUEST_EXPIRED.toResponse(request)
+
+    @ExceptionHandler(QuietTimePastureLeaderRequiredException::class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    fun handlePastureLeaderRequired(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_LEADER_REQUIRED.toResponse(request)
+
     @ExceptionHandler(QuietTimeGenerationLimitException::class)
     @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
     fun handleGenerationLimit(request: HttpServletRequest) =
@@ -95,6 +131,12 @@ enum class QuietTimeErrorCode(
     override val code: String,
     override val defaultMessage: String,
 ) : ErrorCode {
+    PASTURE_CONFLICT("QUIET_TIME_PASTURE_CONFLICT", "이미 고정 목장에 소속되어 있거나 가입 요청이 대기 중입니다."),
+    PASTURE_INVITE_INVALID("QUIET_TIME_PASTURE_INVITE_INVALID", "초대 코드가 없거나 1분 유효 시간이 지났습니다."),
+    PASTURE_INVITE_LIMIT("QUIET_TIME_PASTURE_INVITE_LIMIT", "초대 코드는 1분에 최대 5개까지 발급할 수 있습니다."),
+    PASTURE_REQUEST_NOT_FOUND("QUIET_TIME_PASTURE_REQUEST_NOT_FOUND", "가입 요청을 찾을 수 없습니다."),
+    PASTURE_REQUEST_EXPIRED("QUIET_TIME_PASTURE_REQUEST_EXPIRED", "가입 요청 유효 기간이 지났습니다."),
+    PASTURE_LEADER_REQUIRED("QUIET_TIME_PASTURE_LEADER_REQUIRED", "해당 목장의 목자만 가입을 승인할 수 있습니다."),
     NOT_FOUND("QUIET_TIME_NOT_FOUND", "큐티목장 리소스를 찾을 수 없습니다."),
     LEADER_REQUIRED("QUIET_TIME_LEADER_REQUIRED", "목장 리더만 QR을 관리할 수 있습니다."),
     PARTICIPATION_REQUIRED("QUIET_TIME_PARTICIPATION_REQUIRED", "이 QT 모임에 참여한 목원만 답변을 볼 수 있습니다."),

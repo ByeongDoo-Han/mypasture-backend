@@ -159,6 +159,9 @@ class JdbcAccountDataErasureAdapter(
         deleted += update("quiet_time_question_answers", "delete from quiet_time_question_answers where user_id = ?", command.userId)
         deleted += update("quiet_time_reflections", "delete from quiet_time_reflections where user_id = ?", command.userId)
         deleted += update("pasture_attendances", "delete from pasture_attendances where user_id = ?", command.userId)
+        deleted += update("quiet_time_pasture_join_requests", "delete from quiet_time_pasture_join_requests where user_id = ?", command.userId)
+        deleted += update("quiet_time_pasture_invites", "delete from quiet_time_pasture_invites where created_by_user_id = ?", command.userId)
+        deleted += update("quiet_time_pasture_memberships", "delete from quiet_time_pasture_memberships where user_id = ?", command.userId)
         deleted += update("pasture_members", "delete from pasture_members where user_id = ?", command.userId)
         deleted += update("challenge_participants", "delete from challenge_participants where user_id = ?", command.userId)
 

@@ -6,6 +6,11 @@ GET {{baseUrl}}/api/v1/quiet-time/pastures/mine
 Authorization: Bearer {{accessToken}}
 Accept: application/json
 
+### 내 고정 목장 소속 상태: NONE, PENDING, MEMBER, LEADER
+GET {{baseUrl}}/api/v1/quiet-time/pastures/current
+Authorization: Bearer {{accessToken}}
+Accept: application/json
+
 ### 고정 목장 생성
 POST {{baseUrl}}/api/v1/quiet-time/pastures
 Authorization: Bearer {{accessToken}}
@@ -17,6 +22,38 @@ Content-Type: application/json
 }
 
 > {% client.global.set("quietTimePastureId", response.body.id); %}
+
+### 소속된 누구나 1분짜리 목장 초대 발급
+POST {{baseUrl}}/api/v1/quiet-time/pastures/{{quietTimePastureId}}/invites
+Authorization: Bearer {{accessToken}}
+
+> {% client.global.set("pastureInviteCode", response.body.code); %}
+
+### 다른 계정으로 초대 확인
+POST {{baseUrl}}/api/v1/quiet-time/pastures/invites/resolve
+Authorization: Bearer {{memberAccessToken}}
+Content-Type: application/json
+
+{"code":"{{pastureInviteCode}}"}
+
+### 다른 계정으로 본명을 임시 제출해 가입 요청
+POST {{baseUrl}}/api/v1/quiet-time/pastures/join-requests
+Authorization: Bearer {{memberAccessToken}}
+Content-Type: application/json
+
+{"code":"{{pastureInviteCode}}","realName":"홍길동"}
+
+### 목자만 대기 중인 신청·본명 조회
+GET {{baseUrl}}/api/v1/quiet-time/pastures/{{quietTimePastureId}}/join-requests
+Authorization: Bearer {{accessToken}}
+
+### 목자 승인 또는 거절. 처리된 신청에는 본명이 남지 않습니다.
+POST {{baseUrl}}/api/v1/quiet-time/pastures/{{quietTimePastureId}}/join-requests/{{pastureJoinRequestId}}/approve
+Authorization: Bearer {{accessToken}}
+
+### 거절할 때 사용
+POST {{baseUrl}}/api/v1/quiet-time/pastures/{{quietTimePastureId}}/join-requests/{{pastureJoinRequestId}}/reject
+Authorization: Bearer {{accessToken}}
 
 ### 고정 목장 안에서 QT 생성
 POST {{baseUrl}}/api/v1/quiet-time/pastures/{{quietTimePastureId}}/sessions

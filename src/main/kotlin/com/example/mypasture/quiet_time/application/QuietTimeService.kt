@@ -41,6 +41,7 @@ class QuietTimeService(
     private val questionAnswerRepository: QuietTimeQuestionAnswerRepository,
     private val attendanceService: AttendanceService,
     private val questionSetService: QuietTimeQuestionSetService,
+    private val membershipService: QuietTimePastureMembershipService,
     private val qrProperties: QuietTimeQrProperties,
     private val clock: Clock = Clock.systemUTC(),
 ) {
@@ -68,23 +69,12 @@ class QuietTimeService(
         leaderUserId: UUID,
         name: String,
         leaderName: String,
-    ): QuietTimePastureEntity {
-        require(name.trim().length in 2..80) { "Pasture name length must be between 2 and 80." }
-        require(leaderName.trim().length in 2..80) { "Leader name length must be between 2 and 80." }
-        return pastureRepository.save(
-            QuietTimePastureEntity(
-                name = name.trim(),
-                leaderName = leaderName.trim(),
-                leaderUserId = leaderUserId,
-                inviteCode = generateInviteCode(),
-            ),
-        )
-    }
+    ): QuietTimePastureEntity = membershipService.createPasture(leaderUserId, name, leaderName)
 
     /** 로그인 사용자가 리더로 관리하는 고정 목장 목록을 반환합니다. */
     @Transactional(readOnly = true)
     fun getManagedPastures(userId: UUID): List<QuietTimePastureEntity> =
-        pastureRepository.findAllByLeaderUserIdOrderByCreatedAtDesc(userId)
+        membershipService.managedPastures(userId)
 
     /** 기존 내부 호출을 고정 목장 QT 생성으로 연결하는 호환 진입점입니다. */
     @Transactional
@@ -133,6 +123,7 @@ class QuietTimeService(
         val pasture = pastureRepository.findById(pastureId)
             .orElseThrow { QuietTimeNotFoundException("Quiet time pasture was not found: $pastureId") }
         requirePastureLeader(pasture, leaderUserId)
+        membershipService.requireLeader(leaderUserId, pastureId)
 
         return createSession(
             scope = QuietTimeSessionScope.PASTURE,

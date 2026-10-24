@@ -39,6 +39,7 @@ Content-Type: application/json
 > {% client.global.set("selectedQuietTimePassageId", response.body.id); %}
 
 ### 같은 말씀·진행 방식에는 기존 공용 질문을 재사용
+# 새 질문은 하루 5개, 실패한 생성까지 포함한 시도는 하루 10회입니다. 초과 시 429가 반환됩니다.
 POST {{baseUrl}}/api/v1/quiet-time/passages/{{selectedQuietTimePassageId}}/question-generations
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json

@@ -23,7 +23,7 @@ interface QuietTimeApi {
     @PostMapping("/passages/selected")
     fun selectPassage(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: SelectQuietTimePassageRequest): QuietTimePassageResponse
 
-    @Operation(summary = "선택 말씀 질문 생성 요청", description = "선택한 말씀의 QT 질문 생성을 요청합니다. 동일 조건의 생성 결과는 재사용합니다.")
+    @Operation(summary = "선택 말씀 질문 생성 요청", description = "선택한 말씀의 QT 질문 생성을 요청합니다. 동일 조건의 생성 결과는 재사용합니다. 하루에 새 질문 5개, 실패한 호출을 포함한 생성 시도 10회까지 허용하며 각 한도는 429로 응답합니다.")
     @PostMapping("/passages/{passageId}/question-generations")
     suspend fun generateSelectedQuestions(
         @AuthenticationPrincipal principal: JwtPrincipal,

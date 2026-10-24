@@ -71,7 +71,7 @@ class SecurityConfig {
                 it.accessDeniedHandler(restAccessDeniedHandler)
             }
             .authorizeHttpRequests {
-                // 최초 요청에서 JWT를 확인한 SSE 연결의 ASYNC 재-dispatch만 허용합니다.
+                // 최초 요청에서 JWT를 확인한 비동기 응답의 해당 경로 재-dispatch만 허용합니다.
                 it.requestMatchers(
                     AndRequestMatcher(
                         DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
@@ -84,6 +84,10 @@ class SecurityConfig {
                     AndRequestMatcher(
                         DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
                         AntPathRequestMatcher("/api/v1/quiet-time/sessions/*/answers/stream", "GET"),
+                    ),
+                    AndRequestMatcher(
+                        DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
+                        AntPathRequestMatcher("/api/v1/quiet-time/passages/*/question-generations", "POST"),
                     ),
                 ).permitAll()
                 it.requestMatchers(

@@ -16,6 +16,7 @@ import com.example.mypasture.quiet_time.application.QuietTimeService
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionStyle
 import com.example.mypasture.quiet_time.infrastructure.QuietTimeSharedQuestionStore
 import com.example.mypasture.quiet_time.infrastructure.QuietTimeGenerationLimitException
+import com.example.mypasture.quiet_time.infrastructure.QuietTimeGenerationAttemptLimitException
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.user.domain.UserEntity
 import com.example.mypasture.user.application.AccountDataErasure
@@ -105,6 +106,18 @@ class QuietTimeSharedQuestionTests(
             store.claim(passage.id, QuietTimeQuestionStyle.SHARING, 106, "6b".padEnd(64, 'b'), limited.id, now)
         }
         assertEquals(5, jdbc.queryForObject("select count(*) from quiet_time_question_generation_attempts where user_id = ?", Int::class.java, limited.id))
+
+        val retrying = users.saveAndFlush(UserEntity(displayName = "질문실패재시도"))
+        repeat(10) { index ->
+            val version = 200 + index
+            val retryHash = "${index}c".padEnd(64, 'c')
+            val retryToken = assertNotNull(store.claim(passage.id, QuietTimeQuestionStyle.SHARING, version, retryHash, retrying.id, now))
+            store.fail(passage.id, QuietTimeQuestionStyle.SHARING, version, retryHash, retryToken)
+        }
+        assertFailsWith<QuietTimeGenerationAttemptLimitException> {
+            store.claim(passage.id, QuietTimeQuestionStyle.SHARING, 210, "10c".padEnd(64, 'c'), retrying.id, now)
+        }
+        assertEquals(10, jdbc.queryForObject("select count(*) from quiet_time_question_generation_attempts where user_id = ?", Int::class.java, retrying.id))
     }
 
     @Test

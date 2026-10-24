@@ -38,7 +38,7 @@ class OpenAiQuietTimeQuestionGenerator(
     override suspend fun generate(reference: String, selectedText: String, contextText: String, style: QuietTimeQuestionStyle): GeneratedQuietTimeQuestions {
         val body = mapOf(
             "model" to properties.generatorModel,
-            "instructions" to "제공된 성경 본문과 앞뒤 문맥만 근거로 한국어 QT 질문을 만드세요. 관찰은 본문에 명시된 내용을, 묵상은 의미와 감정을, 나눔은 부담 없는 경험 공유를 묻습니다. 탄식이나 고난 본문에 실천을 강요하거나 결과를 보장하지 마세요. 새로운 성경 인용·장절·교리 주장을 만들지 마세요. JSON Schema만 반환하세요.",
+            "instructions" to "제공된 성경 본문과 앞뒤 문맥만 근거로 한국어 QT 질문을 만드세요. 관찰은 본문에 명시된 내용을, 묵상은 의미와 감정을, 나눔은 부담 없는 경험 공유를 묻습니다. 각 질문 범주에는 1~2개의 완결된 질문(15~120자)을, 실천·기도 안내는 각각 20~200자로 작성하세요. 탄식이나 고난 본문에 실천을 강요하거나 결과를 보장하지 마세요. 새로운 성경 인용·장절·교리 주장을 만들지 마세요. JSON Schema만 반환하세요.",
             "input" to "REFERENCE: $reference\nSELECTED_VERSES:\n$selectedText\nCONTEXT_VERSES:\n$contextText\nQUESTION_STYLE: ${style.name}",
             "max_output_tokens" to minOf(properties.maxOutputTokens, 1_400),
             "text" to mapOf("format" to mapOf(
@@ -74,7 +74,7 @@ class OpenAiQuietTimeQuestionGenerator(
                     payload.observationQuestions.map(String::trim), payload.meditationQuestions.map(String::trim),
                     payload.sharingQuestions.map(String::trim), payload.actionGuide.trim(), payload.prayerGuide.trim(),
                     properties.generatorModel, inputTokens, outputTokens, cost,
-                ).validate()
+                ).withSafeFallback(reference).validate()
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: WebClientResponseException) {

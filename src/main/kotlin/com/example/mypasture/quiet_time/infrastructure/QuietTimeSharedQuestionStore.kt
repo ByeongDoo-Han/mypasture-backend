@@ -69,7 +69,16 @@ class QuietTimeSharedQuestionStore(
             "select count(*) from quiet_time_question_generation_attempts where user_id = ? and created_at >= ? and created_at < ?",
             Int::class.java, userId, Timestamp.from(start), Timestamp.from(end),
         ) ?: 0
-        if (count > 5) throw QuietTimeGenerationLimitException()
+        if (count > MAX_DAILY_ATTEMPTS) throw QuietTimeGenerationAttemptLimitException()
+        val activeCount = jdbc.queryForObject(
+            """
+            select count(*) from quiet_time_shared_question_sets
+             where created_by_user_id = ? and created_at >= ? and created_at < ?
+               and (status = 'READY' or (status = 'GENERATING' and lease_expires_at >= ?))
+            """.trimIndent(),
+            Int::class.java, userId, Timestamp.from(start), Timestamp.from(end), Timestamp.from(now),
+        ) ?: 0
+        if (activeCount > MAX_DAILY_QUESTIONS) throw QuietTimeGenerationLimitException()
     }
 
     fun state(passageId: UUID, style: QuietTimeQuestionStyle, version: Int, sourceHash: String): StoredQuietTimeQuestions? =
@@ -111,6 +120,11 @@ class QuietTimeSharedQuestionStore(
             passageId, style.name, version, sourceHash, token,
         )
     }
+
+    companion object {
+        private const val MAX_DAILY_QUESTIONS = 5
+        private const val MAX_DAILY_ATTEMPTS = 10
+    }
 }
 
 /** 공용 질문 작업의 현재 상태와 완성된 질문 묶음입니다. */
@@ -118,3 +132,6 @@ data class StoredQuietTimeQuestions(val status: String, val questionSet: QuietTi
 
 /** 광고·결제 연동 전 AI 비용을 제한하기 위한 목자별 일일 생성 한도입니다. */
 class QuietTimeGenerationLimitException : RuntimeException("오늘 생성할 수 있는 새 QT 질문은 5개까지입니다.")
+
+/** 실패한 AI 호출까지 포함한 목자별 일일 비용 상한입니다. */
+class QuietTimeGenerationAttemptLimitException : RuntimeException("오늘 QT 질문 생성 시도는 10회까지입니다. 내일 다시 시도해 주세요.")

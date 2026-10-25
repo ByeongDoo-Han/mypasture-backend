@@ -83,7 +83,7 @@ class QuietTimeSharedQuestionTests(
     }
 
     @Test
-    fun `claim lease fences stale writer and daily quota rolls back sixth claim`() {
+    fun `claim lease fences stale writer and daily quota rolls back fourth claim`() {
         seedVerse(34)
         val passage = selectedPassages.select("KOR1910", "JHN", 13, 34, 34)
         val firstUser = users.saveAndFlush(UserEntity(displayName = "질문생성경합A"))
@@ -99,13 +99,13 @@ class QuietTimeSharedQuestionTests(
         store.fail(passage.id, QuietTimeQuestionStyle.SHARING, 77, hash, secondToken)
 
         val limited = users.saveAndFlush(UserEntity(displayName = "질문생성한도"))
-        repeat(5) { index ->
+        repeat(3) { index ->
             assertNotNull(store.claim(passage.id, QuietTimeQuestionStyle.SHARING, 100 + index, "${index}b".padEnd(64, 'b'), limited.id, now))
         }
         assertFailsWith<QuietTimeGenerationLimitException> {
-            store.claim(passage.id, QuietTimeQuestionStyle.SHARING, 106, "6b".padEnd(64, 'b'), limited.id, now)
+            store.claim(passage.id, QuietTimeQuestionStyle.SHARING, 103, "3b".padEnd(64, 'b'), limited.id, now)
         }
-        assertEquals(5, jdbc.queryForObject("select count(*) from quiet_time_question_generation_attempts where user_id = ?", Int::class.java, limited.id))
+        assertEquals(3, jdbc.queryForObject("select count(*) from quiet_time_question_generation_attempts where user_id = ?", Int::class.java, limited.id))
 
         val retrying = users.saveAndFlush(UserEntity(displayName = "질문실패재시도"))
         repeat(10) { index ->

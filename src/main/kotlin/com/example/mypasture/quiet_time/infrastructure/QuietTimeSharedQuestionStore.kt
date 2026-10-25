@@ -122,7 +122,7 @@ class QuietTimeSharedQuestionStore(
     }
 
     companion object {
-        private const val MAX_DAILY_QUESTIONS = 5
+        private const val MAX_DAILY_QUESTIONS = 3
         private const val MAX_DAILY_ATTEMPTS = 10
     }
 }
@@ -131,7 +131,7 @@ class QuietTimeSharedQuestionStore(
 data class StoredQuietTimeQuestions(val status: String, val questionSet: QuietTimeQuestionSet?)
 
 /** 광고·결제 연동 전 AI 비용을 제한하기 위한 목자별 일일 생성 한도입니다. */
-class QuietTimeGenerationLimitException : RuntimeException("오늘 생성할 수 있는 새 QT 질문은 5개까지입니다.")
+class QuietTimeGenerationLimitException : RuntimeException("오늘 생성할 수 있는 새 QT 질문은 3개까지입니다.")
 
 /** 실패한 AI 호출까지 포함한 목자별 일일 비용 상한입니다. */
 class QuietTimeGenerationAttemptLimitException : RuntimeException("오늘 QT 질문 생성 시도는 10회까지입니다. 내일 다시 시도해 주세요.")

@@ -151,7 +151,7 @@ enum class QuietTimeErrorCode(
     SESSION_CLOSED("QUIET_TIME_SESSION_CLOSED", "종료된 큐티 모임입니다."),
     PASSAGE_LOCKED("QUIET_TIME_PASSAGE_LOCKED", "참여·답변·묵상이 시작된 이후에는 주제 말씀을 변경할 수 없습니다."),
     QUESTION_NOT_READY("QUIET_TIME_QUESTION_NOT_READY", "질문 생성이 완료된 뒤 모임을 만들어 주세요."),
-    GENERATION_LIMIT("QUIET_TIME_GENERATION_LIMIT", "오늘 생성할 수 있는 새 QT 질문은 5개까지입니다."),
+    GENERATION_LIMIT("QUIET_TIME_GENERATION_LIMIT", "오늘 생성할 수 있는 새 QT 질문은 3개까지입니다."),
     GENERATION_ATTEMPT_LIMIT("QUIET_TIME_GENERATION_ATTEMPT_LIMIT", "오늘 QT 질문 생성 시도는 10회까지입니다. 내일 다시 시도해 주세요."),
     ADMIN_OPERATION_CONFLICT("QUIET_TIME_ADMIN_OPERATION_CONFLICT", "이미 다른 관리자 작업에 사용된 operationId입니다."),
     CONTENT_REJECTED("QUIET_TIME_CONTENT_REJECTED", "공동체 운영 정책에 따라 게시할 수 없는 표현이 포함되어 있습니다."),

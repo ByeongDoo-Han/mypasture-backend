@@ -110,9 +110,12 @@ OpenAI Embeddings API는 문자열 배열 입력과 `dimensions` 옵션을 지�
 
 ## 실시간 응답
 
-`POST /api/v1/ai/chat/stream`은 OpenAI Structured Outputs의 JSON 전체를 서버에 보류합니다. JSON Schema,
-RAG verseId, 성경 인용, 추천 기도문과 선택적 후속 질문을 검증하고, 평가·최대 1회 수정을 마친 최종 답변만
-작은 delta와 `response` event로 전달합니다. 검증 전 JSON이나 답변은 한번 전송하면 취소할 수 없기 때문입니다.
+`POST /api/v1/ai/chat/stream?liveDraft=true`는 OpenAI Structured Outputs의 `answer` 필드를 생성 중에 해석합니다.
+검색된 RAG verseId를 포함한 부분만 `delta`로 전달하며, 이 내용은 평가 전 초안입니다.
+생성 완료 후 JSON Schema, 본문과 인용, 기도문과 후속 질문을 검증하고 품질을 평가합니다.
+재작성이 필요하면 `draft_reset`으로 이전 초안을 지운 뒤 새 생성 조각을 전달합니다.
+최종 `response`와 `done`이 도착한 경우에만 답변을 확정합니다. 오류나 연결 종료 시 초안은 폐기합니다.
+기존 앱처럼 `liveDraft`를 보내지 않으면 서버는 생성·평가 후 최종 답변만 `delta`로 보냅니다.
 정상 완료 이벤트 순서는 다음과 같습니다.
 
 ```text
@@ -120,10 +123,20 @@ event: status
 data: {"stage":"UNDERSTANDING_QUESTION"}
 
 event: status
-data: {"stage":"REVIEWING_ANSWER"}
+data: {"stage":"GENERATING_ANSWER"}
 
 event: delta
 data: 근거: [123] ...
+
+event: status
+data: {"stage":"REVIEWING_ANSWER"}
+
+# 재작성 시에만 전송
+event: draft_reset
+data: {"reason":"REVISION"}
+
+event: delta
+data: 근거: [123] 수정된 답변 ...
 
 event: response
 data: {"schemaVersion":"assistant-response-v2","blocks":[...],"nextAction":"COMPLETE"}

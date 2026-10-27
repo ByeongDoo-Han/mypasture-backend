@@ -186,8 +186,8 @@ class AiController(
         return askBibleAssistant.requestStatus(principal.userId, clientRequestId).toResponse()
     }
 
-    /** 평가가 켜진 경우 검증된 최종 답변만 delta로 보내고 완료 후 인용과 사용량을 전달합니다. */
-    override fun stream(principal: JwtPrincipal, request: AskAiRequest): SseEmitter {
+    /** 구버전 앱에는 최종 답변을, 초안 지원 앱에는 생성 중 검증 가능한 조각을 전달합니다. */
+    override fun stream(principal: JwtPrincipal, request: AskAiRequest, liveDraft: Boolean): SseEmitter {
         policyConsentService.requireCurrent(principal.userId, setOf(PolicyScope.ACCOUNT, PolicyScope.AI))
         val emitter = SseEmitter(properties.streamTimeoutMs)
         val active = AtomicBoolean(true)
@@ -203,14 +203,21 @@ class AiController(
                         question = request.question,
                         conversationId = request.conversationId,
                         clientRequestId = request.clientRequestId,
+                        liveDraft = liveDraft,
                         onStage = { stage ->
                             sendIfActive(active, emitter, SseEmitter.event().name("status").data(mapOf("stage" to stage.name)))
                         },
+                        onReset = {
+                            if (liveDraft) sendIfActive(active, emitter, SseEmitter.event().name("draft_reset").data(mapOf("reason" to "REVISION")))
+                        },
                         onDelta = { delta ->
-                            sendIfActive(active, emitter, SseEmitter.event().name("delta").data(delta))
+                            if (liveDraft) sendIfActive(active, emitter, SseEmitter.event().name("delta").data(delta))
                         },
                     )
                 if (active.get()) {
+                    if (!liveDraft) result.answer.chunked(24).forEach { delta ->
+                        sendIfActive(active, emitter, SseEmitter.event().name("delta").data(delta))
+                    }
                     sendIfActive(active, emitter, SseEmitter.event().name("response").data(result.toResponse()))
                     sendIfActive(active, emitter, SseEmitter.event().name("citations").data(result.citations))
                     sendIfActive(active, emitter, SseEmitter.event().name("usage").data(result.toStreamUsage()))

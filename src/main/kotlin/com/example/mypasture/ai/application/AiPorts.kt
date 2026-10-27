@@ -70,6 +70,9 @@ interface AiStreamingCompletionPort {
         config: AiRuntimeConfigSnapshot,
         experiencePolicy: AiAssistantExperiencePolicy,
         conversationContext: AiConversationContext? = null,
+        generationInstructions: List<String> = emptyList(),
+        previousAnswer: String? = null,
+        revisionInstructions: List<String> = emptyList(),
         onDelta: suspend (String) -> Unit,
     ): GroundedAnswer
 }

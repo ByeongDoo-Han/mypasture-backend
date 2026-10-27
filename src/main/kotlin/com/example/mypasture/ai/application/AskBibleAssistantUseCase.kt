@@ -128,6 +128,8 @@ class AskBibleAssistantUseCase(
         conversationId: UUID? = null,
         clientRequestId: UUID? = null,
         onStage: (AiAssistantStage) -> Unit = {},
+        liveDraft: Boolean = false,
+        onReset: suspend () -> Unit = {},
         onDelta: suspend (String) -> Unit,
     ): GroundedAnswer = execute(
         userId = userId,
@@ -138,14 +140,23 @@ class AskBibleAssistantUseCase(
         onStage = onStage,
         onCacheHit = { onDelta(it.answer) },
     ) { normalized, citations, config, policy, context ->
-        if (config.evaluationEnabled) {
-            qualityService.generate(normalized, citations, config, policy, context) {
-                onStage(AiAssistantStage.REVIEWING_ANSWER)
-            }.also { answer ->
-                answer.answer.chunked(24).forEach { onDelta(it) }
-            }
+        if (liveDraft) {
+            qualityService.generateStreaming(
+                normalized, citations, config, policy, context, streamingCompletionPort,
+                onDelta = onDelta,
+                onReset = onReset,
+                onReview = { onStage(AiAssistantStage.REVIEWING_ANSWER) },
+            )
         } else {
-            streamingCompletionPort.answerWithCitations(normalized, citations, config, policy, context, onDelta)
+            val answer = if (config.evaluationEnabled) {
+                qualityService.generate(normalized, citations, config, policy, context) {
+                    onStage(AiAssistantStage.REVIEWING_ANSWER)
+                }
+            } else {
+                streamingCompletionPort.answerWithCitations(normalized, citations, config, policy, context) { }
+            }
+            answer.answer.chunked(24).forEach { onDelta(it) }
+            answer
         }
     }
 

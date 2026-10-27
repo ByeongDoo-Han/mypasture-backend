@@ -17,7 +17,10 @@ import org.junit.jupiter.api.Test
 import kotlinx.coroutines.test.runTest
 import java.math.BigDecimal
 import java.net.InetSocketAddress
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** OpenAI Responses API SSE 이벤트를 실제 HTTP 연결에서 순서대로 해석하는지 검증합니다. */
 class OpenAiCompletionAdapterTests {
@@ -31,22 +34,34 @@ class OpenAiCompletionAdapterTests {
     @Test
     fun `streams output text deltas and returns completed usage`() = runTest {
         val requestBodies = mutableListOf<String>()
+        val firstDeltaRead = CountDownLatch(1)
+        val completedSent = AtomicBoolean(false)
+        val generated = generatedContent("근거: [42] 첫 문장과 다음 문장", listOf(42))
+        val split = generated.indexOf("첫 문장") + "첫 문장".length
         val port = startServer { exchange ->
             requestBodies += exchange.requestBody.bufferedReader().readText()
             exchange.responseHeaders.add("Content-Type", "text/event-stream")
             exchange.sendResponseHeaders(200, 0)
             exchange.responseBody.bufferedWriter().use { writer ->
-                writer.write("data: ${streamDelta("structured-json-fragment")}\n\n")
+                writer.write("data: ${streamDelta(generated.substring(0, split))}\n\n")
                 writer.flush()
-                writer.write("data: ${streamCompleted("말씀 [42]", listOf(42), 11, 7)}\n\n")
+                check(firstDeltaRead.await(2, TimeUnit.SECONDS)) { "첫 delta가 완료 이벤트 전에 도착해야 합니다." }
+                writer.write("data: ${streamDelta(generated.substring(split))}\n\n")
+                writer.flush()
+                completedSent.set(true)
+                writer.write("data: ${streamCompleted("근거: [42] 첫 문장과 다음 문장", listOf(42), 11, 7)}\n\n")
             }
         }
         val deltas = mutableListOf<String>()
 
-        val answer = adapter(port).answerWithCitations("불안합니다", listOf(citation())) { deltas += it }
+        val answer = adapter(port).answerWithCitations("불안합니다", listOf(citation())) {
+            deltas += it
+            firstDeltaRead.countDown()
+        }
 
-        assertEquals("말씀 [42]", deltas.joinToString(""))
-        assertEquals("말씀 [42]", answer.answer)
+        assertEquals("근거: [42] 첫 문장과 다음 문장", deltas.joinToString(""))
+        assertEquals("근거: [42] 첫 문장과 다음 문장", answer.answer)
+        assertTrue(completedSent.get())
         assertEquals(11, answer.promptTokens)
         assertEquals(7, answer.completionTokens)
         assertEquals(listOf(42L), answer.citations.map { it.verseId })
@@ -123,7 +138,7 @@ class OpenAiCompletionAdapterTests {
             exchange.responseHeaders.add("Content-Type", "text/event-stream")
             exchange.sendResponseHeaders(200, 0)
             exchange.responseBody.bufferedWriter().use { writer ->
-                writer.write("data: {\"type\":\"response.output_text.delta\",\"delta\":\"부분 \"}\n\n")
+                writer.write("data: ${streamDelta("{\"answer\":\"근거: [42] 부분 ")}\n\n")
                 writer.flush()
             }
         }
@@ -139,7 +154,7 @@ class OpenAiCompletionAdapterTests {
             exchange.responseHeaders.add("Content-Type", "text/event-stream")
             exchange.sendResponseHeaders(200, 0)
             exchange.responseBody.bufferedWriter().use { writer ->
-                writer.write("data: ${streamDelta("structured-json-fragment")}\n\n")
+                writer.write("data: ${streamDelta("{\"answer\":\"근거 없는 답 [999]")}\n\n")
                 writer.flush()
                 writer.write("data: ${streamCompleted("근거 없는 답 [999]", listOf(999), 0, 0)}\n\n")
             }

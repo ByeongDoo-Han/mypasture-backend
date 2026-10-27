@@ -67,6 +67,9 @@ class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort, Ai
         config: AiRuntimeConfigSnapshot,
         experiencePolicy: AiAssistantExperiencePolicy,
         conversationContext: AiConversationContext?,
+        generationInstructions: List<String>,
+        previousAnswer: String?,
+        revisionInstructions: List<String>,
         onDelta: suspend (String) -> Unit,
     ): GroundedAnswer = answerWithCitations(
         question,
@@ -74,6 +77,9 @@ class LocalAiCompletionAdapter : AiCompletionPort, AiStreamingCompletionPort, Ai
         config,
         experiencePolicy,
         conversationContext,
+        generationInstructions,
+        previousAnswer,
+        revisionInstructions,
     ).also { answer ->
         answer.answer.chunked(12).forEach { onDelta(it) }
     }

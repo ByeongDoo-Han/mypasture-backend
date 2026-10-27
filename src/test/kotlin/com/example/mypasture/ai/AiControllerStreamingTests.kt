@@ -59,7 +59,7 @@ class AiControllerStreamingTests(
         val token = objectMapper.readTree(login.response.contentAsString).path("token").asText()
         val clientRequestId = UUID.randomUUID()
 
-        val initial = mockMvc.post("/api/v1/ai/chat/stream") {
+        val initial = mockMvc.post("/api/v1/ai/chat/stream?liveDraft=true") {
             header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
             accept = MediaType.TEXT_EVENT_STREAM
@@ -76,6 +76,7 @@ class AiControllerStreamingTests(
             .andExpect(content().string(containsString("event:citations")))
             .andExpect(content().string(containsString("event:usage")))
             .andExpect(content().string(containsString("event:done")))
+        assertTrue(initial.response.contentAsString.indexOf("event:delta") < initial.response.contentAsString.indexOf("event:response"))
 
         mockMvc.get("/api/v1/ai/requests/$clientRequestId") {
             header("Authorization", "Bearer $token")

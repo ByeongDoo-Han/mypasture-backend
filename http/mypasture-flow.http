@@ -287,7 +287,9 @@ client.test("Explicit reference returns the exact database verse", function () {
 %}
 
 ### 06-2. Stream AI pastor answer with server-side RAG
-POST {{baseUrl}}/api/v1/ai/chat/stream
+# delta는 생성 중인 초안입니다. draft_reset이 오면 이전 delta를 지우고 다음 delta부터 다시 누적합니다.
+# response와 done 이후에만 답변을 확정합니다. 평가 실패나 연결 종료 시 초안을 보관하지 않습니다.
+POST {{baseUrl}}/api/v1/ai/chat/stream?liveDraft=true
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 Accept: text/event-stream

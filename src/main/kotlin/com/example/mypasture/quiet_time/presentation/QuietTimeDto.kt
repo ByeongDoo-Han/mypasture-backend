@@ -56,11 +56,23 @@ data class CreateQuietTimeSessionRequest(
     val theme: String? = null,
     val focusThemeCode: String? = null,
     val questionStyle: QuietTimeQuestionStyle? = null,
+    val questionOverrides: QuietTimeQuestionOverridesRequest? = null,
     val meetingDate: LocalDate? = null,
     val meetingStartsAt: Instant? = null,
     val meetingEndsAt: Instant? = null,
     val joinStartsAt: Instant? = null,
 )
+
+/** 미리보기에서 목자가 확정한 모임 전용 질문 목록입니다. */
+data class QuietTimeQuestionOverridesRequest(
+    val observationQuestions: List<String>,
+    val meditationQuestions: List<String>,
+    val sharingQuestions: List<String>,
+) {
+    fun toDomain() = com.example.mypasture.quiet_time.application.QuietTimeQuestionOverrides(
+        observationQuestions, meditationQuestions, sharingQuestions,
+    )
+}
 
 /** 생성된 큐티 모임의 본문과 본문별 질문 구성을 변경하는 요청 DTO입니다. */
 data class ChangeQuietTimePassageRequest(

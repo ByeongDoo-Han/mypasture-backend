@@ -58,11 +58,11 @@ interface QuietTimeApi {
     @GetMapping("/pastures/mine")
     fun managedPastures(@AuthenticationPrincipal principal: JwtPrincipal): List<QuietTimePastureResponse>
 
-    @Operation(summary = "목장 QT 모임 생성", description = "목자가 자신이 관리하는 목장에 일회성 QT 모임을 만듭니다.")
+    @Operation(summary = "목장 QT 모임 생성", description = "목자가 자신이 관리하는 목장에 QT 모임을 만듭니다. questionOverrides를 보내면 공용 생성 결과는 그대로 두고 이 모임의 질문만 교체합니다.")
     @PostMapping("/pastures/{pastureId}/sessions")
     fun createSession(@AuthenticationPrincipal principal: JwtPrincipal, @Parameter(description = "목자가 관리하는 QT 목장 UUID.") @PathVariable pastureId: UUID, @Valid @RequestBody request: CreateQuietTimeSessionRequest): QuietTimeSessionResponse
 
-    @Operation(summary = "일회성 QT 모임 생성", description = "고정 목장 없이 독립적인 일회성 QT 모임을 생성합니다.")
+    @Operation(summary = "일회성 QT 모임 생성", description = "고정 목장 없이 독립적인 일회성 QT 모임을 생성합니다. questionOverrides는 이 모임의 질문 스냅샷에만 적용됩니다.")
     @PostMapping("/sessions/standalone")
     fun createStandaloneSession(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: CreateQuietTimeSessionRequest): QuietTimeSessionResponse
 

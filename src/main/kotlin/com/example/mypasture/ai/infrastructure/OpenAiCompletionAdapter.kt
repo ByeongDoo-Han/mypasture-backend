@@ -7,6 +7,7 @@ import com.example.mypasture.ai.domain.AiQuestionScopeAssessment
 import com.example.mypasture.ai.application.AiAnswerEvaluationPort
 import com.example.mypasture.ai.application.AiCompletionPort
 import com.example.mypasture.ai.application.AiProviderException
+import com.example.mypasture.ai.application.AiProviderFailureKind
 import com.example.mypasture.ai.application.AiStreamingCompletionPort
 import com.example.mypasture.ai.domain.AiAnswerEvaluation
 import com.example.mypasture.ai.domain.AiAssistantExperiencePolicy
@@ -128,7 +129,7 @@ class OpenAiCompletionAdapter(
     ): AiAnswerEvaluation {
         val response = execute(evaluationRequest(question, citations, answer, config))
         val result = runCatching { objectMapper.readTree(extractText(response)) }
-            .getOrElse { throw AiProviderException("AI 평가 결과를 해석할 수 없습니다.", it) }
+            .getOrElse { throw AiProviderException("AI 평가 결과를 해석할 수 없습니다.", it, AiProviderFailureKind.INVALID_OUTPUT) }
         val usage = response.path("usage")
         val inputTokens = usage.path("input_tokens").asInt(0)
         val outputTokens = usage.path("output_tokens").asInt(0)
@@ -184,12 +185,12 @@ class OpenAiCompletionAdapter(
         try {
             if (response.path("status").asText() != "completed" ||
                 response.path("output").any { output -> output.path("content").any { it.path("type").asText() == "refusal" } }) {
-                throw AiProviderException("AI 관련성 판단이 완료되지 않았습니다.")
+                throw AiProviderException("AI 관련성 판단이 완료되지 않았습니다.", failureKind = AiProviderFailureKind.INVALID_OUTPUT)
             }
             val result = objectMapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
                 .readTree(extractText(response))
             if (!result.isObject || result.size() != 2 || !result.path("scope").isTextual || !result.path("uncertain").isBoolean) {
-                throw AiProviderException("AI 관련성 판단 형식이 올바르지 않습니다.")
+                throw AiProviderException("AI 관련성 판단 형식이 올바르지 않습니다.", failureKind = AiProviderFailureKind.INVALID_OUTPUT)
             }
             return consumed.copy(scope = AiQuestionScope.valueOf(result.path("scope").asText()),
                 uncertain = result.path("uncertain").asBoolean(), validated = true)
@@ -270,10 +271,10 @@ class OpenAiCompletionAdapter(
         val inputTokens = usage.path("input_tokens").asInt(0)
         val outputTokens = usage.path("output_tokens").asInt(0)
         val generated = parseGeneratedContent(extractText(response), experiencePolicy)
-        if (generated.answer.isBlank()) throw AiProviderException("AI 응답이 비어 있습니다.")
+        if (generated.answer.isBlank()) throw AiProviderException("AI 응답이 비어 있습니다.", failureKind = AiProviderFailureKind.INVALID_OUTPUT)
         val allowedIds = citations.map(BibleCitation::verseId).toSet()
         if (generated.usedVerseIds.isEmpty() || generated.usedVerseIds.any { it !in allowedIds }) {
-            throw AiProviderException("AI 응답이 허용되지 않은 성경 구절을 참조했습니다.")
+            throw AiProviderException("AI 응답이 허용되지 않은 성경 구절을 참조했습니다.", failureKind = AiProviderFailureKind.INVALID_CITATION)
         }
         citationValidator.validateReferences(
             listOf(generated.answer, generated.prayer, generated.followUpQuestion).joinToString("\n"),
@@ -281,7 +282,7 @@ class OpenAiCompletionAdapter(
         )
         val usedCitations = citationValidator.validate(generated.answer, citations)
             .filter { it.verseId in generated.usedVerseIds }
-        if (usedCitations.isEmpty()) throw AiProviderException("AI 응답에 검증 가능한 성경 근거가 없습니다.")
+        if (usedCitations.isEmpty()) throw AiProviderException("AI 응답에 검증 가능한 성경 근거가 없습니다.", failureKind = AiProviderFailureKind.INVALID_CITATION)
         return GroundedAnswer(
             conversationId = null,
             answer = generated.answer,
@@ -308,7 +309,7 @@ class OpenAiCompletionAdapter(
 
     private fun parseGeneratedContent(payload: String, policy: AiAssistantExperiencePolicy): GeneratedContent {
         val root = runCatching { objectMapper.readTree(payload) }
-            .getOrElse { throw AiProviderException("AI 구조화 응답을 해석할 수 없습니다.", it) }
+            .getOrElse { throw AiProviderException("AI 구조화 응답을 해석할 수 없습니다.", it, AiProviderFailureKind.INVALID_OUTPUT) }
         val content = GeneratedContent(
             answer = root.path("answer").asText().trim(),
             usedVerseIds = root.path("used_verse_ids").takeIf(JsonNode::isArray)?.map(JsonNode::asLong).orEmpty(),
@@ -317,7 +318,7 @@ class OpenAiCompletionAdapter(
             followUpQuestion = root.path("follow_up_question").asText().trim(),
             followUpOptions = root.path("follow_up_options").takeIf(JsonNode::isArray)?.map { it.asText().trim() }.orEmpty(),
         )
-        if (policy.includePrayer && content.prayer.isBlank()) throw AiProviderException("AI 추천 기도문이 비어 있습니다.")
+        if (policy.includePrayer && content.prayer.isBlank()) throw AiProviderException("AI 추천 기도문이 비어 있습니다.", failureKind = AiProviderFailureKind.INVALID_OUTPUT)
         return content
     }
 
@@ -333,7 +334,7 @@ class OpenAiCompletionAdapter(
                     .awaitBody()
             } catch (error: WebClientResponseException) {
                 if (error.statusCode.value() != 429 && !error.statusCode.is5xxServerError) {
-                    throw AiProviderException("AI 요청이 거부되었습니다.", error)
+                    throw AiProviderException("AI 요청이 거부되었습니다.", error, AiProviderFailureKind.UPSTREAM_REJECTED)
                 }
                 failure = error
                 if (attempt < 2) delay(400L * (attempt + 1))
@@ -344,7 +345,7 @@ class OpenAiCompletionAdapter(
                 throw error
             }
         }
-        throw AiProviderException("AI 서비스에 일시적으로 연결할 수 없습니다.", failure)
+        throw AiProviderException("AI 서비스에 일시적으로 연결할 수 없습니다.", failure, AiProviderFailureKind.UPSTREAM_UNAVAILABLE)
     }
 
     private suspend fun executeStreaming(body: Map<String, Any>, onDelta: suspend (String) -> Unit): JsonNode {
@@ -380,28 +381,28 @@ class OpenAiCompletionAdapter(
                             }
                             "response.completed" -> completedResponse = payload.path("response")
                             "response.failed", "response.incomplete", "error" -> {
-                                throw AiProviderException("AI streaming 응답이 완료되지 않았습니다.")
+                                throw AiProviderException("AI streaming 응답이 완료되지 않았습니다.", failureKind = AiProviderFailureKind.INVALID_OUTPUT)
                             }
                         }
                     }
-                return completedResponse ?: throw AiProviderException("AI streaming 완료 이벤트를 받지 못했습니다.")
+                return completedResponse ?: throw AiProviderException("AI streaming 완료 이벤트를 받지 못했습니다.", failureKind = AiProviderFailureKind.INVALID_OUTPUT)
             } catch (error: StreamingRequestException) {
-                if (!error.retryable || emitted) throw AiProviderException("AI streaming 요청이 거부되었습니다.", error)
+                if (!error.retryable || emitted) throw AiProviderException("AI streaming 요청이 거부되었습니다.", error, AiProviderFailureKind.UPSTREAM_REJECTED)
                 failure = error
             } catch (error: WebClientRequestException) {
-                if (emitted) throw AiProviderException("AI streaming 연결이 중단되었습니다.", error)
+                if (emitted) throw AiProviderException("AI streaming 연결이 중단되었습니다.", error, AiProviderFailureKind.UPSTREAM_UNAVAILABLE)
                 failure = error
             } catch (error: CancellationException) {
                 throw error
             }
             if (attempt < 2) delay(400L * (attempt + 1))
         }
-        throw AiProviderException("AI streaming 서비스에 일시적으로 연결할 수 없습니다.", failure)
+        throw AiProviderException("AI streaming 서비스에 일시적으로 연결할 수 없습니다.", failure, AiProviderFailureKind.UPSTREAM_UNAVAILABLE)
     }
 
     private fun extractText(response: JsonNode): String {
         response.path("output").forEach { output -> output.path("content").forEach { if (it.path("type").asText() == "output_text") return it.path("text").asText() } }
-        throw AiProviderException("AI 답변을 해석할 수 없습니다.")
+        throw AiProviderException("AI 답변을 해석할 수 없습니다.", failureKind = AiProviderFailureKind.INVALID_OUTPUT)
     }
 
     private fun estimate(model: String, input: Int, output: Int): BigDecimal {

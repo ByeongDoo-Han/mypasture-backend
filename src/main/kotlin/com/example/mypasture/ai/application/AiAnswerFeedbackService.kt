@@ -73,7 +73,9 @@ class AiAnswerFeedbackService(
             val retrieval = retrievalPort.searchRelevantVerses(understood, experiencePolicy.scriptureCount + EXTRA_RAG_CANDIDATES)
             consumedRetrieval = retrieval
             if (retrieval.citations.isEmpty()) throw AiGroundingNotFoundException()
-            val citations = if (feedback.reasons.any(ALTERNATIVE_SCRIPTURE_REASONS::contains)) {
+            val citations = if (understood.reference?.endVerse != null) {
+                retrieval.citations
+            } else if (feedback.reasons.any(ALTERNATIVE_SCRIPTURE_REASONS::contains)) {
                 retrieval.citations.filterNot { it.verseId in source.citationVerseIds }
                     .take(experiencePolicy.scriptureCount)
                     .ifEmpty { retrieval.citations.take(experiencePolicy.scriptureCount) }

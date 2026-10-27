@@ -23,7 +23,7 @@ interface AiApi {
     ): AiDailyUsageResponse
 
     /** 무관/모호한 질문은 검색 전에 422 AI_QUESTION_OUT_OF_SCOPE / AI_QUESTION_SCOPE_UNCLEAR로 안내합니다. 구절과 기도문은 반환하지 않습니다. */
-    @Operation(summary = "AI 목자에게 질문", description = "신앙 관련 질문에 근거 구절과 답변을 생성합니다. 무관하거나 의도가 모호한 질문은 422 범위 오류로 종료하며 구절과 기도문을 제공하지 않습니다.")
+    @Operation(summary = "AI 목자에게 질문", description = "신앙 관련 질문에 근거 구절과 답변을 생성합니다. 같은 장의 최대 10절 범위를 명시하면 전체 범위를 근거로 사용합니다. 무관하거나 모호한 질문 및 잘못된 절 범위는 422 오류로 종료합니다.")
     @PostMapping("/chat")
     suspend fun chat(
         @AuthenticationPrincipal principal: JwtPrincipal,
@@ -38,7 +38,7 @@ interface AiApi {
     ): AiRequestStatusResponse
 
     /** 무관/모호한 질문은 HTTP 200 연결 후 event:error로 동일 범위 코드를 반환하고 종료하며 delta·구절·기도문을 보내지 않습니다. */
-    @Operation(summary = "AI 목자 답변 스트리밍", description = "답변을 Server-Sent Events로 전송합니다. 범위 밖 또는 모호한 질문은 error 이벤트를 보내고 구절·기도문 없이 종료합니다.")
+    @Operation(summary = "AI 목자 답변 스트리밍", description = "답변을 Server-Sent Events로 전송합니다. 같은 장의 최대 10절 범위를 지원합니다. 지원 범위 밖·모호한 질문과 잘못된 절 범위는 error 이벤트를 보내고 종료합니다.")
     @PostMapping("/chat/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun stream(
         @AuthenticationPrincipal principal: JwtPrincipal,

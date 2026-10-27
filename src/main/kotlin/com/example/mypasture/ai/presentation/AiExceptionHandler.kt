@@ -50,6 +50,9 @@ class AiExceptionHandler {
     @ExceptionHandler(AiGroundingNotFoundException::class) @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
     fun groundingNotFound(exception: AiGroundingNotFoundException, request: HttpServletRequest) =
         AiErrorCode.GROUNDING_NOT_FOUND.toResponse(request, exception.message ?: AiErrorCode.GROUNDING_NOT_FOUND.defaultMessage)
+    @ExceptionHandler(AiPassageRangeException::class) @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    fun invalidPassageRange(exception: AiPassageRangeException, request: HttpServletRequest) =
+        AiErrorCode.INVALID_PASSAGE_RANGE.toResponse(request, exception.message ?: AiErrorCode.INVALID_PASSAGE_RANGE.defaultMessage)
     @ExceptionHandler(AiAnswerRejectedException::class) @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
     fun answerRejected(exception: AiAnswerRejectedException, request: HttpServletRequest) =
         AiErrorCode.EVALUATION_REJECTED.toResponse(request, exception.message ?: AiErrorCode.EVALUATION_REJECTED.defaultMessage)
@@ -92,6 +95,7 @@ enum class AiErrorCode(
     QUESTION_OUT_OF_SCOPE("AI_QUESTION_OUT_OF_SCOPE", "성경·종교·신앙 상담에 관한 질문을 입력해 주세요."),
     QUESTION_SCOPE_UNCLEAR("AI_QUESTION_SCOPE_UNCLEAR", "원하는 도움을 조금 더 구체적으로 적어 주세요."),
     GROUNDING_NOT_FOUND("AI_GROUNDING_NOT_FOUND", "No relevant Bible verses found"),
+    INVALID_PASSAGE_RANGE("AI_INVALID_PASSAGE_RANGE", "한 장 안에서 최대 10절까지의 말씀 범위를 입력해 주세요."),
     EVALUATION_REJECTED("AI_EVALUATION_REJECTED", "AI 답변이 품질 검증을 통과하지 못했습니다."),
     SAFETY_ESCALATION("AI_SAFETY_ESCALATION", "즉시 도움을 요청해 주세요."),
     PROVIDER_UNAVAILABLE("AI_PROVIDER_UNAVAILABLE", "AI service unavailable"),

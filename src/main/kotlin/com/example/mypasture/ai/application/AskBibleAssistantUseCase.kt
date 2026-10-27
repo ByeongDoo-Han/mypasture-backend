@@ -33,7 +33,14 @@ class AiInputTooLongException : RuntimeException("AI input must be 300 character
 class AiGroundingNotFoundException : RuntimeException("No relevant Bible verses found")
 
 class AiSafetyException : RuntimeException("지금 즉시 자신이나 다른 사람을 해칠 위험이 있다면 112 또는 119에 연락하고, 가까운 사람과 전문 상담기관의 도움을 받으세요.")
-open class AiProviderException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+/** 사용자 입력과 공급자 응답을 기록하지 않고 AI 실패 지점을 구분하는 코드입니다. */
+enum class AiProviderFailureKind { UNKNOWN, UPSTREAM_REJECTED, UPSTREAM_UNAVAILABLE, INVALID_OUTPUT, INVALID_CITATION }
+
+open class AiProviderException(
+    message: String,
+    cause: Throwable? = null,
+    val failureKind: AiProviderFailureKind = AiProviderFailureKind.UNKNOWN,
+) : RuntimeException(message, cause)
 
 /** 사용자의 구독 정책을 반영한 당일 AI 사용량입니다. null 한도는 무제한을 의미합니다. */
 data class AiDailyUsage(
@@ -279,6 +286,6 @@ class AskBibleAssistantUseCase(
 
     companion object {
         private val CRISIS_KEYWORDS = listOf("자살", "죽고 싶", "극단적 선택", "해치고 싶", "살고 싶지")
-        private const val AI_RESPONSE_CACHE_VERSION = "assistant-response-v3-scope"
+        private const val AI_RESPONSE_CACHE_VERSION = "assistant-response-v4-passage-range"
     }
 }

@@ -14,7 +14,7 @@ class AiQuestionScopeUnclearException : RuntimeException("어떤 도움을 원�
 class AiQuestionScopeProviderException(
     val assessment: AiQuestionScopeAssessment,
     cause: Throwable? = null,
-) : AiProviderException("AI 질문 관련성을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.", cause)
+) : AiProviderException("AI 질문 관련성을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.", cause, AiProviderFailureKind.INVALID_OUTPUT)
 
 /** 모델의 구조화 판단을 서버 정책으로 검증하는 관련성 관문입니다. */
 @Service

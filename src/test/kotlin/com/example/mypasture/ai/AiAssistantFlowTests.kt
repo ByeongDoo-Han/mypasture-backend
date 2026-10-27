@@ -3,6 +3,8 @@ package com.example.mypasture.ai
 import com.example.mypasture.ai.application.AskBibleAssistantUseCase
 import com.example.mypasture.ai.application.AiGroundingNotFoundException
 import com.example.mypasture.ai.application.AiUsagePort
+import com.example.mypasture.ai.application.BibleQuestionUnderstandingService
+import com.example.mypasture.ai.application.BibleRetrievalPort
 import com.example.mypasture.ai.application.AiAnswerFeedbackService
 import com.example.mypasture.ai.domain.AiFeedbackRating
 import com.example.mypasture.ai.domain.AiFeedbackReason
@@ -56,6 +58,8 @@ class AiAssistantFlowTests(
     @Autowired private val feedbackRepository: AiAnswerFeedbackRepository,
     @Autowired private val receiptMaintenanceService: AiRequestReceiptMaintenanceService,
     @Autowired private val receiptRepository: AiRequestReceiptRepository,
+    @Autowired private val questionUnderstandingService: BibleQuestionUnderstandingService,
+    @Autowired private val retrievalPort: BibleRetrievalPort,
 ) {
     @Test
     fun `local assistant returns grounded answer and records usage`() {
@@ -148,6 +152,17 @@ class AiAssistantFlowTests(
         assertEquals("창세기", answer.citations.single().book)
         assertEquals(1, answer.citations.single().chapter)
         assertEquals(1, answer.citations.single().verse)
+    }
+
+    @Test
+    fun `explicit verse range retrieves every database verse in order`() = runTest {
+        val question = questionUnderstandingService.understand("창세기 1:1 ~ 1:2를 설명해줘")
+
+        val retrieval = retrievalPort.searchRelevantVerses(question, 1)
+
+        assertEquals(RagRetrievalStrategy.DIRECT_REFERENCE, retrieval.strategy)
+        assertEquals(listOf(1, 2), retrieval.citations.map { it.verse })
+        assertTrue(retrieval.citations.all { it.book == "창세기" && it.chapter == 1 })
     }
 
     @Test

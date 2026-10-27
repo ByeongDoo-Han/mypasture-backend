@@ -160,6 +160,24 @@ client.test("AI answer contains verified Bible citations", function () {
 client.global.set("aiTurnId", response.body.turnId);
 %}
 
+### 06-1-range. An explicit passage range grounds every requested verse
+POST {{baseUrl}}/api/v1/ai/chat
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "고린도전서 15:12 ~ 15:19에서 말하는 부활은 무엇을 뜻하나요?"
+}
+
+> {%
+client.test("Passage range answers from the requested verses", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.retrievalStrategy === "DIRECT_REFERENCE", "Expected direct passage retrieval");
+  client.assert(response.body.citations.length > 0, "Expected grounded citations");
+  client.assert(response.body.citations.every(function (citation) { return citation.chapter === 15 && citation.verse >= 12 && citation.verse <= 19; }), "Expected citations within the selected passage");
+});
+%}
+
 ### 06-1-scope. Unrelated questions return guidance without scripture or prayer
 POST {{baseUrl}}/api/v1/ai/chat
 Authorization: Bearer {{accessToken}}

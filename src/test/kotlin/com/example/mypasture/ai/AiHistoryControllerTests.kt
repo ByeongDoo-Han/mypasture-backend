@@ -74,7 +74,7 @@ class AiHistoryControllerTests(
             status { isOk() }
             header { string("Cache-Control", "no-store") }
             jsonPath("$.items[0].turnId") { value(answer.turnId.toString()) }
-            jsonPath("$.items[0].assistantVersion") { value("ai-pastor-v1") }
+            jsonPath("$.items[0].assistantVersion") { value(com.example.mypasture.ai.domain.AI_PASTOR_VERSION) }
         }
         val detail = mockMvc.get("/api/v1/ai/history/${answer.turnId}") {
             header("Authorization", "Bearer $ownerToken")

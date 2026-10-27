@@ -19,7 +19,7 @@ data class BibleCitation(
 const val AI_ASSISTANT_RESPONSE_SCHEMA_VERSION = "assistant-response-v2"
 
 /** 프롬프트·검색·답변 정책이 바뀔 때 올리는 AI 목자 구현 버전입니다. */
-const val AI_PASTOR_VERSION = "ai-pastor-v1"
+const val AI_PASTOR_VERSION = "ai-pastor-v2"
 
 /** AI 답변 그룹은 원본 생성 시각부터 이 기간 동안만 조회할 수 있습니다. */
 const val AI_ANSWER_HISTORY_RETENTION_DAYS = 365L
@@ -104,12 +104,13 @@ enum class BibleQuestionIntent {
     BIBLE_QA,
 }
 
-/** 사용자가 명시한 성경 권·장·절입니다. null 장/절은 권 전체를 의미합니다. */
+/** 사용자가 명시한 성경 권·장·절과 같은 장 안의 선택적 끝 절입니다. */
 data class BiblePassageReference(
     val bookCode: String,
     val bookName: String,
     val chapter: Int? = null,
     val verse: Int? = null,
+    val endVerse: Int? = null,
 )
 
 /** 원문 질문과 RAG 검색에 최적화한 의미 질의를 분리한 application 입력 모델입니다. */

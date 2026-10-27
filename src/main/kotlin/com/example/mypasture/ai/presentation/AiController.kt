@@ -4,6 +4,7 @@ import com.example.mypasture.ai.application.AiQuestionOutOfScopeException
 import com.example.mypasture.ai.application.AiQuestionScopeUnclearException
 import com.example.mypasture.ai.application.AiProviderException
 import com.example.mypasture.ai.application.AiGroundingNotFoundException
+import com.example.mypasture.ai.application.AiPassageRangeException
 import com.example.mypasture.ai.application.AiInputTooLongException
 import com.example.mypasture.ai.application.AiQuotaExceededException
 import com.example.mypasture.ai.application.AiSafetyException
@@ -222,10 +223,11 @@ class AiController(
                 val response = error.toStreamErrorResponse()
                 // 상담 질문이나 provider 응답은 남기지 않고 운영에 필요한 분류 정보만 기록합니다.
                 logger.warn(
-                    "AI stream failed userId={} code={} exception={}",
+                    "AI stream failed userId={} code={} exception={} failureKind={}",
                     principal.userId,
                     response.code,
                     error::class.qualifiedName,
+                    (error as? AiProviderException)?.failureKind?.name ?: "NOT_PROVIDER",
                 )
                 if (active.compareAndSet(true, false)) {
                     runCatching {
@@ -307,6 +309,7 @@ private fun Throwable.toStreamErrorResponse(): ApiErrorResponse =
         is AiQuestionOutOfScopeException -> ApiErrorResponse.of(AiErrorCode.QUESTION_OUT_OF_SCOPE, message = message ?: AiErrorCode.QUESTION_OUT_OF_SCOPE.defaultMessage)
         is AiQuestionScopeUnclearException -> ApiErrorResponse.of(AiErrorCode.QUESTION_SCOPE_UNCLEAR, message = message ?: AiErrorCode.QUESTION_SCOPE_UNCLEAR.defaultMessage)
         is AiGroundingNotFoundException -> ApiErrorResponse.of(AiErrorCode.GROUNDING_NOT_FOUND, message = message ?: AiErrorCode.GROUNDING_NOT_FOUND.defaultMessage)
+        is AiPassageRangeException -> ApiErrorResponse.of(AiErrorCode.INVALID_PASSAGE_RANGE, message = message ?: AiErrorCode.INVALID_PASSAGE_RANGE.defaultMessage)
         is AiAnswerRejectedException -> ApiErrorResponse.of(AiErrorCode.EVALUATION_REJECTED, message = message ?: AiErrorCode.EVALUATION_REJECTED.defaultMessage)
         is AiSafetyException -> ApiErrorResponse.of(AiErrorCode.SAFETY_ESCALATION, message = message ?: AiErrorCode.SAFETY_ESCALATION.defaultMessage)
         is AiProviderException -> ApiErrorResponse.of(AiErrorCode.PROVIDER_UNAVAILABLE, message = message ?: AiErrorCode.PROVIDER_UNAVAILABLE.defaultMessage)

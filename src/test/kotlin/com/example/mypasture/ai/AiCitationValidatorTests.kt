@@ -1,6 +1,7 @@
 package com.example.mypasture.ai
 
 import com.example.mypasture.ai.application.AiProviderException
+import com.example.mypasture.ai.application.AiProviderFailureKind
 import com.example.mypasture.ai.domain.BibleCitation
 import com.example.mypasture.ai.infrastructure.AiCitationValidator
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -35,8 +36,9 @@ class AiCitationValidatorTests {
 
     @Test
     fun `rejects invented chapter and verse`() {
-        assertThrows(AiProviderException::class.java) {
+        val error = assertThrows(AiProviderException::class.java) {
             validator.validate("시편 99:99를 읽어보세요 [101]", listOf(citation))
         }
+        assertEquals(AiProviderFailureKind.INVALID_CITATION, error.failureKind)
     }
 }

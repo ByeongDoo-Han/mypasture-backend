@@ -7,6 +7,9 @@ import com.example.mypasture.bible.domain.BibleBook
 import com.example.mypasture.bible.domain.BibleCatalog
 import org.springframework.stereotype.Service
 
+/** 지원 범위를 벗어나거나 완전하지 않은 성경 절 범위를 거부합니다. */
+class AiPassageRangeException : RuntimeException("한 장 안에서 최대 10절까지의 말씀 범위를 입력해 주세요.")
+
 /** 사용자 문장을 상담 목적과 성경 참조로 해석하고 의미 검색용 질의를 만듭니다. */
 @Service
 class BibleQuestionUnderstandingService {
@@ -58,6 +61,7 @@ class BibleQuestionUnderstandingService {
                 append(" 검색 범위: ${it.bookName}")
                 it.chapter?.let { chapter -> append(" ${chapter}장") }
                 it.verse?.let { verse -> append(" ${verse}절") }
+                it.endVerse?.let { endVerse -> append("부터 ${endVerse}절까지") }
                 append('.')
             }
         }.orEmpty()
@@ -77,11 +81,26 @@ class BibleQuestionUnderstandingService {
         val chapter = location?.groupValues?.getOrNull(1)?.toIntOrNull()
         val verse = location?.groupValues?.getOrNull(2)?.toIntOrNull()
             ?: location?.groupValues?.getOrNull(3)?.toIntOrNull()
+        val trailing = location?.range?.last?.plus(1)?.let(question::substring)?.trimStart().orEmpty()
+        val range = RANGE_PREFIX.find(trailing)
+        val endVerse = range?.let {
+            if (chapter == null || chapter !in 1..book.chapterCount || verse == null || verse < 1) {
+                throw AiPassageRangeException()
+            }
+            val ending = RANGE_END.find(trailing.substring(it.range.last + 1)) ?: throw AiPassageRangeException()
+            val endChapter = ending.groupValues[1].toIntOrNull()
+            val lastVerse = ending.groupValues[2].toIntOrNull() ?: throw AiPassageRangeException()
+            if ((endChapter != null && endChapter != chapter) ||
+                lastVerse < verse || lastVerse - verse + 1 > MAX_PASSAGE_VERSES
+            ) throw AiPassageRangeException()
+            lastVerse
+        }
         return BiblePassageReference(
             bookCode = book.code,
             bookName = book.name,
             chapter = chapter?.takeIf { it in 1..book.chapterCount },
             verse = verse?.takeIf { it > 0 },
+            endVerse = endVerse,
         )
     }
 
@@ -106,6 +125,9 @@ class BibleQuestionUnderstandingService {
 
     companion object {
         private const val MAX_KEYWORDS = 16
+        private const val MAX_PASSAGE_VERSES = 10
+        private val RANGE_PREFIX = Regex("^(?:[~〜～–—]|-(?=\\s*\\d)|부터)")
+        private val RANGE_END = Regex("^\\s*(?:(\\d{1,3})\\s*(?:장\\s*|[:：]\\s*))?(\\d{1,3})\\s*(?:절)?(?:까지)?")
         private val keywordRegex = Regex("[가-힣A-Za-z0-9]+")
         private val stopWords = setOf("오늘", "읽은", "말씀", "설명", "해주세요", "해줘", "위한", "대한", "나는", "제가", "입니다")
         private val topicExpansions = mapOf(

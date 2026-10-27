@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Page
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
@@ -39,6 +40,18 @@ interface AiAnswerHistoryRepository : JpaRepository<AiAnswerHistoryEntity, UUID>
     fun findAllByUserIdAndParentTurnIdOrderByCreatedAtAscTurnIdAsc(userId: UUID, parentTurnId: UUID): List<AiAnswerHistoryEntity>
     @Query("select h.parentTurnId, count(h) from AiAnswerHistoryEntity h where h.userId = :userId and h.parentTurnId in :rootIds group by h.parentTurnId")
     fun countRevisions(userId: UUID, rootIds: Collection<UUID>): List<Array<Any>>
+
+    @Query("select h.parentTurnId, count(h) from AiAnswerHistoryEntity h where h.parentTurnId in :rootIds group by h.parentTurnId")
+    fun adminRevisionCounts(rootIds: Collection<UUID>): List<Array<Any>>
+
+    @Query(
+        value = "select h from AiAnswerHistoryEntity h where h.parentTurnId is null and h.createdAt > :cutoff and " +
+            "exists (select u.id from UserEntity u where u.id = h.userId and u.deletedAt is null) " +
+            "order by h.createdAt desc, h.turnId desc",
+        countQuery = "select count(h) from AiAnswerHistoryEntity h where h.parentTurnId is null and h.createdAt > :cutoff and " +
+            "exists (select u.id from UserEntity u where u.id = h.userId and u.deletedAt is null)",
+    )
+    fun adminPage(cutoff: Instant, pageable: Pageable): Page<AiAnswerHistoryEntity>
 
     @Query("select h from AiAnswerHistoryEntity h where h.userId = :userId and h.parentTurnId is null and h.createdAt > :cutoff order by h.createdAt desc, h.turnId desc")
     fun firstPage(userId: UUID, cutoff: Instant, pageable: Pageable): List<AiAnswerHistoryEntity>

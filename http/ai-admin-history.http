@@ -1,0 +1,14 @@
+@baseUrl = http://localhost:8080
+@adminToken = replace-with-admin-access-token
+@turnId = replace-with-history-turn-uuid
+
+### 관리자 AI 목자 질문 목록: 작성자, 질문 시간, 미리보기
+GET {{baseUrl}}/api/v1/admin/ai/history?page=0&size=20
+Authorization: Bearer {{adminToken}}
+
+### 관리자 AI 목자 질문·답변 상세: 열람 목적은 감사 로그에 기록
+POST {{baseUrl}}/api/v1/admin/ai/history/{{turnId}}/review
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"reason":"QUALITY_REVIEW"}

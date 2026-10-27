@@ -1,6 +1,7 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:mypasture;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    # Each Spring test context owns its schema; closing another context cannot drop these tables.
+    url: jdbc:h2:mem:${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
     username: sa
     password:
     driver-class-name: org.h2.Driver

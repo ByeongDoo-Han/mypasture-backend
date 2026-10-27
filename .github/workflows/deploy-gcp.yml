@@ -20,6 +20,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 concurrency:
@@ -27,13 +28,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: deploy-${{ github.event_name == 'workflow_run' && 'staging' || inputs.environment }}
+  preflight:
+    name: Check whether server runtime changed
     if: >-
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push') ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.gate.outputs.deploy }}
+    steps:
+      - name: Load CI selection
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: affected-checks
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: selection
+      - name: Gate automatic deployment on runtime changes
+        id: gate
+        run: |
+          if [[ "${{ github.event_name }}" == workflow_dispatch ]]; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            test -f selection/selection.json
+            echo "deploy=$(jq -r '.runtime' selection/selection.json)" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: deploy-${{ github.event_name == 'workflow_run' && 'staging' || inputs.environment }}
+    needs: preflight
+    if: >-
+      needs.preflight.outputs.deploy == 'true' &&
+      ((github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: ${{ github.event_name == 'workflow_run' && 'staging' || inputs.environment }}
@@ -100,10 +132,12 @@ jobs:
           worker=$(gcloud run services describe "${PREFIX}-worker" --project "${PROJECT_ID}" --region "${REGION}" --format='value(spec.template.spec.containers[0].image)')
           migration=$(gcloud run jobs describe "${PREFIX}-migration" --project "${PROJECT_ID}" --region "${REGION}" --format='value(spec.template.spec.template.spec.containers[0].image)')
           embedding=$(gcloud run jobs describe "${PREFIX}-embedding-backfill" --project "${PROJECT_ID}" --region "${REGION}" --format='value(spec.template.spec.template.spec.containers[0].image)')
-          echo "api=${api}" >> "${GITHUB_OUTPUT}"
-          echo "worker=${worker}" >> "${GITHUB_OUTPUT}"
-          echo "migration=${migration}" >> "${GITHUB_OUTPUT}"
-          echo "embedding=${embedding}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "api=${api}"
+            echo "worker=${worker}"
+            echo "migration=${migration}"
+            echo "embedding=${embedding}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Update and execute migration job
         env:

@@ -14,7 +14,7 @@
 
 새 환경변수는 없습니다. 마이그레이션 `V42.1__user_visits.sql`은 열려 있는 결제 PR #135의 V43/V44와 충돌하지 않게 V42.1을 사용합니다. 서버 API 및 마이그레이션을 먼저 배포한 뒤 앱 Issue #105를 배포합니다.
 
-`./gradlew test`로 전체 회귀 테스트를 실행합니다. 실제 PostgreSQL/Flyway 검사:
+활동·읽기 변경은 담당·직접 인접 회귀를 선택합니다. 공통 스키마·공유 설정 등 전역 영향일 때만 `./gradlew test` 전체를 실행합니다. 실제 PostgreSQL/Flyway 검사:
 
 ```sh
 ACTIVITY_TEST_JDBC_URL=jdbc:postgresql://localhost:55432/activity_test \

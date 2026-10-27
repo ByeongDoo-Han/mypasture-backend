@@ -37,9 +37,8 @@ JWT 사용자만 처리하며 요청의 userId나 진행 수치를 받지 않습
 
 ```sh
 ./gradlew test --tests '*AchievementCatalogTests' --tests '*AchievementControllerTests' --no-daemon
-./gradlew test --no-daemon
 ```
 
 실제 PostgreSQL 검증은 ACHIEVEMENT_TEST_JDBC_URL, ACHIEVEMENT_TEST_JDBC_USER, ACHIEVEMENT_TEST_JDBC_PASSWORD를 일회성 테스트 DB에 지정합니다. CI의 PostgreSQL job에 Flyway/업적 통합 테스트를 포함해야 합니다. 운영 DB로 테스트하지 않습니다.
 
-실제 검사 결과는 docs/tasks/167-reading-growth.md와 해당 QA/Review 기록에서 관리합니다. 로컬과 CI의 전체 테스트, PostgreSQL/Flyway 검증을 완료 조건으로 유지합니다.
+해당 기능 변경은 업적·직접 인접 회귀와 PostgreSQL/Flyway 검증을 완료 조건으로 유지합니다. 공통 스키마·공유 설정처럼 전역 영향일 때만 로컬과 CI의 전체 테스트를 실행합니다. 과거 작업 결과는 docs/tasks/167-reading-growth.md와 해당 QA/Review 기록에서 확인합니다.

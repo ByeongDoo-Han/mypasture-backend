@@ -62,7 +62,12 @@ Content-Type: application/json
 
 {
   "title": "주일 말씀 나눔",
-  "theme": "공동체"
+  "theme": "공동체",
+  "questionOverrides": {
+    "observationQuestions": ["본문에서 반복되는 표현은 무엇인가요?"],
+    "meditationQuestions": ["이 말씀에서 새롭게 깨달은 점은 무엇인가요?"],
+    "sharingQuestions": ["이번 주 함께 나누고 싶은 적용은 무엇인가요?"]
+  }
 }
 
 > {% client.global.set("pastureQuietTimeCode", response.body.offlineCode); %}

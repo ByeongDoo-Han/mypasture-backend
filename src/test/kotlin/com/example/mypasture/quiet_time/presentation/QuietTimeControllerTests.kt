@@ -74,6 +74,58 @@ class QuietTimeControllerTests(
     }
 
     @Test
+    fun `edited questions are stored only in the created meeting snapshot`() {
+        val passageResult = mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
+            param("theme", "불안")
+            param("size", "1")
+        }.andReturn()
+        val passageId = objectMapper.readTree(passageResult.response.contentAsString)[0]["id"].asText()
+        val pastureId = createPasture()
+        val original = previewQuestionSet(passageId, "PEACE", "SHARING")
+        val payload = """{
+            "title":"편집 질문 모임","passageId":"$passageId","focusThemeCode":"PEACE","questionStyle":"SHARING",
+            "questionOverrides":{
+                "observationQuestions":["  본문에 반복되는 말은 무엇인가요?  "],
+                "meditationQuestions":["말씀이 나에게 전하는 내용은 무엇인가요?"],
+                "sharingQuestions":["서로에게 묻고 싶은 것은 무엇인가요?","함께 실천할 일은 무엇인가요?"]
+            }
+        }""".trimIndent()
+        mockMvc.post("/api/v1/quiet-time/pastures/$pastureId/sessions") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = payload
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.questionSet.observationQuestions[0]") { value("본문에 반복되는 말은 무엇인가요?") }
+            jsonPath("$.questionSet.sharingQuestions.length()") { value(2) }
+        }
+        check(previewQuestionSet(passageId, "PEACE", "SHARING")["observationQuestions"] == original["observationQuestions"])
+
+        mockMvc.post("/api/v1/quiet-time/sessions/standalone") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = payload.replace("편집 질문 모임", "일회성 편집 질문 모임")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.questionSet.meditationQuestions[0]") { value("말씀이 나에게 전하는 내용은 무엇인가요?") }
+        }
+    }
+
+    @Test
+    fun `invalid edited question is rejected before meeting creation`() {
+        val passageId = objectMapper.readTree(mockMvc.get("/api/v1/quiet-time/passages/recommendations").andReturn().response.contentAsString)[0]["id"].asText()
+        mockMvc.post("/api/v1/quiet-time/sessions/standalone") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{
+                "passageId":"$passageId","questionOverrides":{
+                    "observationQuestions":["잘못된|질문"],"meditationQuestions":["묵상 질문"],"sharingQuestions":["나눔 질문"]
+                }
+            }""".trimIndent()
+        }.andExpect { status { isBadRequest() } }
+    }
+
+    @Test
     fun `session freezes selected theme question set and answers use the snapshot`() {
         val passageResult = mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
             param("theme", "불안")

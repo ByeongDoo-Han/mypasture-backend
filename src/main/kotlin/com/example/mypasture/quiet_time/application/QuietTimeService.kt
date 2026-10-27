@@ -118,6 +118,7 @@ class QuietTimeService(
         joinStartsAt: Instant?,
         focusThemeCode: String? = null,
         questionStyle: QuietTimeQuestionStyle? = null,
+        questionOverrides: QuietTimeQuestionOverrides? = null,
     ): QuietTimeSessionQrView {
         val now = Instant.now(clock)
         val pasture = pastureRepository.findById(pastureId)
@@ -135,6 +136,7 @@ class QuietTimeService(
             theme = theme,
             focusThemeCode = focusThemeCode,
             questionStyle = questionStyle,
+            questionOverrides = questionOverrides,
             meetingDate = meetingDate,
             meetingStartsAt = meetingStartsAt,
             meetingEndsAt = meetingEndsAt,
@@ -157,6 +159,7 @@ class QuietTimeService(
         joinStartsAt: Instant?,
         focusThemeCode: String? = null,
         questionStyle: QuietTimeQuestionStyle? = null,
+        questionOverrides: QuietTimeQuestionOverrides? = null,
     ): QuietTimeSessionQrView {
         require(hostDisplayName.trim().length in 1..80) { "Host display name length must be between 1 and 80." }
         return createSession(
@@ -169,6 +172,7 @@ class QuietTimeService(
             theme = theme,
             focusThemeCode = focusThemeCode,
             questionStyle = questionStyle,
+            questionOverrides = questionOverrides,
             meetingDate = meetingDate,
             meetingStartsAt = meetingStartsAt,
             meetingEndsAt = meetingEndsAt,
@@ -187,6 +191,7 @@ class QuietTimeService(
         theme: String?,
         focusThemeCode: String?,
         questionStyle: QuietTimeQuestionStyle?,
+        questionOverrides: QuietTimeQuestionOverrides?,
         meetingDate: LocalDate?,
         meetingStartsAt: Instant?,
         meetingEndsAt: Instant?,
@@ -208,6 +213,9 @@ class QuietTimeService(
         val expiresAt = endsAt.plusSeconds(qrProperties.expiryGraceMinutes * 60)
         validateQrWindow(now, startsAt, endsAt, participationStartsAt, expiresAt)
         val questionSet = questionSetService.selectForSession(passage, focusThemeCode, theme, questionStyle)
+        val questions = questionOverrides?.validated() ?: QuietTimeQuestionOverrides(
+            questionSet.observationQuestions, questionSet.meditationQuestions, questionSet.sharingQuestions,
+        )
 
         val session = sessionRepository.save(
             QuietTimeSessionEntity(
@@ -224,9 +232,9 @@ class QuietTimeService(
                 focusThemeName = questionSet.focusTheme.name,
                 questionStyle = questionSet.style,
                 questionSetVersion = questionSet.version,
-                observationQuestions = questionSet.observationQuestions.joinToString("|"),
-                meditationQuestions = questionSet.meditationQuestions.joinToString("|"),
-                sharingQuestions = questionSet.sharingQuestions.joinToString("|"),
+                observationQuestions = questions.observationQuestions.joinToString("|"),
+                meditationQuestions = questions.meditationQuestions.joinToString("|"),
+                sharingQuestions = questions.sharingQuestions.joinToString("|"),
                 actionGuide = questionSet.actionGuide,
                 prayerGuide = questionSet.prayerGuide,
                 questionSetLockedAt = now,
@@ -550,6 +558,27 @@ class QuietTimeService(
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         private const val JOIN_CODE_LENGTH = 6
         private val JOIN_CODE_PATTERN = Regex("^[A-HJ-NP-Z2-9]{$JOIN_CODE_LENGTH}$")
+    }
+}
+
+/** 공용 생성 결과를 변경하지 않고 한 모임에만 적용할 질문 목록입니다. */
+data class QuietTimeQuestionOverrides(
+    val observationQuestions: List<String>,
+    val meditationQuestions: List<String>,
+    val sharingQuestions: List<String>,
+) {
+    fun validated(): QuietTimeQuestionOverrides {
+        fun normalize(questions: List<String>): List<String> {
+            require(questions.size in 1..6) { "질문은 범주마다 1~6개여야 합니다." }
+            return questions.map { question ->
+                val normalized = question.trim()
+                require(normalized.length in 1..300 && '|' !in normalized) { "질문은 1~300자이며 | 문자를 포함할 수 없습니다." }
+                normalized
+            }
+        }
+        return QuietTimeQuestionOverrides(
+            normalize(observationQuestions), normalize(meditationQuestions), normalize(sharingQuestions),
+        )
     }
 }
 

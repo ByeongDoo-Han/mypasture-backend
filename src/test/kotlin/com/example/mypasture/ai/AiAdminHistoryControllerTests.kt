@@ -45,7 +45,7 @@ class AiAdminHistoryControllerTests(
     @Autowired private val mapper: ObjectMapper,
 ) {
     @Test
-    fun `only admin sees active retained questions and audited answer detail`() {
+    fun `관리자만 보존 기간 안의 질문 목록과 감사 기록이 남는 답변 상세를 볼 수 있다`() {
         val admin = users.save(UserEntity(email = "admin-${UUID.randomUUID()}@example.com", displayName = "관리자", role = UserRole.ADMIN))
         val owner = users.save(UserEntity(email = "owner-${UUID.randomUUID()}@example.com", displayName = "질문자"))
         val normal = users.save(UserEntity(email = "normal-${UUID.randomUUID()}@example.com", displayName = "일반"))
@@ -100,7 +100,7 @@ class AiAdminHistoryControllerTests(
     }
 
     @Test
-    fun `invalid page and missing record do not create detail audit`() {
+    fun `잘못된 페이지와 없는 기록을 조회해도 상세 조회 감사 기록을 만들지 않는다`() {
         val admin = users.save(UserEntity(email = "admin-${UUID.randomUUID()}@example.com", displayName = "관리자", role = UserRole.ADMIN))
         val owner = users.save(UserEntity(email = "owner-${UUID.randomUUID()}@example.com", displayName = "질문자"))
         val expired = record(owner, "오래된 질문", "오래된 답변", Instant.now().minus(366, ChronoUnit.DAYS))

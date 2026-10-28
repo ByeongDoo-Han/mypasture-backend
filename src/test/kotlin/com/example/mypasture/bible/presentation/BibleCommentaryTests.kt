@@ -66,7 +66,7 @@ class BibleCommentaryTests(
     }
 
     @Test
-    fun `published commentary is returned without generating at request time`() {
+    fun `게시된 주석은 요청 시 생성하지 않고 저장된 내용을 반환한다`() {
         val draft = createDraft()
         commentaryService.publish(draft.id, adminId, 92, "본문과 배경 설명을 검수했습니다.")
 
@@ -84,7 +84,7 @@ class BibleCommentaryTests(
     }
 
     @Test
-    fun `unpublished commentary returns not found`() {
+    fun `게시되지 않은 주석은 찾을 수 없음으로 반환한다`() {
         mockMvc.get("/api/v1/bibles/KOR1910/books/GEN/chapters/2/commentary")
             .andExpect {
                 status { isNotFound() }
@@ -93,7 +93,7 @@ class BibleCommentaryTests(
     }
 
     @Test
-    fun `only admin can queue commentary generation`() {
+    fun `관리자만 주석 생성 작업을 등록할 수 있다`() {
         mockMvc.post("/api/v1/admin/bible-commentaries/generation-jobs") {
             with(user("member").roles("USER"))
             contentType = MediaType.APPLICATION_JSON
@@ -114,7 +114,7 @@ class BibleCommentaryTests(
     }
 
     @Test
-    fun `failed automatic evaluation is retained but cannot be published`() {
+    fun `자동 평가에 실패한 주석은 보관하지만 게시할 수 없다`() {
         val rejected = createDraft(failingEvaluation())
 
         kotlin.test.assertEquals(BibleCommentaryStatus.REJECTED, rejected.status)
@@ -125,7 +125,7 @@ class BibleCommentaryTests(
     }
 
     @Test
-    fun `editing a draft creates a new revision and review history`() {
+    fun `초안 수정은 새 버전과 검수 이력을 만든다`() {
         val draft = createDraft()
         val generated = generatedCommentary()
         val edited = commentaryService.editDraft(
@@ -150,7 +150,7 @@ class BibleCommentaryTests(
     }
 
     @Test
-    fun `only approved evidence is supplied to commentary generation`() {
+    fun `승인된 근거만 주석 생성에 전달한다`() {
         val evidence = evidenceService.create(
             CreateBibleCommentaryEvidenceCommand(
                 version = "KOR1910",
@@ -173,7 +173,7 @@ class BibleCommentaryTests(
     }
 
     @Test
-    fun `book generation keeps successful chapters when another chapter is already queued`() {
+    fun `책 단위 생성은 일부 장에 작업이 있어도 성공한 장을 유지한다`() {
         commentaryService.queueGeneration("KOR1910", "GEN", 1, adminId)
         val result = batchService.queueBookGeneration("KOR1910", "GEN", false, adminId)
 
@@ -184,7 +184,7 @@ class BibleCommentaryTests(
     }
 
     @Test
-    fun `range generation is admin only bounded and idempotent`() {
+    fun `범위 생성은 관리자만 가능하고 크기를 제한하며 중복 요청에 멱등하다`() {
         val path = "/api/v1/admin/bible-commentaries/generation-jobs/ranges"
         val request = """{"version":"KOR1910","bookCode":"GEN","startChapter":1,"endChapter":3}"""
         mockMvc.post(path) {
@@ -221,7 +221,7 @@ class BibleCommentaryTests(
     }
 
     @Test
-    fun `coverage shows review state and avoids regenerating current draft`() {
+    fun `주석 범위 조회는 검수 상태를 보여주고 최신 초안을 다시 생성하지 않는다`() {
         createDraft()
         val result = batchService.queueRangeGeneration("KOR1910", "GEN", 1, 3, false, adminId)
         kotlin.test.assertEquals(listOf(1), result.skippedChapters)
@@ -243,7 +243,7 @@ class BibleCommentaryTests(
     }
 
     @Test
-    fun `stale draft is regenerated while current published commentary is skipped`() {
+    fun `오래된 초안은 재생성하고 최신 게시 주석은 건너뛴다`() {
         val draft = createDraft()
         jdbcTemplate.update("update bible_chapter_commentaries set source_hash = ? where id = ?", "outdated", draft.id)
         val stale = batchService.getBookCoverage("KOR1910", "GEN")

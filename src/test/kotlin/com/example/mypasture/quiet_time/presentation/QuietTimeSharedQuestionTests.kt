@@ -56,7 +56,7 @@ class QuietTimeSharedQuestionTests(
     @Autowired private val accountErasure: AccountDataErasure,
 ) {
     @Test
-    fun `same verse has one passage and one shared question set across concurrent requests`() = runBlocking {
+    fun `동시 요청에도 같은 구절의 본문과 공유 질문 묶음은 각각 하나다`() = runBlocking {
         seedVerse(34)
         val first = selectedPassages.select("KOR1910", "JHN", 13, 34, 34)
         val second = selectedPassages.select("KOR1910", "JHN", 13, 34, 34)
@@ -83,7 +83,7 @@ class QuietTimeSharedQuestionTests(
     }
 
     @Test
-    fun `claim lease fences stale writer and daily quota rolls back fourth claim`() {
+    fun `선점 임대는 오래된 작성자를 막고 네 번째 요청의 일일 한도는 롤백된다`() {
         seedVerse(34)
         val passage = selectedPassages.select("KOR1910", "JHN", 13, 34, 34)
         val firstUser = users.saveAndFlush(UserEntity(displayName = "질문생성경합A"))
@@ -121,7 +121,7 @@ class QuietTimeSharedQuestionTests(
     }
 
     @Test
-    fun `account erasure removes generation attempts and anonymizes reusable questions`() {
+    fun `계정 삭제는 생성 시도를 지우고 재사용 질문을 익명화한다`() {
         seedVerse(34)
         val passage = selectedPassages.select("KOR1910", "JHN", 13, 34, 34)
         val user = users.saveAndFlush(UserEntity(displayName = "QT생성기록삭제"))

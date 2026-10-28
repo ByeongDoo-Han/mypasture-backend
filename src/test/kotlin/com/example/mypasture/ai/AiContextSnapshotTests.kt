@@ -37,7 +37,7 @@ class AiContextSnapshotCipherTests {
         commentaryMaxOutputTokens = 100, commentaryInputCostPerMillion = BigDecimal.ZERO,
         commentaryOutputCostPerMillion = BigDecimal.ZERO, privacyHashSecret = "snapshot-test-secret"), jacksonObjectMapper().findAndRegisterModules())
 
-    @Test fun `snapshot roundtrip binds owner and original turn and fixed microsecond expiry`() {
+    @Test fun `스냅샷 왕복은 소유자와 원래 대화 및 마이크로초 단위 만료 시각에 묶인다`() {
         val user = UUID.randomUUID(); val turn = UUID.randomUUID()
         val prior = mutableListOf(AiConversationTurn("창세기 말씀", "말씀으로 위로", "마음은 어떤가요?"))
         val snapshot = AiContextSnapshot.capture(AiConversationContext(UUID.randomUUID(), prior), Instant.parse("2026-10-07T01:02:03.123456789Z"))
@@ -92,7 +92,7 @@ class AiContextSnapshotTests(
         return owner to followup
     }
 
-    @Test fun `regeneration uses exact prior context after later conversation changes and does not extend expiry`() = runBlocking {
+    @Test fun `재생성은 이후 대화가 바뀌어도 이전 문맥을 정확히 사용하고 만료를 연장하지 않는다`() = runBlocking {
         val (owner, source) = setup()
         val saved = snapshots.restore(owner.id, source.turnId)!!
         assertEquals(1, saved.snapshot!!.context.turns.size)
@@ -115,7 +115,7 @@ class AiContextSnapshotTests(
         assertFalse(serialized.contains("snapshot")); assertFalse(serialized.contains(saved.sourceCiphertext!!))
     }
 
-    @Test fun `first turn has no prior snapshot while new followup must have one and legacy remains fail closed`() = runBlocking {
+    @Test fun `첫 질문에는 이전 스냅샷이 없고 새 후속 질문에는 필요하며 기존 데이터는 안전하게 실패한다`() = runBlocking {
         val owner = user(); val first = assistant.ask(owner.id, SubscriptionTier.PREMIUM, "창세기 말씀을 설명해주세요")
         assertNull(records.findById(first.turnId).orElseThrow().contextSnapshotCiphertext)
         val followup = assistant.ask(owner.id, SubscriptionTier.PREMIUM, "네", first.conversationId)
@@ -128,7 +128,7 @@ class AiContextSnapshotTests(
         assertNotNull(feedback.regenerate(owner.id, SubscriptionTier.PREMIUM, first.turnId, "창세기 말씀을 설명해주세요"))
     }
 
-    @Test fun `expired snapshot is unavailable before sweep and cipher removed while history remains`() = runBlocking {
+    @Test fun `만료된 스냅샷은 정리 전에도 사용할 수 없고 암호문은 지우되 기록은 남긴다`() = runBlocking {
         val (owner, source) = setup(); val saved = snapshots.restore(owner.id, source.turnId)!!
         val expired = saved.snapshot!!.copy(capturedAt = Instant.now().minus(31, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MICROS),
             expiresAt = Instant.now().minus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MICROS))
@@ -142,7 +142,7 @@ class AiContextSnapshotTests(
         assertTrue(history.detail(owner.id, source.turnId).versions.isNotEmpty())
     }
 
-    @Test fun `snapshot ciphertext transplant between same owner turns fails source AAD`() {
+    @Test fun `같은 소유자의 다른 대화로 암호문을 옮기면 원본 AAD 검사에서 실패한다`() {
         val (owner, source) = setup(); val other = assistant.ask(owner.id, SubscriptionTier.PREMIUM, "창세기 2장 1절을 설명해주세요", source.conversationId)
         val original = records.findById(source.turnId).orElseThrow()
         jdbc.update("update ai_answer_history set context_snapshot_ciphertext = ?, context_snapshot_expires_at = ? where turn_id = ?",
@@ -151,7 +151,7 @@ class AiContextSnapshotTests(
         assertNull(snapshots.restore(user().id, source.turnId))
     }
 
-    @Test fun `deleting any owned history clears all snapshots and conversation but preserves other answers`() {
+    @Test fun `소유한 기록을 하나라도 삭제하면 모든 스냅샷과 대화를 지우고 다른 답변은 보존한다`() {
         val (owner, source) = setup(); val other = assistant.ask(owner.id, SubscriptionTier.PREMIUM, "시편 1장 1절 말씀", source.conversationId)
         val stranger = user()
         history.delete(stranger.id, source.turnId)
@@ -163,7 +163,7 @@ class AiContextSnapshotTests(
         assertThrows(AiQuestionScopeUnclearException::class.java) { runBlocking { feedback.regenerate(owner.id, SubscriptionTier.PREMIUM, source.turnId, "네") } }
     }
 
-    @Test fun `delete committing after generation prevents stale regeneration history and records known consumed cost`() = runBlocking {
+    @Test fun `생성 뒤 삭제가 확정되면 오래된 재생성 기록을 막고 이미 소비한 비용을 기록한다`() = runBlocking {
         val (owner, source) = setup()
         completion.afterGeneration = { history.delete(owner.id, source.turnId) }
         assertThrows(AiQuestionScopeUnclearException::class.java) { runBlocking { feedback.regenerate(owner.id, SubscriptionTier.PREMIUM, source.turnId, "네") } }
@@ -175,7 +175,7 @@ class AiContextSnapshotTests(
         assertFalse(records.existsById(failed.id)); assertFalse(conversations.existsById(source.conversationId!!))
     }
 
-    @Test fun `delete committing after ask generation prevents stale context append and new snapshot`() {
+    @Test fun `질문 생성 뒤 삭제가 확정되면 오래된 문맥 추가와 새 스냅샷을 막는다`() {
         val (owner, source) = setup()
         completion.afterGeneration = { history.delete(owner.id, source.turnId) }
         assertThrows(AiQuestionScopeUnclearException::class.java) { assistant.ask(owner.id, SubscriptionTier.PREMIUM, "창세기 2장 1절을 설명해주세요", source.conversationId) }
@@ -184,14 +184,14 @@ class AiContextSnapshotTests(
         assertFalse(records.existsById(failed.id)); assertFalse(conversations.existsById(source.conversationId!!))
     }
 
-    @Test fun `source ciphertext invalidation alone fences loaded regeneration and leaves prior answer`() = runBlocking {
+    @Test fun `원본 암호문만 무효화해도 읽어 둔 재생성을 막고 기존 답변은 유지한다`() = runBlocking {
         val (owner, source) = setup()
         completion.afterGeneration = { jdbc.update("update ai_answer_history set context_snapshot_ciphertext = null, context_snapshot_expires_at = null where turn_id = ?", source.turnId) }
         assertThrows(AiQuestionScopeUnclearException::class.java) { runBlocking { feedback.regenerate(owner.id, SubscriptionTier.PREMIUM, source.turnId, "네") } }
         assertEquals(1, history.detail(owner.id, source.turnId).versions.size)
     }
 
-    @Test fun `closed conversation permits historical restore while account erasure removes snapshot and prevents recovery`() {
+    @Test fun `닫힌 대화는 과거 복원을 허용하지만 계정 삭제는 스냅샷을 지우고 복구를 막는다`() {
         val (owner, source) = setup()
         jdbc.update("update ai_conversations set status = 'CLOSED' where id = ?", source.conversationId)
         assertNotNull(snapshots.restore(owner.id, source.turnId))
@@ -200,7 +200,7 @@ class AiContextSnapshotTests(
         assertNull(snapshots.restore(owner.id, source.turnId))
     }
 
-    @Test fun `legacy and expired context regeneration still fences source deletion after generation`() {
+    @Test fun `기존 및 만료 문맥의 재생성도 생성 후 원본 삭제를 막지 못한다`() {
         for (expiredContext in listOf(false, true)) {
             val owner = user(); val question = "창세기 1장 1절을 설명해주세요"
             val first = assistant.ask(owner.id, SubscriptionTier.PREMIUM, question)
@@ -225,7 +225,7 @@ class AiContextSnapshotTests(
         }
     }
 
-    @Test fun `source changing history group after load cannot complete even without context`() {
+    @Test fun `읽어 둔 뒤 원본의 기록 묶음이 바뀌면 문맥이 없어도 완료할 수 없다`() {
         val owner = user(); val question = "창세기 1장 1절을 설명해주세요"
         val source = assistant.ask(owner.id, SubscriptionTier.FREE, question)
         val other = assistant.ask(owner.id, SubscriptionTier.FREE, "창세기 2장 1절을 설명해주세요")
@@ -238,7 +238,7 @@ class AiContextSnapshotTests(
         assertFalse(records.existsById(failed.id)); assertEquals(AiUsageStatus.FAILED, failed.status)
     }
 
-    @Test fun `conversation append and history receipt completion roll back together on snapshot write failure`() {
+    @Test fun `스냅샷 저장에 실패하면 대화 추가와 기록 영수증 완료를 함께 롤백한다`() {
         val (owner, source) = setup(); val restored = snapshots.restore(owner.id, source.turnId)!!
         val originalConversation = conversations.findById(source.conversationId!!).orElseThrow()
         val requestId = UUID.randomUUID()
@@ -257,7 +257,7 @@ class AiContextSnapshotTests(
         usage.fail(reservation.turnId, "TEST_SNAPSHOT_WRITE_FAILURE")
     }
 
-    @Test fun `postgres deletion holding user lock fences loaded snapshot completion after commit`() {
+    @Test fun `PostgreSQL에서 사용자 잠금을 잡은 삭제는 읽어 둔 스냅샷 완료를 확정 뒤 차단한다`() {
         org.junit.jupiter.api.Assumptions.assumeTrue(dataSource.connection.use { it.metaData.databaseProductName == "PostgreSQL" },
             "Requires PostgreSQL row-lock inspection")
         listOf(false, true).forEach(::assertPostgresDeleteFence)

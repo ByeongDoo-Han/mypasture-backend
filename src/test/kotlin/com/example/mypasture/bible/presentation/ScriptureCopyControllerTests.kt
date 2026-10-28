@@ -63,7 +63,7 @@ class ScriptureCopyControllerTests(
     @Autowired private val jdbc: JdbcTemplate,
 ) {
     @Test
-    fun `owner saves canonical snapshot retries resumes completes and deletes`() {
+    fun `소유자는 정규 본문 스냅샷을 저장 재시도 재개 완료 삭제한다`() {
         val token = token()
         val id = UUID.randomUUID()
         val draft = put(token, id, request(typed = "태초에", version = " kor1910 ", book = " gen ")).andExpect {
@@ -103,7 +103,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `foreign record is hidden on every operation and missing detail is not found`() {
+    fun `타인 기록은 모든 작업에서 숨기고 없는 상세 기록은 찾을 수 없음으로 반환한다`() {
         val owner = token()
         val other = token()
         val id = UUID.randomUUID()
@@ -123,7 +123,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `authentication invalid input missing verse and revision location conflicts use stable errors`() {
+    fun `인증 실패 잘못된 입력 없는 절과 버전 위치 충돌에는 안정된 오류를 반환한다`() {
         val id = UUID.randomUUID()
         mvc.get("/api/v1/scripture-copies").andExpect { status { isUnauthorized() } }
         mvc.put("/api/v1/scripture-copies/$id") { contentType = MediaType.APPLICATION_JSON; content = request() }
@@ -144,7 +144,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `completion compares NFC letters marks and all numbers but rejects omissions and empty canonical text`() {
+    fun `완료 비교는 NFC 문자와 결합 기호 및 모든 숫자를 검사하고 누락과 빈 본문을 거부한다`() {
         val token = token()
         val source = "하나님 Café 𐐀 Ⅲ ² 1!"
         val version = "TEST${UUID.randomUUID().toString().take(8).uppercase()}"
@@ -170,7 +170,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `incomplete completion rolls back and snapshot remains after canonical verse changes`() {
+    fun `미완료 상태의 완료 시도는 롤백하고 정규 절이 바뀌어도 스냅샷을 유지한다`() {
         val token = token()
         val version = "SNAP${UUID.randomUUID().toString().take(8).uppercase()}"
         val book = books.saveAndFlush(BibleBookEntity(version = version, code = "GEN", name = "보존 권", testament = Testament.OLD, displayOrder = 1))
@@ -189,7 +189,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `parallel same UUID creation is idempotent and parallel changes have one winner`() {
+    fun `같은 UUID로 동시에 생성해도 한 건만 저장하고 동시 수정은 한 요청만 성공한다`() {
         val token = token()
         val id = UUID.randomUUID()
         val createResults = parallel(List(4) { { put(token, id, request(typed = "태초")).andReturn().response.status } })
@@ -201,7 +201,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `different owners racing same UUID never overwrite owner content`() {
+    fun `서로 다른 소유자가 같은 UUID를 동시에 써도 소유자 내용을 덮지 않는다`() {
         val tokens = listOf(token(), token())
         val id = UUID.randomUUID()
         val outcomes = parallel(tokens.mapIndexed { index, token -> { put(token, id, request(typed = "소유자$index")).andReturn().response.status } })
@@ -215,7 +215,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `list pages honor most recently updated order and account deletion destroys drafts and completed records`() {
+    fun `목록은 최근 수정 순서로 페이지를 반환하고 계정 삭제는 초안과 완료 기록을 모두 제거한다`() {
         val token = token()
         val ids = List(3) { UUID.randomUUID() }
         ids.forEach { put(token, it, request()).andExpect { status { isOk() } } }
@@ -234,7 +234,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `postgres waiting copy mutations acquire user before record and cannot resurrect erased records`() {
+    fun `PostgreSQL에서 대기 중인 필사 수정은 기록보다 사용자를 먼저 잠그고 삭제 기록을 되살리지 않는다`() {
         assumeTrue(!System.getenv("SCRIPTURE_COPY_TEST_JDBC_URL").isNullOrBlank(), "Requires PostgreSQL lock inspection")
         for (operation in listOf("create", "update", "reflection", "delete")) {
             val existing = operation != "create"
@@ -287,7 +287,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `range snapshot joins canonical verses and legacy omitted end resumes without truncating`() {
+    fun `범위 스냅샷은 정규 절을 합치고 종료 절이 빠진 기존 데이터도 자르지 않고 재개한다`() {
         val token = token()
         val (version, selected) = passageFixture(listOf(1 to "첫 말씀", 2 to "둘째 말씀", 3 to "셋째 말씀"))
         val source = selected.joinToString("\n") { it.text }
@@ -328,7 +328,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `range allows twenty verses and rejects invalid bounds missing middle and blank middle atomically`() {
+    fun `범위는 20절까지 허용하고 잘못된 경계 중간 절 누락 빈 중간 절은 원자적으로 거부한다`() {
         val token = token()
         val (version) = passageFixture((1..21).map { it to "말씀 $it" })
         put(token, UUID.randomUUID(), request(version = version, endVerse = 20)).andExpect {
@@ -350,7 +350,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `joined snapshot enforces ten thousand UTF16 characters including separators`() {
+    fun `합친 스냅샷은 구분자를 포함한 UTF16 문자 1만 자 제한을 지킨다`() {
         val token = token()
         val (version, selected) = passageFixture(listOf(1 to "𐐀".repeat(2500), 2 to "가".repeat(4999)))
         put(token, UUID.randomUUID(), request(version = version, endVerse = 2)).andExpect { status { isOk() } }
@@ -364,7 +364,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `completed reflection changes independently with retries while original completion and legacy PUT stay immutable`() {
+    fun `완료 후 묵상은 독립적으로 재시도 수정하되 원래 완료 내용과 기존 PUT은 바꾸지 않는다`() {
         val token = token()
         val id = completedCopy(token)
         val before = copies.findById(id).orElseThrow()
@@ -397,7 +397,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `reflection PATCH requires authentication ownership completed state and valid revision and length`() {
+    fun `묵상 PATCH는 인증 소유권 완료 상태와 버전 및 길이를 검증한다`() {
         val token = token()
         val id = completedCopy(token)
         mvc.patch("/api/v1/scripture-copies/$id/reflection") {
@@ -417,7 +417,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `parallel reflection changes have one winner and identical stale retries keep its revision`() {
+    fun `동시 묵상 수정은 한 요청만 성공하고 같은 오래된 재시도는 그 버전을 유지한다`() {
         val token = token()
         val id = completedCopy(token)
         val outcomes = parallel(List(4) { index -> { patch(token, id, "묵상 $index", 2).andReturn().response.status } })
@@ -430,7 +430,7 @@ class ScriptureCopyControllerTests(
     }
 
     @Test
-    fun `reflection and deletion race cannot recreate record or silently discard a newer reflection`() {
+    fun `묵상 수정과 삭제가 경합해도 기록을 재생성하거나 최신 묵상을 조용히 버리지 않는다`() {
         val token = token()
         val id = completedCopy(token)
         val outcomes = parallel(listOf(

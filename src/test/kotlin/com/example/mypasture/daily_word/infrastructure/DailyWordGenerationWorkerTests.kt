@@ -60,7 +60,7 @@ class DailyWordGenerationWorkerTests(
     }
 
     @Test
-    fun `worker creates one grounded draft and completes job`() = runTest {
+    fun `작업자는 근거 있는 초안 한 건을 만들고 작업을 완료한다`() = runTest {
         retriever.citation = sourceCitation()
         val date = LocalDate.of(2026, 9, 5)
         val job = service.queueGeneration(date, UUID.randomUUID(), UUID.randomUUID(), false, "오늘의 말씀 생성 worker 검증")

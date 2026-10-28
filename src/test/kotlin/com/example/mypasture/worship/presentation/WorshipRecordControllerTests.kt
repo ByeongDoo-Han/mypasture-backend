@@ -32,7 +32,7 @@ class WorshipRecordControllerTests(
     @Autowired private val jwt: JwtTokenProvider,
 ) {
     @Test
-    fun `swagger exposes worship record contract and bearer authentication`() {
+    fun `Swagger는 예배 기록 계약과 Bearer 인증을 보여준다`() {
         val admin = users.saveAndFlush(UserEntity(displayName = "예배 문서 관리자", role = UserRole.ADMIN))
         val adminToken = jwt.issueAccessToken(admin).accessToken
         mvc.get("/swagger-ui/index.html") { header("Authorization", "Bearer $adminToken") }
@@ -46,7 +46,7 @@ class WorshipRecordControllerTests(
     }
 
     @Test
-    fun `owner creates updates and deletes while another user cannot read`() {
+    fun `소유자는 예배 기록을 생성 수정 삭제하고 다른 사용자는 읽을 수 없다`() {
         val owner = token()
         val created = mvc.post("/api/v1/worship-records") {
             header("Authorization", "Bearer $owner")
@@ -85,7 +85,7 @@ class WorshipRecordControllerTests(
     }
 
     @Test
-    fun `invalid range and missing verse are rejected`() {
+    fun `잘못된 구절 범위와 없는 절은 거부된다`() {
         mvc.get("/api/v1/worship-records").andExpect { status { isUnauthorized() } }
         val owner = token()
         listOf(request(1, 51), request(2, 1), request(999, 999)).forEach { body ->
@@ -98,7 +98,7 @@ class WorshipRecordControllerTests(
     }
 
     @Test
-    fun `KRV local scripture version can be recorded`() {
+    fun `로컬 개역한글 번역본으로도 예배 기록을 만들 수 있다`() {
         bibleImporter.importKrv()
         val owner = token()
         mvc.post("/api/v1/worship-records") {

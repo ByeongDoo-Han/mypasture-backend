@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 /** AI가 짧은 질문을 반환해도 생성 요청을 실패시키지 않는지 검증합니다. */
 class GeneratedQuietTimeQuestionsTests {
     @Test
-    fun `short or empty model output gets grounded fallback and preserves usage`() {
+    fun `모델 출력이 짧거나 비어 있으면 말씀 근거 질문으로 대체하고 사용량을 보존한다`() {
         val generated = GeneratedQuietTimeQuestions(
             observationQuestions = listOf("왜?", "본문에서 강조되는 표현은 무엇인가요?"),
             meditationQuestions = emptyList(),

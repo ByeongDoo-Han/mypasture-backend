@@ -50,7 +50,7 @@ class ModerationControllerTests(
     @Autowired private val aiResponseCodec: AiRequestResponseCodec,
 ) {
     @Test
-    fun `participant reports and blocks a qt answer and admin hides it`() {
+    fun `참여자가 QT 답변을 신고 차단하고 관리자가 숨긴다`() {
         val fixture = createJoinedSession()
         val answerId = saveAnswer(fixture.sessionId, fixture.member.token, "신고 검증용 QT 답변")
         val reportBody = mapOf(
@@ -115,7 +115,7 @@ class ModerationControllerTests(
     }
 
     @Test
-    fun `ordinary user cannot inspect the moderation queue`() {
+    fun `일반 사용자는 신고 관리 대기열을 볼 수 없다`() {
         mockMvc.get("/api/v1/admin/moderation/reports") {
             header("Authorization", "Bearer ${createUser("일반사용자").token}")
         }.andExpect {
@@ -125,7 +125,7 @@ class ModerationControllerTests(
     }
 
     @Test
-    fun `high confidence abusive qt answer is rejected before publishing`() {
+    fun `악성 확률이 높은 QT 답변은 게시 전에 거부한다`() {
         val fixture = createJoinedSession()
         mockMvc.put("/api/v1/quiet-time/sessions/${fixture.sessionId}/answers/MEDITATION/0") {
             header("Authorization", "Bearer ${fixture.member.token}")
@@ -139,7 +139,7 @@ class ModerationControllerTests(
     }
 
     @Test
-    fun `only the owner can report a completed AI answer`() {
+    fun `완료된 AI 답변은 소유자만 신고할 수 있다`() {
         val owner = users.save(UserEntity(email = "moderation-ai-owner-${UUID.randomUUID()}@example.com", displayName = "AI Owner"))
         val stranger = users.save(UserEntity(email = "moderation-ai-stranger-${UUID.randomUUID()}@example.com", displayName = "AI Stranger"))
         val turnId = saveCompletedAiAnswer(owner.id)

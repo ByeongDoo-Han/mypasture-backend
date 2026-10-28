@@ -11,7 +11,7 @@ class AiSseTestSupportTests {
     private val required = setOf("delta", "response", "citations", "usage", "done")
 
     @Test
-    fun `terminal may arrive after five seconds before MVC and runner complete within shared bound`() {
+    fun `종료 이벤트가 5초 뒤 와도 MVC와 실행기가 공동 시간 제한 안에 끝나면 성공한다`() {
         var elapsedMs = 0L
         var mvcCompleted = false
         val stages = mutableListOf<String>()
@@ -35,7 +35,7 @@ class AiSseTestSupportTests {
     }
 
     @Test
-    fun `marker inside data and unfinished terminal frame cannot complete stream`() {
+    fun `데이터 안의 종료 표시와 미완성 종료 프레임은 완료로 처리하지 않는다`() {
         for (body in listOf(frame("delta", "event:done"), completeBody().removeSuffix("\n\n"))) {
             val failure = failureFor(body = body)
             assertTrue(failure.message!!.contains("SSE terminal 'done' frame"))
@@ -43,7 +43,7 @@ class AiSseTestSupportTests {
     }
 
     @Test
-    fun `each required success event remains mandatory after terminal completion`() {
+    fun `종료 뒤에도 필수 성공 이벤트가 모두 있어야 한다`() {
         for (missing in required - "done") {
             val failure = failureFor(body = completeBody(required - missing))
             assertTrue(failure.message!!.contains("missing required events: [$missing]"))
@@ -52,14 +52,14 @@ class AiSseTestSupportTests {
     }
 
     @Test
-    fun `MVC completion missing after terminal fails distinctly`() {
+    fun `종료 이벤트 뒤 MVC 완료가 없으면 별도 오류로 실패한다`() {
         val failure = failureFor(awaitMvc = { throw IllegalStateException("Async result not set") })
         assertTrue(failure.message!!.contains("MVC async completion"))
         assertTrue(failure.cause is IllegalStateException)
     }
 
     @Test
-    fun `MVC cannot consume more than remaining shared bound`() {
+    fun `MVC는 공동 시간 제한의 남은 시간을 넘겨 사용할 수 없다`() {
         var elapsedMs = 0L
         val failure = assertFailsWith<AssertionError> {
             AiSseTestSupport.awaitCompletion(
@@ -73,17 +73,17 @@ class AiSseTestSupportTests {
     }
 
     @Test
-    fun `completed MVC and terminal cannot hide unfinished runner`() {
+    fun `MVC와 종료 이벤트가 완료돼도 실행기가 미완료면 성공으로 숨기지 않는다`() {
         assertTrue(failureFor(isIdle = { false }).message!!.contains("AI streaming runner idle"))
     }
 
     @Test
-    fun `error is not successful done completion`() {
+    fun `오류 이벤트는 성공 완료로 처리하지 않는다`() {
         assertTrue(failureFor(body = frame("error", "{\"code\":\"AI_GROUNDING_NOT_FOUND\"}")).message!!.contains("Unexpected SSE error"))
     }
 
     @Test
-    fun `error terminal has its own bounded completion path`() {
+    fun `오류 종료에는 별도 시간 제한 경로를 적용한다`() {
         var mvc = false
         val frames = AiSseTestSupport.awaitCompletion(
             body = { frame("error", "{\"code\":\"AI_GROUNDING_NOT_FOUND\"}") },

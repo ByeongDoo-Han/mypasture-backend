@@ -14,7 +14,7 @@ class DailyWordRotationCatalogSourceTests {
     private val catalog = DailyWordRotationCatalog()
 
     @Test
-    fun `expanded continuous catalog preserves old prefix and covers verified Genesis chapters exactly once`() {
+    fun `확장한 연속 읽기 목록은 기존 앞부분을 보존하고 확인된 창세기 장을 정확히 한 번 포함한다`() {
         val originalRanges = listOf(
             Triple(1, 1, 5), Triple(1, 6, 8), Triple(1, 9, 13), Triple(1, 14, 19), Triple(1, 20, 23), Triple(1, 24, 31),
             Triple(2, 1, 3), Triple(2, 4, 9), Triple(2, 10, 14), Triple(2, 15, 17), Triple(2, 18, 25),
@@ -40,7 +40,7 @@ class DailyWordRotationCatalogSourceTests {
     }
 
     @Test
-    fun `verified Genesis catalog matches every actual source verse without skipping or duplicating text`() {
+    fun `검증한 창세기 목록은 실제 원본의 모든 절을 누락과 중복 없이 포함한다`() {
         val directory = Path.of("data/kor_html")
         val chapterCount = if (Files.isDirectory(directory)) Files.list(directory).use { files ->
             files.filter { Regex("[1-3]?[A-Z]{2,3}\\d+\\.htm").matches(it.fileName.toString()) }.count()
@@ -64,7 +64,7 @@ class DailyWordRotationCatalogSourceTests {
     }
 
     @Test
-    fun `every explicit range exists completely in actual Korean source files`() {
+    fun `명시한 모든 범위는 실제 한글 원본 파일에 완전히 존재한다`() {
         val directory = Path.of("data/kor_html")
         val chapterCount = if (Files.isDirectory(directory)) Files.list(directory).use { files ->
             files.filter { Regex("[1-3]?[A-Z]{2,3}\\d+\\.htm").matches(it.fileName.toString()) }.count()
@@ -99,7 +99,7 @@ class DailyWordRotationCatalogSourceTests {
     }
 
     @Test
-    fun `every day uses a single verse from an existing theme and legacy reading catalog remains available`() {
+    fun `매일 기존 주제의 한 절만 사용하고 이전 읽기 목록도 유지한다`() {
         val monday = LocalDate.of(2026, 10, 5)
         for ((offset, topic) in DailyWordTopic.entries.withIndex()) {
             val entries = catalog.themedEntries.getValue(topic)
@@ -116,7 +116,7 @@ class DailyWordRotationCatalogSourceTests {
     }
 
     @Test
-    fun `weekend dates rotate among existing themes without returning unclassified passages`() {
+    fun `주말 날짜는 미분류 구절 대신 기존 주제를 순환한다`() {
         val dates = listOf(LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 11), LocalDate.of(2026, 10, 17))
         assertEquals(3, dates.map(catalog::topic).distinct().size)
         dates.forEach { date ->
@@ -125,7 +125,7 @@ class DailyWordRotationCatalogSourceTests {
     }
 
     @Test
-    fun `each weekday uses all its entries before repetition and remains date deterministic`() {
+    fun `각 요일은 모든 항목을 한 번씩 쓴 뒤 반복하고 날짜에 따라 결과가 일정하다`() {
         val monday = LocalDate.of(2026, 10, 5)
         for ((offset, topic) in DailyWordTopic.entries.withIndex()) {
             val start = monday.plusDays(offset.toLong())

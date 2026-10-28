@@ -14,7 +14,7 @@ class HealthProbeSecurityTests(
     @Autowired private val mockMvc: MockMvc,
 ) {
     @Test
-    fun `liveness probe is publicly accessible`() {
+    fun `생존 상태 확인은 인증 없이 접근할 수 있다`() {
         mockMvc.get("/actuator/health/liveness")
             .andExpect {
                 status { isOk() }
@@ -22,7 +22,7 @@ class HealthProbeSecurityTests(
     }
 
     @Test
-    fun `readiness probe is publicly accessible`() {
+    fun `준비 상태 확인은 인증 없이 접근할 수 있다`() {
         mockMvc.get("/actuator/health/readiness")
             .andExpect {
                 status { isOk() }

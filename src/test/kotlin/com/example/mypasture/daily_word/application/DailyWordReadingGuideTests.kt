@@ -19,7 +19,7 @@ class DailyWordReadingGuideTests {
     private val mapper = DailyWordReadingGuideMapper(catalog)
 
     @Test
-    fun `catalog guide has exact ordered neighbors and non-wrapping endpoint boundaries`() {
+    fun `연속 읽기 안내는 정해진 순서와 끝 경계를 정확히 지키고 순환하지 않는다`() {
         val entries = catalog.continuousEntries
         for ((index, entry) in entries.withIndex()) {
             val guide = requireNotNull(catalog.guide(entry.id))
@@ -36,7 +36,7 @@ class DailyWordReadingGuideTests {
     }
 
     @Test
-    fun `null unknown and themed catalog ids never receive continuous guide`() {
+    fun `없는 ID 주제별 ID에는 연속 읽기 안내를 제공하지 않는다`() {
         assertNull(catalog.guide(null))
         assertNull(catalog.guide(""))
         assertNull(catalog.guide("reading-GEN-51-1"))
@@ -44,7 +44,7 @@ class DailyWordReadingGuideTests {
     }
 
     @Test
-    fun `matching public snapshots expose only canonical neighboring Bible references`() {
+    fun `일치하는 공개 스냅샷에는 정규 성경의 이웃 위치만 제공한다`() {
         val entries = catalog.continuousEntries
         for ((index, entry) in entries.withIndex()) {
             val snapshot = word(entry).apply { bookName = "stored display name must not replace canonical neighbor names" }
@@ -78,7 +78,7 @@ class DailyWordReadingGuideTests {
     }
 
     @Test
-    fun `mapper refuses each mismatched snapshot field rather than inferring a neighboring passage`() {
+    fun `스냅샷 필드가 하나라도 맞지 않으면 이웃 본문을 추정하지 않는다`() {
         val entry = catalog.continuousEntries.first()
         val mismatches: List<Pair<String, (DailyWordEntity) -> Unit>> = listOf(
             "book" to { it.bookCode = "EXO" },
@@ -105,7 +105,7 @@ class DailyWordReadingGuideTests {
     }
 
     @Test
-    fun `legacy manual and themed publication remain readable without guide`() {
+    fun `기존 수동 게시와 주제별 게시도 안내 없이 조회할 수 있다`() {
         val legacy = word(catalog.continuousEntries.first()).apply {
             source = DailyWordSource.MANUAL
             readingMode = null
@@ -121,7 +121,7 @@ class DailyWordReadingGuideTests {
     }
 
     @Test
-    fun `matching metadata on manual AI draft or rejected content cannot advertise automatic guide`() {
+    fun `수동 AI 초안이나 거부된 콘텐츠는 메타데이터가 일치해도 자동 안내를 표시하지 않는다`() {
         val entry = catalog.continuousEntries.first()
         for (source in listOf(DailyWordSource.MANUAL, DailyWordSource.AI)) {
             val snapshot = word(entry).apply { this.source = source }
@@ -134,7 +134,7 @@ class DailyWordReadingGuideTests {
     }
 
     @Test
-    fun `public controller includes matching guide while retaining canonical first verse and range`() {
+    fun `공개 API는 일치하는 안내를 제공하면서 정규 첫 절과 범위를 보존한다`() {
         val snapshot = word(catalog.continuousEntries[6])
         val service = Mockito.mock(DailyWordService::class.java)
         Mockito.`when`(service.getPublished(snapshot.wordDate)).thenReturn(snapshot)

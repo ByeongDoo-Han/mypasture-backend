@@ -43,7 +43,7 @@ class AiContextDeletionGuardPostgresTests {
             VALUES ('${UUID.randomUUID()}','$user','FREE','ACTIVE','opaque-context',now()+interval '1 day')""")
     }
 
-    @Test fun `legacy deletion invalidates owner contexts but preserves unrelated answers and zero row retry`() = database { schema, _ ->
+    @Test fun `기존 삭제는 소유자 문맥을 무효화하고 다른 답변 및 삭제할 행이 없는 재시도는 보존한다`() = database { schema, _ ->
         connection(schema).use { c ->
             val owner=c.user(); val other=c.user(); val root=c.history(owner); c.history(owner); c.history(other)
             c.conversation(owner); c.conversation(other)
@@ -59,7 +59,7 @@ class AiContextDeletionGuardPostgresTests {
         }
     }
 
-    @Test fun `legacy lock inversion fails atomically with NOWAIT and succeeds on retry`() = database { schema, _ ->
+    @Test fun `기존 잠금 역순은 NOWAIT으로 원자적으로 실패하고 재시도하면 성공한다`() = database { schema, _ ->
         connection(schema).use { setup ->
             val owner=setup.user(); val root=setup.history(owner); setup.history(owner); setup.conversation(owner)
             connection(schema).use { current -> connection(schema).use { legacy ->
@@ -78,7 +78,7 @@ class AiContextDeletionGuardPostgresTests {
         }
     }
 
-    @Test fun `multi owner delete and user cascade invalidate only affected owners`() = database { schema, _ ->
+    @Test fun `여러 소유자 삭제와 사용자 연쇄 삭제는 영향받은 소유자만 무효화한다`() = database { schema, _ ->
         connection(schema).use { c ->
             val a=c.user(); val b=c.user(); val other=c.user()
             val ar=c.history(a); c.history(a); val br=c.history(b); c.history(b); c.history(other)
@@ -92,7 +92,7 @@ class AiContextDeletionGuardPostgresTests {
         }
     }
 
-    @Test fun `bulk legacy delete rolls back every owner if later user lock is unavailable`() = database { schema, _ ->
+    @Test fun `일괄 기존 삭제는 뒤에 있는 사용자 잠금을 얻지 못하면 모든 소유자를 롤백한다`() = database { schema, _ ->
         connection(schema).use { setup ->
             val owners=listOf(setup.user(),setup.user()).sortedBy { it.toString() }
             val roots=owners.map { setup.history(it) }
@@ -114,7 +114,7 @@ class AiContextDeletionGuardPostgresTests {
         }
     }
 
-    @Test fun `overlapping legacy multi owner deletes rollback deadlock victim without partial success`() = database { schema, _ ->
+    @Test fun `겹치는 다중 소유자 삭제의 교착 피해자는 부분 성공 없이 롤백된다`() = database { schema, _ ->
         connection(schema).use { setup ->
             val a=setup.user(); val b=setup.user()
             val ar=setup.history(a); setup.history(a); val br=setup.history(b); setup.history(b)
@@ -143,7 +143,7 @@ class AiContextDeletionGuardPostgresTests {
         }
     }
 
-    @Test fun `upgrade from 42 point 3 backfills ranges and preserves existing content`() {
+    @Test fun `V42 점 3에서 업그레이드할 때 범위를 채우고 기존 내용을 보존한다`() {
         val schema="upgrade_${UUID.randomUUID().toString().replace("-", "")}"
         fun migration(target: String)=Flyway.configure().dataSource(System.getenv("AI_HISTORY_TEST_JDBC_URL"),
             System.getenv("AI_HISTORY_TEST_JDBC_USER"),System.getenv("AI_HISTORY_TEST_JDBC_PASSWORD"))

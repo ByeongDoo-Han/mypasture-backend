@@ -14,28 +14,28 @@ class AiCitationValidatorTests {
     private val citation = BibleCitation(101, "KOR1910", "시편", 23, 1, "여호와는 나의 목자시니")
 
     @Test
-    fun `returns only citations actually used by answer`() {
+    fun `답변에서 실제 사용한 인용만 반환한다`() {
         val used = validator.validate("시편 23:1의 의미를 묵상해 보세요 [101]", listOf(citation))
 
         assertEquals(listOf(citation), used)
     }
 
     @Test
-    fun `rejects answer without citation marker`() {
+    fun `인용 표시가 없는 답변을 거부한다`() {
         assertThrows(AiProviderException::class.java) {
             validator.validate("말씀을 묵상해 보세요", listOf(citation))
         }
     }
 
     @Test
-    fun `rejects verse id not returned by retrieval`() {
+    fun `검색 결과에 없는 구절 ID를 거부한다`() {
         assertThrows(AiProviderException::class.java) {
             validator.validate("근거입니다 [999]", listOf(citation))
         }
     }
 
     @Test
-    fun `rejects invented chapter and verse`() {
+    fun `지어낸 장과 절을 거부한다`() {
         val error = assertThrows(AiProviderException::class.java) {
             validator.validate("시편 99:99를 읽어보세요 [101]", listOf(citation))
         }

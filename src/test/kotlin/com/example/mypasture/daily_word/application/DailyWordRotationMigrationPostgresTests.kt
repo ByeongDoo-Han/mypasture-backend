@@ -60,7 +60,7 @@ class DailyWordRotationMigrationPostgresTests {
     }
 
     @Test
-    fun `upgrade preserves earlier snapshots and supports old SQL after 42 point 8`() = database("42.7") { schema ->
+    fun `업그레이드는 이전 스냅샷을 보존하고 V42 점 8 뒤에도 옛 SQL을 지원한다`() = database("42.7") { schema ->
         connection(schema).use { connection ->
             val earlier = connection.legacy("2026-10-04")
             migration(schema, "42.8").migrate()
@@ -75,7 +75,7 @@ class DailyWordRotationMigrationPostgresTests {
     }
 
     @Test
-    fun `date uniqueness and valid nullable range remain enforced on actual PostgreSQL`() = database("42.8") { schema ->
+    fun `실제 PostgreSQL에서도 날짜 유일성과 선택적 범위 제약을 지킨다`() = database("42.8") { schema ->
         connection(schema).use { connection ->
             val id = connection.legacy("2026-10-05")
             assertEquals("23505", assertThrows(SQLException::class.java) { connection.legacy("2026-10-05") }.sqlState)

@@ -34,7 +34,7 @@ class BibleCursorSearchControllerTests(
     @Autowired private val verses: BibleVerseEntityRepository,
     @Autowired private val entityManagerFactory: EntityManagerFactory,
 ) {
-    @Test fun `one Korean character returns book matches and every verse exactly once in canonical order`() {
+    @Test fun `한글 한 글자 검색은 책과 모든 절을 정규 순서로 중복 없이 반환한다`() {
         val fixtures = (1..24).map { fixture("GEN", 49, it, "요 검색검증 $it") } +
             (1..2).map { fixture("GEN", 50, it, "요 검색검증 $it") } +
             (1..19).map { fixture("JHN", 1, it, "요 검색검증 $it") }
@@ -57,7 +57,7 @@ class BibleCursorSearchControllerTests(
         assertEquals(found.size, found.distinct().size)
     }
 
-    @Test fun `wildcards escape character and backslash are literal and Latin matching ignores case`() {
+    @Test fun `와일드카드 이스케이프 문자 역슬래시는 문자 그대로 다루고 영문은 대소문자를 구분하지 않는다`() {
         val texts = listOf("표시 100% literal", "밑줄 _ literal", "기호 ! literal", "역슬래시 \\ literal", "MiXeD casing")
         verses.saveAllAndFlush(texts.mapIndexed { index, text -> fixture("GEN", 49, index + 1, text) })
         for ((keyword, text) in listOf("%", "_", "!", "\\", "mixed").zip(texts)) {
@@ -67,7 +67,7 @@ class BibleCursorSearchControllerTests(
         }
     }
 
-    @Test fun `default and changed page size normalize keyword and last or empty pages have no cursor`() {
+    @Test fun `기본 및 변경한 페이지 크기에서도 검색어를 정규화하고 마지막 빈 페이지에는 커서가 없다`() {
         verses.saveAllAndFlush((1..3).map { fixture("GEN", 49, it, "요 정규화 $it") })
         val normalized = search(" ${Normalizer.normalize("요", Normalizer.Form.NFD)} ", size = 1, version = "kor1910")
         assertEquals("요", normalized["keyword"].asText()); assertEquals("KOR1910", normalized["version"].asText())
@@ -81,7 +81,7 @@ class BibleCursorSearchControllerTests(
         assertFalse(exact["hasNext"].asBoolean()); assertTrue(exact["nextCursor"].isNull)
     }
 
-    @Test fun `invalid input and crossed cursors produce safe domain errors while unsupported version is not found`() {
+    @Test fun `잘못된 입력과 다른 검색의 커서는 안전한 도메인 오류를 반환하고 지원하지 않는 번역본은 찾을 수 없다`() {
         val token = BibleSearchCursorCodec.encode("KOR1910", "요", BibleSearchPosition(1, 1, 1, 1))
         for (keyword in listOf("", "   ", "가".repeat(51))) invalid(keyword = keyword)
         for (size in listOf(0, 51)) invalid(size = size)
@@ -93,7 +93,7 @@ class BibleCursorSearchControllerTests(
         }
     }
 
-    @Test fun `cursor page fetches verses and books in one bounded query without count or N plus one`() {
+    @Test fun `커서 페이지는 개수 조회나 N 더하기 1 없이 제한된 쿼리 한 번으로 절과 책을 가져온다`() {
         verses.saveAllAndFlush((1..21).map { fixture("GEN", 49, it, "검색성능검증 $it") })
         val statistics = entityManagerFactory.unwrap(SessionFactory::class.java).statistics
         val wasEnabled = statistics.isStatisticsEnabled

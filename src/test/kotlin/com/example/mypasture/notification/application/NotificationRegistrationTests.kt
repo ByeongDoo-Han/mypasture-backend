@@ -24,7 +24,7 @@ class NotificationRegistrationTests(
     @Autowired private val deviceRepository: NotificationDeviceRepository,
 ) {
     @Test
-    fun `same user and installation registration is idempotent`() {
+    fun `같은 사용자와 설치의 반복 등록은 멱등하다`() {
         val user = newUser()
         val deviceId = "device-${UUID.randomUUID()}"
         val token = "token-${UUID.randomUUID()}"
@@ -38,7 +38,7 @@ class NotificationRegistrationTests(
     }
 
     @Test
-    fun `same token moves to the latest authenticated user`() {
+    fun `같은 토큰은 마지막으로 인증한 사용자에게 옮겨진다`() {
         val previousUser = newUser()
         val currentUser = newUser()
         val deviceId = "device-${UUID.randomUUID()}"
@@ -54,7 +54,7 @@ class NotificationRegistrationTests(
     }
 
     @Test
-    fun `unregister keeps history inactive and registration creates a new active installation`() {
+    fun `등록 해제는 비활성 이력을 남기고 재등록은 새 활성 설치를 만든다`() {
         val user = newUser()
         val deviceId = "device-${UUID.randomUUID()}"
         val token = "token-${UUID.randomUUID()}"
@@ -70,7 +70,7 @@ class NotificationRegistrationTests(
     }
 
     @Test
-    fun `active token replaces another active installation without deleting history`() {
+    fun `활성 토큰을 다른 활성 설치로 옮겨도 과거 이력은 삭제하지 않는다`() {
         val currentUser = newUser()
         val tokenOwner = newUser()
         val deviceId = "device-${UUID.randomUUID()}"

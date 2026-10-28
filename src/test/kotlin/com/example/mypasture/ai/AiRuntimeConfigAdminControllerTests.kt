@@ -28,7 +28,7 @@ class AiRuntimeConfigAdminControllerTests(
     @Autowired private val versionRepository: AiRuntimeConfigVersionRepository,
 ) {
     @Test
-    fun `ordinary user cannot read or change runtime model configuration`() {
+    fun `일반 사용자는 실행 중인 모델 설정을 조회하거나 변경할 수 없다`() {
         mockMvc.get("/api/v1/admin/ai/runtime-config") {
             header("Authorization", "Bearer ${createUserToken("일반 사용자")}")
         }.andExpect {
@@ -38,7 +38,7 @@ class AiRuntimeConfigAdminControllerTests(
     }
 
     @Test
-    fun `admin activation is idempotent and rollback creates an immutable new version`() {
+    fun `관리자 설정 활성화는 멱등하고 롤백은 새 불변 버전을 만든다`() {
         val operationId = UUID.randomUUID()
         val before = versionRepository.count()
         val activationBody = activationRequest(operationId, "gpt-5.6-terra", "gpt-5.6-luna", "운영 품질과 비용 균형 설정 활성화")
@@ -79,7 +79,7 @@ class AiRuntimeConfigAdminControllerTests(
     }
 
     @Test
-    fun `admin cannot activate a model outside the server allowlist`() {
+    fun `서버 허용 목록 밖의 모델은 관리자가 활성화할 수 없다`() {
         mockMvc.post("/api/v1/admin/ai/runtime-config/activate") {
             header("Authorization", "Bearer ${adminToken()}")
             contentType = MediaType.APPLICATION_JSON
@@ -91,7 +91,7 @@ class AiRuntimeConfigAdminControllerTests(
     }
 
     @Test
-    fun `daily word runtime configuration is isolated from ai pastor`() {
+    fun `오늘의 말씀 모델 설정은 AI 목자 설정과 분리된다`() {
         val activated = postBody(
             "/api/v1/admin/ai/runtime-config/activate",
             activationRequest(

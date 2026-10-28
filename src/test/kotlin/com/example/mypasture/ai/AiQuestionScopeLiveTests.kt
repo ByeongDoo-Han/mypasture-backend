@@ -20,7 +20,7 @@ import java.util.UUID
 class AiQuestionScopeLiveTests {
     @Test
     @Timeout(120)
-    fun `configured evaluator separates religious pastoral unrelated and unclear requests`() = runBlocking {
+    fun `실제 평가기는 종교 목회 상담 무관 모호 요청을 구분한다`() = runBlocking {
         val environment = System.getenv() + scopeEnvironment()
         val key = environment["OPENAI_API_KEY"]?.takeIf { it.startsWith("sk-") }
             ?: error("OPENAI_API_KEY must be configured for the opt-in scope evaluation")

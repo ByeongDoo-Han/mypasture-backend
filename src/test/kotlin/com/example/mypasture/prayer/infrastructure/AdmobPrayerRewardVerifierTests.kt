@@ -21,7 +21,7 @@ class AdmobPrayerRewardVerifierTests {
     })
 
     @Test
-    fun `valid signed callback preserves intent transaction and ad unit`() {
+    fun `유효하게 서명된 콜백은 의도 거래 ID 광고 단위를 보존한다`() {
         val intent = UUID.randomUUID()
         val at = Instant.now()
         val message = "ad_unit=ca-app-pub-1234567890123456/1234567890&custom_data=$intent&timestamp=${at.toEpochMilli()}&transaction_id=tx-123"
@@ -33,7 +33,7 @@ class AdmobPrayerRewardVerifierTests {
     }
 
     @Test
-    fun `changed signed data or malformed signature cannot grant reward`() {
+    fun `서명 데이터 변경이나 잘못된 서명으로는 보상을 지급할 수 없다`() {
         val message = "ad_unit=ca-app-pub-1234567890123456/1234567890&custom_data=${UUID.randomUUID()}&timestamp=${Instant.now().toEpochMilli()}&transaction_id=tx-123"
         assertThrows(PrayerConflictException::class.java) { verifier.verify(signed(message).replace("tx-123", "tx-124")) }
         assertThrows(PrayerConflictException::class.java) { verifier.verify("$message&signature=invalid&key_id=7") }

@@ -59,7 +59,7 @@ class AiHistoryControllerTests(
     @Autowired private val streamingRunner: com.example.mypasture.config.AiStreamingCoroutineRunner,
 ) {
     @Test
-    fun `history requires authentication and hides other users records`() {
+    fun `답변 기록은 인증이 필요하고 다른 사용자 기록을 숨긴다`() {
         val ownerEmail = "history-http-${UUID.randomUUID()}@example.com"
         val otherEmail = "history-http-${UUID.randomUUID()}@example.com"
         val ownerToken = issueToken(ownerEmail)
@@ -106,7 +106,7 @@ class AiHistoryControllerTests(
     }
 
     @Test
-    fun `invalid cursor and invalid size return no-store 400`() {
+    fun `잘못된 커서와 크기는 캐시 금지 400 응답을 반환한다`() {
         val token = issueToken("history-http-${UUID.randomUUID()}@example.com")
         mockMvc.get("/api/v1/ai/history?size=0") {
             header("Authorization", "Bearer $token")
@@ -122,7 +122,7 @@ class AiHistoryControllerTests(
     }
 
     @Test
-    fun `cursor error contract allows bad inside trace ID but rejects cursor leakage`() {
+    fun `커서 오류 응답은 추적 ID의 bad는 허용하고 커서 값 노출은 막는다`() {
         // 유효한 UUID에 cursor와 같은 substring이 있어도 추적 메타데이터는 누출이 아닙니다.
         val traceId = "00000bad-0000-4000-8000-000000000000"
         val request = MockHttpServletRequest("GET", "/api/v1/ai/history").apply {
@@ -155,7 +155,7 @@ class AiHistoryControllerTests(
     }
 
     @Test
-    fun `SSE output disconnect still completes stored history and replay does not duplicate it`() {
+    fun `SSE 연결이 끊겨도 저장을 완료하고 재전송은 기록을 중복 생성하지 않는다`() {
         val token = issueToken("history-disconnect-${UUID.randomUUID()}@example.com")
         val requestId = UUID.randomUUID()
         val writeFailures = AtomicInteger()

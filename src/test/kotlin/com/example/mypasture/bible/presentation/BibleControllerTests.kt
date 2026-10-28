@@ -16,7 +16,7 @@ class BibleControllerTests(
     @Autowired private val mockMvc: MockMvc,
 ) {
     @Test
-    fun `versions returns kor1910`() {
+    fun `번역본 목록에는 1910 성경이 있다`() {
         mockMvc.get("/api/v1/bibles/versions")
             .andExpect {
                 status { isOk() }
@@ -26,7 +26,7 @@ class BibleControllerTests(
     }
 
     @Test
-    fun `books returns canonical bible book list`() {
+    fun `책 목록은 정규 성경 목록을 반환한다`() {
         mockMvc.get("/api/v1/bibles/KOR1910/books")
             .andExpect {
                 status { isOk() }
@@ -38,7 +38,7 @@ class BibleControllerTests(
     }
 
     @Test
-    fun `chapter returns all verses in selected chapter`() {
+    fun `장 조회는 선택한 장의 모든 절을 반환한다`() {
         mockMvc.get("/api/v1/bibles/KOR1910/books/GEN/chapters/1")
             .andExpect {
                 status { isOk() }
@@ -53,7 +53,7 @@ class BibleControllerTests(
     }
 
     @Test
-    fun `missing source chapter returns empty chapter metadata`() {
+    fun `원본에 없는 장은 빈 장 메타데이터를 반환한다`() {
         mockMvc.get("/api/v1/bibles/KOR1910/books/1PE/chapters/5")
             .andExpect {
                 status { isOk() }
@@ -65,7 +65,7 @@ class BibleControllerTests(
     }
 
     @Test
-    fun `psalm three digit source filename is imported`() {
+    fun `시편 세 자리 파일명도 가져온다`() {
         mockMvc.get("/api/v1/bibles/KOR1910/books/PSA/chapters/1")
             .andExpect {
                 status { isOk() }
@@ -75,7 +75,7 @@ class BibleControllerTests(
     }
 
     @Test
-    fun `search returns verses containing keyword with pagination`() {
+    fun `검색은 키워드를 포함한 절을 페이지로 반환한다`() {
         mockMvc.get("/api/v1/bibles/KOR1910/search") {
             param("keyword", "하나님")
             param("page", "0")
@@ -93,7 +93,7 @@ class BibleControllerTests(
     }
 
     @Test
-    fun `search returns requested page`() {
+    fun `검색은 요청한 페이지를 반환한다`() {
         mockMvc.get("/api/v1/bibles/KOR1910/search") {
             param("keyword", "하나님")
             param("page", "1")
@@ -106,7 +106,7 @@ class BibleControllerTests(
     }
 
     @Test
-    fun `verse returns selected verse only`() {
+    fun `절 조회는 선택한 절만 반환한다`() {
         mockMvc.get("/api/v1/bibles/KOR1910/books/창세기/chapters/1/verses/2")
             .andExpect {
                 status { isOk() }
@@ -117,7 +117,7 @@ class BibleControllerTests(
     }
 
     @Test
-    fun `missing verse returns not found`() {
+    fun `없는 절은 찾을 수 없음으로 반환한다`() {
         mockMvc.get("/api/v1/bibles/KOR1910/books/GEN/chapters/1/verses/999")
             .andExpect {
                 status { isNotFound() }

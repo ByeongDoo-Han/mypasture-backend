@@ -11,7 +11,7 @@ class Kor1910SourceIntegrityTests {
     private val parser = Kor1910HtmlBibleParser(BibleProperties("data/kor_html"))
 
     @Test
-    fun `source contains every canonical chapter except first peter five`() {
+    fun `원본에는 베드로전서 5장을 제외한 정규 성경의 모든 장이 있다`() {
         parser.validateSourceDirectory()
         val missing = mutableListOf<String>()
         var availableChapters = 0
@@ -36,7 +36,7 @@ class Kor1910SourceIntegrityTests {
     }
 
     @Test
-    fun `Genesis contains all 1533 verses including restored passages`() {
+    fun `창세기에는 복원된 구절을 포함해 1533절이 모두 있다`() {
         val genesis = BibleCatalog.findBook("GEN")!!
         val chapters = (1..genesis.chapterCount).map { chapter ->
             requireNotNull(parser.readChapter(genesis, chapter))

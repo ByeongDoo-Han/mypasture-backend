@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
 /** 장별 해설의 자동 재작성 횟수와 생성·평가 비용 누적을 검증합니다. */
 class BibleCommentaryGenerationPipelineTests {
     @Test
-    fun `failed candidate is revised once and all usage is accumulated`() = runTest {
+    fun `실패한 주석 후보는 한 번 수정하고 모든 사용량을 합산한다`() = runTest {
         val receivedRevisionIssues = mutableListOf<List<String>>()
         var generationCount = 0
         val generator = BibleCommentaryGeneratorPort { _, _, _, _, issues ->

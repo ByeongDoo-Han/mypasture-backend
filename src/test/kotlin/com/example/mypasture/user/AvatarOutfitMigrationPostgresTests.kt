@@ -26,7 +26,7 @@ class AvatarOutfitMigrationPostgresTests {
         }
         try {
             val flyway = Flyway.configure().dataSource(url, user, password).schemas(schema).defaultSchema(schema)
-                .baselineOnMigrate(true).baselineVersion("42.12").load()
+                .baselineOnMigrate(true).baselineVersion("42.12").target("42.13").load()
             val result = flyway.migrate()
             assertEquals("42.13", result.targetSchemaVersion)
             DriverManager.getConnection(url, user, password).use { connection ->

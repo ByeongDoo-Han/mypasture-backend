@@ -13,7 +13,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
 @EnabledIfEnvironmentVariable(named = "PASTURE_TEST_JDBC_URL", matches = ".+")
 class QuietTimePastureMembershipPostgresTests {
     @Test
-    fun `migration enforces one membership and only pending requests retain real name`() {
+    fun `마이그레이션은 목장 소속을 하나로 제한하고 대기 요청에만 본명을 보관한다`() {
         val url = System.getenv("PASTURE_TEST_JDBC_URL")
         val user = System.getenv("PASTURE_TEST_JDBC_USER") ?: "postgres"
         val password = System.getenv("PASTURE_TEST_JDBC_PASSWORD") ?: ""

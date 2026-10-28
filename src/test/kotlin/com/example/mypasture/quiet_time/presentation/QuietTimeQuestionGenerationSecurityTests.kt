@@ -36,7 +36,7 @@ class QuietTimeQuestionGenerationSecurityTests(
     @Autowired private val verses: BibleVerseEntityRepository,
 ) {
     @Test
-    fun `question generation requires initial authentication and completes async dispatch`() {
+    fun `질문 생성은 처음부터 인증을 요구하고 비동기 작업을 완료한다`() {
         seedVerse()
         val token = issueToken()
         val passage = mockMvc.post("/api/v1/quiet-time/passages/selected") {

@@ -13,7 +13,7 @@ import java.util.UUID
 @EnabledIfEnvironmentVariable(named = "WORSHIP_TEST_JDBC_URL", matches = ".+")
 class WorshipRecordPostgresTests {
     @Test
-    fun `migration allows 50 verses rejects 51 and erases owner data`() {
+    fun `마이그레이션은 50절을 허용하고 51절을 거부하며 소유자 데이터를 삭제한다`() {
         val url = System.getenv("WORSHIP_TEST_JDBC_URL")
         val user = System.getenv("WORSHIP_TEST_JDBC_USER")
         val password = System.getenv("WORSHIP_TEST_JDBC_PASSWORD")

@@ -14,7 +14,7 @@ class BibleQuestionUnderstandingServiceTests {
     private val service = BibleQuestionUnderstandingService()
 
     @Test
-    fun `understands an emotional concern as pastoral counseling`() {
+    fun `정서적 고민을 목회 상담 질문으로 이해한다`() {
         val result = service.understand("요즘 인간관계가 너무 힘들고 불안합니다")
 
         assertEquals(BibleQuestionIntent.PASTORAL_COUNSELING, result.intent)
@@ -25,7 +25,7 @@ class BibleQuestionUnderstandingServiceTests {
     }
 
     @Test
-    fun `understands prayer request without inventing a bible reference`() {
+    fun `기도 요청을 이해하면서 없는 성경 위치를 만들어내지 않는다`() {
         val result = service.understand("감사 기도문을 작성해줘")
 
         assertEquals(BibleQuestionIntent.PRAYER, result.intent)
@@ -34,7 +34,7 @@ class BibleQuestionUnderstandingServiceTests {
     }
 
     @Test
-    fun `parses an explicit Korean bible chapter and verse`() {
+    fun `한글로 쓴 성경 장절을 해석한다`() {
         val result = service.understand("창세기 1장 1절을 설명해줘")
 
         assertEquals(BibleQuestionIntent.BIBLE_EXPLANATION, result.intent)
@@ -45,7 +45,7 @@ class BibleQuestionUnderstandingServiceTests {
     }
 
     @Test
-    fun `parses colon bible reference`() {
+    fun `콜론으로 쓴 성경 위치를 해석한다`() {
         val result = service.understand("요한복음 3:16의 의미가 뭐야?")
 
         assertEquals("JHN", result.reference?.bookCode)
@@ -54,7 +54,7 @@ class BibleQuestionUnderstandingServiceTests {
     }
 
     @Test
-    fun `parses same chapter verse ranges without dropping the end verse`() {
+    fun `같은 장의 구절 범위에서 마지막 절을 누락하지 않는다`() {
         val repeatedChapter = service.understand("고린도전서 15:12 ~ 15:19에서 말하는 부활은 무엇을 뜻하나요?")
         val shortRange = service.understand("고린도전서 15:12-19를 설명해줘")
         val koreanRange = service.understand("고린도전서 15장 12절부터 19절까지 설명해줘")
@@ -69,7 +69,7 @@ class BibleQuestionUnderstandingServiceTests {
     }
 
     @Test
-    fun `rejects cross chapter reversed and oversized ranges`() {
+    fun `장을 넘나들거나 역순이거나 지나치게 긴 범위를 거부한다`() {
         listOf(
             "고린도전서 15:12 ~ 16:1을 설명해줘",
             "고린도전서 15:19 ~ 15:12를 설명해줘",

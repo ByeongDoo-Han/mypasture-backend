@@ -30,7 +30,7 @@ class QuietTimeAdminControllerTests(
     private var cachedAdminToken: String? = null
 
     @Test
-    fun `ordinary user cannot access admin quiet time endpoints`() {
+    fun `일반 사용자는 관리자 QT API에 접근할 수 없다`() {
         mockMvc.get("/api/v1/admin/quiet-time/sessions") {
             header("Authorization", "Bearer ${createUserToken("일반 사용자")}")
         }.andExpect {
@@ -40,7 +40,7 @@ class QuietTimeAdminControllerTests(
     }
 
     @Test
-    fun `admin can filter standalone sessions without receiving answer content`() {
+    fun `관리자는 답변 내용을 받지 않고 일회성 모임을 필터링할 수 있다`() {
         val uniqueTitle = "관리자 필터 ${UUID.randomUUID()}"
         val session = createStandaloneSession(uniqueTitle)
         writeAnswer(session["id"].asText(), "목록에 노출되면 안 되는 민감한 묵상")
@@ -62,7 +62,7 @@ class QuietTimeAdminControllerTests(
     }
 
     @Test
-    fun `statistics increase when a standalone session is created`() {
+    fun `일회성 모임을 만들면 통계가 증가한다`() {
         val before = statistics()
         createStandaloneSession("통계 확인 ${UUID.randomUUID()}")
         val after = statistics()
@@ -72,7 +72,7 @@ class QuietTimeAdminControllerTests(
     }
 
     @Test
-    fun `force close is idempotent and stores one audit record`() {
+    fun `강제 종료는 멱등하고 감사 기록 한 건을 저장한다`() {
         val session = createStandaloneSession("강제 종료 ${UUID.randomUUID()}")
         val sessionId = session["id"].asText()
         val operationId = UUID.randomUUID()
@@ -100,7 +100,7 @@ class QuietTimeAdminControllerTests(
     }
 
     @Test
-    fun `admin qr revocation blocks later participation`() {
+    fun `관리자가 QR을 폐기하면 이후 참여를 막는다`() {
         val session = createStandaloneSession("QR 폐기 ${UUID.randomUUID()}")
         val sessionId = session["id"].asText()
         val offlineCode = session["offlineCode"].asText()
@@ -126,7 +126,7 @@ class QuietTimeAdminControllerTests(
     }
 
     @Test
-    fun `admin action validates reason and rejects reused operation id`() {
+    fun `관리자 조치는 사유를 검증하고 재사용한 작업 ID를 거부한다`() {
         val first = createStandaloneSession("멱등 키 첫 대상 ${UUID.randomUUID()}")
         val second = createStandaloneSession("멱등 키 둘째 대상 ${UUID.randomUUID()}")
         val operationId = UUID.randomUUID()

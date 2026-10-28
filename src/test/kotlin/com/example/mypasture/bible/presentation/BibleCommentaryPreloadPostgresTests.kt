@@ -38,7 +38,7 @@ class BibleCommentaryPreloadPostgresTests(
     @Autowired private val jdbc: JdbcTemplate,
 ) {
     @Test
-    fun `repeat range request persists only one active job per available chapter`() {
+    fun `범위 요청을 반복해도 유효한 장마다 활성 작업 한 건만 저장한다`() {
         assertEquals("PostgreSQL", jdbc.dataSource!!.connection.use { it.metaData.databaseProductName })
         val user = userRepository.saveAndFlush(UserEntity(displayName = "해설 사전 생성 검증 관리자"))
         val genesis = BibleCatalog.findBook("GEN")!!

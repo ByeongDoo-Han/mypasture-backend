@@ -36,7 +36,7 @@ class EmailVerificationControllerTests(
     private lateinit var emailSender: EmailVerificationNotificationSender
 
     @Test
-    fun `verified email token creates account once`() {
+    fun `인증된 이메일 토큰으로 계정을 한 번만 만든다`() {
         val email = "verified-${UUID.randomUUID()}@example.com"
         val code = requestCode(email)
         val verificationToken = confirm(email, code)
@@ -59,7 +59,7 @@ class EmailVerificationControllerTests(
     }
 
     @Test
-    fun `signup without verified email token is rejected`() {
+    fun `인증된 이메일 토큰이 없으면 회원가입을 거부한다`() {
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content =
@@ -71,7 +71,7 @@ class EmailVerificationControllerTests(
     }
 
     @Test
-    fun `too many wrong codes invalidates the current code`() {
+    fun `잘못된 인증 코드를 너무 많이 입력하면 현재 코드를 무효화한다`() {
         val email = "attempts-${UUID.randomUUID()}@example.com"
         val actualCode = requestCode(email)
         val wrongCode = if (actualCode == "999999") "888888" else "999999"

@@ -62,7 +62,7 @@ class AiAssistantFlowTests(
     @Autowired private val retrievalPort: BibleRetrievalPort,
 ) {
     @Test
-    fun `local assistant returns grounded answer and records usage`() {
+    fun `로컬 AI 목자는 근거 있는 답변을 반환하고 사용량을 기록한다`() {
         val user = userRepository.save(UserEntity(email = "ai-${UUID.randomUUID()}@example.com", displayName = "AI Test"))
 
         val answer = useCase.ask(user.id, SubscriptionTier.FREE, "창세기를 설명해주세요")
@@ -82,7 +82,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `feedback is idempotently updated and regeneration does not consume quota`() = runTest {
+    fun `평가를 멱등하게 갱신하고 재생성은 사용 한도를 소비하지 않는다`() = runTest {
         val user = userRepository.save(UserEntity(email = "ai-feedback-${UUID.randomUUID()}@example.com", displayName = "AI Feedback"))
         val question = "창세기 1장 1절을 설명해주세요"
         val original = useCase.ask(user.id, SubscriptionTier.FREE, question)
@@ -113,7 +113,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `another user cannot submit feedback for an answer`() {
+    fun `다른 사용자는 답변을 평가할 수 없다`() {
         val owner = userRepository.save(UserEntity(email = "ai-feedback-owner-${UUID.randomUUID()}@example.com", displayName = "Owner"))
         val stranger = userRepository.save(UserEntity(email = "ai-feedback-stranger-${UUID.randomUUID()}@example.com", displayName = "Stranger"))
         val answer = useCase.ask(owner.id, SubscriptionTier.FREE, "창세기를 설명해주세요 ${UUID.randomUUID()}")
@@ -130,7 +130,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `assistant refuses to answer when no grounded verse exists`() {
+    fun `근거 구절이 없으면 AI 목자는 답변을 거부한다`() {
         val user = userRepository.save(UserEntity(email = "ai-empty-${UUID.randomUUID()}@example.com", displayName = "AI Empty"))
 
         assertThrows(AiGroundingNotFoundException::class.java) {
@@ -141,7 +141,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `explicit bible reference returns the exact database verse`() {
+    fun `명시한 성경 위치에는 DB의 정확한 구절을 반환한다`() {
         val user = userRepository.save(UserEntity(email = "ai-reference-${UUID.randomUUID()}@example.com", displayName = "AI Reference"))
 
         val answer = useCase.ask(user.id, SubscriptionTier.FREE, "창세기 1장 1절을 설명해줘")
@@ -155,7 +155,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `explicit verse range retrieves every database verse in order`() = runTest {
+    fun `명시한 구절 범위는 DB의 모든 절을 순서대로 조회한다`() = runTest {
         val question = questionUnderstandingService.understand("창세기 1:1 ~ 1:2를 설명해줘")
 
         val retrieval = retrievalPort.searchRelevantVerses(question, 1)
@@ -166,7 +166,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `local embedding is deterministic and matches configured dimensions`() = runTest {
+    fun `로컬 임베딩은 같은 입력에 같은 결과를 내고 설정한 차원과 일치한다`() = runTest {
         val first = embeddingPort.embed(listOf("불안할 때의 말씀"))
         val second = embeddingPort.embed(listOf("불안할 때의 말씀"))
 
@@ -176,7 +176,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `streaming assistant emits deltas and records grounded answer`() {
+    fun `스트리밍 답변은 변경분을 전송하고 근거 있는 답변을 기록한다`() {
         val user = userRepository.save(UserEntity(email = "ai-stream-${UUID.randomUUID()}@example.com", displayName = "AI Stream"))
         val deltas = mutableListOf<String>()
 
@@ -189,7 +189,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `streaming reports question understanding search and generation in order`() {
+    fun `스트리밍은 질문 이해 검색 생성 단계를 순서대로 알린다`() {
         val user = userRepository.save(UserEntity(email = "ai-stage-${UUID.randomUUID()}@example.com", displayName = "AI Stage"))
         val stages = mutableListOf<AiAssistantStage>()
 
@@ -213,7 +213,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `daily usage returns free remaining count and premium unlimited policy`() {
+    fun `일일 사용량은 무료 잔여 횟수와 프리미엄 무제한 정책을 보여준다`() {
         val user = userRepository.save(UserEntity(email = "ai-usage-${UUID.randomUUID()}@example.com", displayName = "AI Usage"))
 
         val initial = useCase.dailyUsage(user.id, SubscriptionTier.FREE)
@@ -234,7 +234,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `premium assistant keeps encrypted bounded conversation context`() {
+    fun `프리미엄 대화는 암호화된 제한 길이 문맥을 유지한다`() {
         val user = userRepository.save(UserEntity(email = "ai-premium-${UUID.randomUUID()}@example.com", displayName = "AI Premium"))
 
         val first = useCase.ask(user.id, SubscriptionTier.PREMIUM, "창세기를 설명해주세요")
@@ -250,7 +250,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `premium conversation cannot be continued by another user`() {
+    fun `다른 사용자는 프리미엄 대화를 이어갈 수 없다`() {
         val owner = userRepository.save(UserEntity(email = "ai-owner-${UUID.randomUUID()}@example.com", displayName = "Owner"))
         val stranger = userRepository.save(UserEntity(email = "ai-stranger-${UUID.randomUUID()}@example.com", displayName = "Stranger"))
         val first = useCase.ask(owner.id, SubscriptionTier.PREMIUM, "창세기를 설명해주세요")
@@ -261,7 +261,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `same client request id replays one completed answer without consuming quota twice`() {
+    fun `같은 클라이언트 요청 ID는 사용 한도를 중복 소비하지 않고 완료 답변을 재전송한다`() {
         val user = userRepository.save(UserEntity(email = "ai-idempotent-${UUID.randomUUID()}@example.com", displayName = "AI Idempotent"))
         val clientRequestId = UUID.randomUUID()
 
@@ -275,7 +275,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `same client request id cannot be reused for a different question`() {
+    fun `같은 클라이언트 요청 ID를 다른 질문에 재사용할 수 없다`() {
         val user = userRepository.save(UserEntity(email = "ai-conflict-${UUID.randomUUID()}@example.com", displayName = "AI Conflict"))
         val clientRequestId = UUID.randomUUID()
         useCase.ask(user.id, SubscriptionTier.FREE, "창세기 1장 1절을 설명해주세요", clientRequestId = clientRequestId)
@@ -288,7 +288,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `stale pending request releases quota and records failure`() {
+    fun `오래 대기한 요청은 사용 한도를 돌려주고 실패를 기록한다`() {
         val user = userRepository.save(UserEntity(email = "ai-stale-${UUID.randomUUID()}@example.com", displayName = "AI Stale"))
         val clientRequestId = UUID.randomUUID()
         val reservation = usagePort.reserve(
@@ -310,7 +310,7 @@ class AiAssistantFlowTests(
     }
 
     @Test
-    fun `concurrent quota reservations cannot exceed the free daily limit`() {
+    fun `동시 사용 한도 예약은 무료 일일 한도를 넘지 않는다`() {
         val user = userRepository.save(UserEntity(email = "ai-concurrent-${UUID.randomUUID()}@example.com", displayName = "AI Concurrent"))
         val executor = Executors.newFixedThreadPool(12)
         try {

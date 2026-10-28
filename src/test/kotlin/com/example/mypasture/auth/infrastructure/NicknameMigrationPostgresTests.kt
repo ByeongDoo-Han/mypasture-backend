@@ -46,7 +46,7 @@ class NicknameMigrationPostgresTests {
     }
 
     @Test
-    fun `migration keeps legacy names and rejects duplicate keys until release`() = database { schema ->
+    fun `마이그레이션은 기존 이름을 보존하고 출시 전 중복 키를 거부한다`() = database { schema ->
         connection(schema).use { connection ->
             connection.insert("기존 이름")
             connection.insert("기존 이름")

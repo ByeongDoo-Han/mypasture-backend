@@ -45,7 +45,7 @@ class AiControllerStreamingTests(
     }
 
     @Test
-    fun `authenticated stream completes with delta citations usage and done events`() {
+    fun `인증된 스트림은 변경분 인용 사용량 완료 이벤트를 전송한다`() {
         val email = "ai-sse-${UUID.randomUUID()}@example.com"
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
@@ -115,7 +115,7 @@ class AiControllerStreamingTests(
     }
 
     @Test
-    fun `authenticated usage endpoint reports server quota`() {
+    fun `인증된 사용량 API는 서버 사용 한도를 반환한다`() {
         val token = issueToken("ai-usage-${UUID.randomUUID()}@example.com")
 
         mockMvc.get("/api/v1/ai/usage/today") {
@@ -130,7 +130,7 @@ class AiControllerStreamingTests(
     }
 
     @Test
-    fun `stream preserves grounding failure code`() {
+    fun `스트림은 근거 실패 코드를 유지한다`() {
         val token = issueToken("ai-grounding-${UUID.randomUUID()}@example.com")
         val initial = mockMvc.post("/api/v1/ai/chat/stream") {
             header("Authorization", "Bearer $token")
@@ -147,7 +147,7 @@ class AiControllerStreamingTests(
     }
 
     @Test
-    fun `normal scope errors return 422 without answer blocks`() {
+    fun `일반 응답의 범위 오류는 답변 없이 422를 반환한다`() {
         val token = issueToken("ai-scope-http-${UUID.randomUUID()}@example.com")
         for ((question, code) in listOf("비트코인 시세 알려줘" to "AI_QUESTION_OUT_OF_SCOPE", "그냥" to "AI_QUESTION_SCOPE_UNCLEAR")) {
             val id = UUID.randomUUID()
@@ -167,7 +167,7 @@ class AiControllerStreamingTests(
     }
 
     @Test
-    fun `stream scope error terminates without answer citation prayer or delta`() {
+    fun `스트림의 범위 오류는 답변 인용 기도문 변경분 없이 종료한다`() {
         val token = issueToken("ai-scope-sse-${UUID.randomUUID()}@example.com")
         for ((question, code) in listOf("하나님 불안해요 비트코인 시세 알려줘" to "AI_QUESTION_OUT_OF_SCOPE", "그냥" to "AI_QUESTION_SCOPE_UNCLEAR")) {
             val initial = mockMvc.post("/api/v1/ai/chat/stream") {

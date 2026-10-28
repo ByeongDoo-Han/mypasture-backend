@@ -20,7 +20,7 @@ class SwaggerAccessSecurityTests(
     @Autowired private val jwt: JwtTokenProvider,
 ) {
     @Test
-    fun `swagger entry and specification paths require active admin`() {
+    fun `Swagger 화면과 명세 경로에는 활성 관리자 권한이 필요하다`() {
         val member = users.saveAndFlush(UserEntity(displayName = "문서 접근 일반 사용자"))
         val admin = users.saveAndFlush(UserEntity(displayName = "문서 접근 관리자", role = UserRole.ADMIN))
         val memberToken = jwt.issueAccessToken(member).accessToken

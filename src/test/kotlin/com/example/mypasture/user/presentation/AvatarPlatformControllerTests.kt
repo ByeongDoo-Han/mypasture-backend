@@ -31,7 +31,7 @@ class AvatarPlatformControllerTests(
     @Autowired private val service: AvatarPlatformService,
     @Autowired private val platforms: UserAvatarPlatformRepository,
 ) {
-    @Test fun `only authenticated owner can read and select a platform item`() {
+    @Test fun `인증한 소유자만 발판 아이템을 조회하고 선택할 수 있다`() {
         val first = users.save(UserEntity(displayName = "발판테스트${System.nanoTime()}"))
         val second = users.save(UserEntity(displayName = "다른발판${System.nanoTime()}"))
         val firstToken = jwt.issueAccessToken(first).accessToken
@@ -62,7 +62,7 @@ class AvatarPlatformControllerTests(
         assertTrue(platforms.findById(second.id).isEmpty)
     }
 
-    @Test fun `simultaneous first selections keep a single preference row`() {
+    @Test fun `동시 최초 선택은 설정 행을 한 건만 유지한다`() {
         val user = users.save(UserEntity(displayName = "동시발판${System.nanoTime()}"))
         val executor = Executors.newFixedThreadPool(2)
         val start = CountDownLatch(1)

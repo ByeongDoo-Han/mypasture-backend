@@ -48,7 +48,7 @@ class ScriptureCopyLegacyInsertPostgresTests {
         } }
     }
 
-    @Test fun `42 point 5 legacy insert defect is fixed by upgrade without changing existing ranges`() = database("42.5") { schema ->
+    @Test fun `V42 점 5의 기존 INSERT 결함은 범위를 바꾸지 않고 업그레이드로 수정된다`() = database("42.5") { schema ->
         connection(schema).use { c ->
             val owner=c.owner(); val range=c.copy(owner,2,"5")
             val failure=assertThrows(SQLException::class.java) { c.copy(owner,3) }
@@ -64,7 +64,7 @@ class ScriptureCopyLegacyInsertPostgresTests {
         }
     }
 
-    @Test fun `clean latest schema supports old and new inserts while preserving update constraints`() = database("latest") { schema ->
+    @Test fun `최신 스키마는 수정 제약을 유지하면서 옛 INSERT와 새 INSERT를 모두 지원한다`() = database("latest") { schema ->
         connection(schema).use { c ->
             val owner=c.owner(); c.assertRecord(c.copy(owner,7),7,7)
             val range=c.copy(owner,10,"12"); c.assertRecord(range,10,12)

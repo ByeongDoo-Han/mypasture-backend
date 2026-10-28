@@ -26,7 +26,7 @@ class RuntimeRoleIsolationTests(
     @Autowired private val context: ApplicationContext,
 ) {
     @Test
-    fun `api role excludes singleton scheduled workers`() {
+    fun `API 역할에서는 단일 실행 예약 작업을 제외한다`() {
         assertThat(context.getBeansOfType(AuthTokenCleanupJob::class.java)).isEmpty()
         assertThat(context.getBeansOfType(DailyWordIncidentEmailWorker::class.java)).isEmpty()
         assertThat(context.getBeansOfType(NotificationDispatchJob::class.java)).isEmpty()
@@ -34,13 +34,13 @@ class RuntimeRoleIsolationTests(
     }
 
     @Test
-    fun `migration role disables the web server`() {
+    fun `마이그레이션 역할에서는 웹 서버를 비활성화한다`() {
         assertThat(createMypastureApplication(batchOnly = true).webApplicationType)
             .isEqualTo(WebApplicationType.NONE)
     }
 
     @Test
-    fun `non web runtime keeps shared security beans but excludes servlet filter chain`() {
+    fun `웹 서버가 없는 역할도 공통 보안 빈은 유지하고 서블릿 필터 체인은 제외한다`() {
         ApplicationContextRunner()
             .withBean(CorsProperties::class.java, { CorsProperties() })
             .withUserConfiguration(SecurityConfig::class.java)

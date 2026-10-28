@@ -32,7 +32,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `streams output text deltas and returns completed usage`() = runTest {
+    fun `출력 변경분을 스트리밍하고 완료된 사용량을 반환한다`() = runTest {
         val requestBodies = mutableListOf<String>()
         val firstDeltaRead = CountDownLatch(1)
         val completedSent = AtomicBoolean(false)
@@ -69,7 +69,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `sets low reasoning for gpt 5 models`() = runTest {
+    fun `GPT 5 모델의 추론 수준을 낮게 설정한다`() = runTest {
         val requestBodies = mutableListOf<String>()
         val port = startServer { exchange ->
             requestBodies += exchange.requestBody.bufferedReader().readText()
@@ -86,7 +86,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `evaluates answer with strict structured output and records evaluator usage`() = runTest {
+    fun `엄격한 구조화 출력으로 답변을 평가하고 평가기 사용량을 기록한다`() = runTest {
         val requestBodies = mutableListOf<String>()
         val port = startServer { exchange ->
             requestBodies += exchange.requestBody.bufferedReader().readText()
@@ -110,7 +110,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `retries a transient response without blocking a thread`() = runTest {
+    fun `일시적인 응답 오류는 스레드를 막지 않고 재시도한다`() = runTest {
         val calls = AtomicInteger()
         val port = startServer { exchange ->
             if (calls.incrementAndGet() == 1) {
@@ -131,7 +131,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `does not retry after a delta was already delivered`() = runTest {
+    fun `변경분을 이미 전송한 뒤에는 재시도하지 않는다`() = runTest {
         val calls = AtomicInteger()
         val port = startServer { exchange ->
             calls.incrementAndGet()
@@ -149,7 +149,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `does not expose an unknown citation in streamed deltas`() = runTest {
+    fun `스트리밍 변경분에 알 수 없는 인용을 노출하지 않는다`() = runTest {
         val port = startServer { exchange ->
             exchange.responseHeaders.add("Content-Type", "text/event-stream")
             exchange.sendResponseHeaders(200, 0)
@@ -175,7 +175,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `scope request uses evaluator schema and current question data without storing conversation`() = runTest {
+    fun `질문 범위 요청은 평가기 스키마와 현재 질문만 사용하고 대화는 저장하지 않는다`() = runTest {
         val bodies = mutableListOf<String>()
         val port = startServer { exchange ->
             bodies += exchange.requestBody.bufferedReader().readText()
@@ -201,7 +201,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `scope malformed refusal and incomplete output fail closed with known usage`() = runTest {
+    fun `질문 범위 평가의 잘못된 형식 거절 불완전 출력은 확인된 사용량과 함께 안전하게 실패한다`() = runTest {
         val responses = java.util.ArrayDeque(listOf(
             scopeResponse("not json"), scopeResponse("""{"scope":"RELATED","uncertain":false} {"extra":1}"""), scopeResponse("""{"scope":"ALL","uncertain":false}"""),
             scopeResponse("""{"scope":"RELATED","uncertain":"false"}"""),
@@ -228,7 +228,7 @@ class OpenAiCompletionAdapterTests {
     }
 
     @Test
-    fun `scope invalid transport JSON returns provider error with unknown usage`() = runTest {
+    fun `질문 범위 평가의 잘못된 전송 JSON은 사용량 미확인 제공자 오류를 반환한다`() = runTest {
         val port = startServer { exchange ->
             exchange.requestBody.close()
             exchange.responseHeaders.add("Content-Type", "application/json")

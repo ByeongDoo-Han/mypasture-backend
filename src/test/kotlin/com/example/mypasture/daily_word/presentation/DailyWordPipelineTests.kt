@@ -53,7 +53,7 @@ class DailyWordPipelineTests(
     }
 
     @Test
-    fun `draft is hidden until admin publishes and operation retry is idempotent`() {
+    fun `초안은 관리자 게시 전까지 숨기고 운영 재시도는 멱등하다`() {
         val date = LocalDate.of(2026, 9, 1)
         val operationId = UUID.randomUUID()
         val queued = service.queueGeneration(date, adminId, operationId, false, "다음 날 묵상 초안을 생성합니다")
@@ -78,7 +78,7 @@ class DailyWordPipelineTests(
     }
 
     @Test
-    fun `RAG citation text must match current bible verse`() {
+    fun `RAG 인용 문구는 현재 성경 절과 일치해야 한다`() {
         val job = service.queueGeneration(LocalDate.of(2026, 9, 2), adminId, UUID.randomUUID(), false, "원문 불일치 검증 작업입니다")
         val source = sourceCitation()
         assertThrows(DailyWordGenerationException::class.java) {
@@ -88,7 +88,7 @@ class DailyWordPipelineTests(
     }
 
     @Test
-    fun `stale generation lease cannot save a draft`() {
+    fun `오래된 생성 임대는 초안을 저장할 수 없다`() {
         val job = service.queueGeneration(LocalDate.of(2026, 9, 4), adminId, UUID.randomUUID(), false, "lease 위조 방지를 검증합니다")
         val activeToken = UUID.randomUUID()
         val processing = jobRepository.findById(job.id).orElseThrow()
@@ -102,7 +102,7 @@ class DailyWordPipelineTests(
     }
 
     @Test
-    fun `non admin cannot queue generation`() {
+    fun `비관리자는 생성 작업을 등록할 수 없다`() {
         mockMvc.post("/api/v1/admin/daily-words/2026-09-03/generation-jobs") {
             with(user("member").roles("USER"))
             contentType = org.springframework.http.MediaType.APPLICATION_JSON

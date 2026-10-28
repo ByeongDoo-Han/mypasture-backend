@@ -16,7 +16,7 @@ class AiQuestionScopeTests {
         AiReasoningEffort.LOW, AiReasoningEffort.LOW, 500, 200, false, 4, 1, "TEST")
 
     @Test
-    fun `only validated confident related or pastoral assessments pass`() {
+    fun `검증된 높은 확신의 종교 또는 목회 상담 질문만 통과시킨다`() {
         val service = AiQuestionScopeService(LocalAiCompletionAdapter())
         listOf(AiQuestionScope.RELATED, AiQuestionScope.PASTORAL_SUPPORT).forEach { scope ->
             service.requireSupported(AiQuestionScopeAssessment(scope, false))
@@ -28,7 +28,7 @@ class AiQuestionScopeTests {
     }
 
     @Test
-    fun `local routing corpus allows religion and pastoral support but rejects decorative mixed requests`() = runTest {
+    fun `로컬 분류 사례는 종교와 목회 상담을 허용하고 장식적인 혼합 질문을 거부한다`() = runTest {
         val mock = LocalAiCompletionAdapter()
         listOf("성경은 왜 고통을 말하나요", "불교와 기독교의 차이", "이슬람 종교를 비판적으로 비교해주세요", "기독교는 모순 아닌가요").forEach {
             assertEquals(AiQuestionScope.RELATED, mock.assess(it, null, config).scope, it)
@@ -45,7 +45,7 @@ class AiQuestionScopeTests {
     }
 
     @Test
-    fun `scope cost accumulation preserves quality and never duplicates embedding`() {
+    fun `질문 범위 평가 비용을 품질 비용에 합산하고 임베딩 비용은 중복 기록하지 않는다`() {
         val scope = AiQuestionScopeAssessment(AiQuestionScope.RELATED, false, promptTokens = 10, completionTokens = 4, estimatedCostUsd = BigDecimal("0.01"))
         val generated = GroundedAnswer(null, answer = "답변", citations = emptyList(), promptTokens = 20,
             completionTokens = 30, estimatedCostUsd = BigDecimal("0.05"), cacheHit = false,

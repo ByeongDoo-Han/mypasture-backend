@@ -20,7 +20,7 @@ class ApiErrorHandlingTests(
     @Autowired private val objectMapper: ObjectMapper,
 ) {
     @Test
-    fun `validation errors include fields and request trace`() {
+    fun `입력 검증 오류에는 필드와 요청 추적 정보가 포함된다`() {
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"email":"invalid","password":"short","displayName":""}"""
@@ -38,7 +38,7 @@ class ApiErrorHandlingTests(
     }
 
     @Test
-    fun `malformed json uses common error contract`() {
+    fun `잘못된 JSON은 공통 오류 형식을 사용한다`() {
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"email":"""
@@ -52,7 +52,7 @@ class ApiErrorHandlingTests(
     }
 
     @Test
-    fun `security error body and response header share trace id`() {
+    fun `보안 오류의 본문과 응답 헤더는 같은 추적 ID를 사용한다`() {
         val result = mockMvc.get("/api/v1/auth/me")
             .andExpect {
                 status { isUnauthorized() }
@@ -70,7 +70,7 @@ class ApiErrorHandlingTests(
     }
 
     @Test
-    fun `authenticated user without admin role receives common forbidden response`() {
+    fun `관리자 권한이 없는 인증 사용자는 공통 접근 금지 응답을 받는다`() {
         val email = "error-contract-${UUID.randomUUID()}@example.com"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
@@ -95,7 +95,7 @@ class ApiErrorHandlingTests(
     }
 
     @Test
-    fun `unknown public route returns common not found response`() {
+    fun `없는 공개 경로는 공통 찾을 수 없음 응답을 반환한다`() {
         mockMvc.get("/api/v1/bibles/unknown/public-route")
             .andExpect {
                 status { isNotFound() }

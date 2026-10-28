@@ -35,12 +35,12 @@ class ActivityCalendarControllerTests(
     @Autowired private val visits: UserVisitRepository,
     @Autowired private val reading: BibleReadingHistoryRepository,
 ) {
-    @Test fun `anonymous requests cannot read or record activity`() {
+    @Test fun `익명 요청은 활동을 읽거나 기록할 수 없다`() {
         mvc.get("/api/v1/activity").andExpect { status { isUnauthorized() } }
         mvc.put("/api/v1/activity/today").andExpect { status { isUnauthorized() } }
     }
 
-    @Test fun `visit is idempotent across concurrent devices and owned by JWT`() {
+    @Test fun `동시 기기의 방문 기록은 멱등하고 소유권은 JWT를 따른다`() {
         val user = users.save(UserEntity(displayName = "Activity test"))
         val pool = Executors.newFixedThreadPool(6)
         val start = CountDownLatch(1)
@@ -63,7 +63,7 @@ class ActivityCalendarControllerTests(
             .andExpect { status { isOk() }; jsonPath("$.timezone") { value("Asia/Seoul") } }
     }
 
-    @Test fun `calendar includes leap day and deduplicates chapters across translations without inventing visits`() {
+    @Test fun `달력은 윤일을 포함하고 번역본별 장 중복을 제거하며 방문을 지어내지 않는다`() {
         val user = users.save(UserEntity(displayName = "Reader"))
         val other = users.save(UserEntity(displayName = "Other reader"))
         val day = LocalDate.of(2024, 2, 29)
@@ -81,7 +81,7 @@ class ActivityCalendarControllerTests(
         assertTrue(calendar.days.filter { it.date != day }.all { it.chaptersRead == 0 })
     }
 
-    @Test fun `calendar uses Korean midnight and excludes future dates`() {
+    @Test fun `달력은 한국 자정을 기준으로 하고 미래 날짜를 제외한다`() {
         val user = users.save(UserEntity(displayName = "Boundary"))
         val before = ActivityCalendarService(users, visits, reading, Clock.fixed(Instant.parse("2025-12-31T14:59:59Z"), ZoneOffset.UTC))
         val after = ActivityCalendarService(users, visits, reading, Clock.fixed(Instant.parse("2025-12-31T15:00:00Z"), ZoneOffset.UTC))

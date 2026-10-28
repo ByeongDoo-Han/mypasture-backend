@@ -23,7 +23,7 @@ class OpenApiDescriptionTests(
     @Autowired private val jwt: JwtTokenProvider,
 ) {
     @Test
-    fun `every documented operation and path or query parameter has a description`() {
+    fun `문서화된 모든 작업과 경로 및 쿼리 매개변수에는 설명이 있다`() {
         val admin = users.saveAndFlush(UserEntity(displayName = "문서 검증 관리자", role = UserRole.ADMIN))
         val body = mvc.get("/v3/api-docs") {
             header("Authorization", "Bearer ${jwt.issueAccessToken(admin).accessToken}")

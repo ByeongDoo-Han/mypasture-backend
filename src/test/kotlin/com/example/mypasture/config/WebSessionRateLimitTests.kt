@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 /** 비로그인 공개 화면의 세션 탐색이 로그인 시도 한도를 소모하지 않게 검증합니다. */
 class WebSessionRateLimitTests {
     @Test
-    fun `anonymous probe skips limiter and cookie backed refresh is limited`() {
+    fun `익명 확인 요청은 제한을 건너뛰고 쿠키를 통한 갱신은 횟수를 제한한다`() {
         val filter = RedisRequestRateLimitFilter(mock(StringRedisTemplate::class.java), RateLimitProperties(enabled = true))
         val request = MockHttpServletRequest("POST", "/api/v1/auth/web/refresh")
         assertTrue(skips(filter, request))

@@ -49,7 +49,7 @@ class AchievementErasureGuardPostgresTests {
         }
     }
 
-    @Test fun `legacy soft withdrawal purges all achievement evidence and preserves other users`() = database { schema ->
+    @Test fun `기존 소프트 탈퇴는 모든 업적 근거를 삭제하고 다른 사용자 기록은 보존한다`() = database { schema ->
         connection(schema).use { connection ->
             val owner = connection.owner()
             val other = connection.owner()
@@ -65,7 +65,7 @@ class AchievementErasureGuardPostgresTests {
         }
     }
 
-    @Test fun `rolling rollback restores active account and every achievement record atomically`() = database { schema ->
+    @Test fun `롤백하면 활성 계정과 모든 업적 기록을 원자적으로 복원한다`() = database { schema ->
         connection(schema).use { setup ->
             val owner = setup.owner()
             connection(schema).use { legacy ->
@@ -81,7 +81,7 @@ class AchievementErasureGuardPostgresTests {
         }
     }
 
-    @Test fun `active profile edits no-op deletion and repeated withdrawal are safe`() = database { schema ->
+    @Test fun `활성 프로필 수정과 삭제 대상 없음과 반복 탈퇴는 안전하다`() = database { schema ->
         connection(schema).use { connection ->
             val owner = connection.owner()
             val other = connection.owner()

@@ -95,7 +95,7 @@ class DailyWordRecoveryTests(
     }
 
     @Test
-    fun `manual draft cancels active generation and operation retry is idempotent`() {
+    fun `수동 초안은 활성 생성을 취소하고 운영 재시도는 멱등하다`() {
         val date = LocalDate.now(SEOUL).plusDays(1)
         val operationId = UUID.randomUUID()
         val job = dailyWordService.queueGeneration(date, admin.id, UUID.randomUUID(), false, "수동 복구 전 생성 작업입니다")
@@ -110,7 +110,7 @@ class DailyWordRecoveryTests(
     }
 
     @Test
-    fun `late ai result cannot overwrite a manual draft`() {
+    fun `늦게 도착한 AI 결과는 수동 초안을 덮을 수 없다`() {
         val date = LocalDate.now(SEOUL).plusDays(2)
         val job = dailyWordService.queueGeneration(date, admin.id, UUID.randomUUID(), false, "늦은 생성 결과 보호 검증입니다")
         val token = UUID.randomUUID()
@@ -126,7 +126,7 @@ class DailyWordRecoveryTests(
     }
 
     @Test
-    fun `publishing incident escalates without duplicate alerts and resolves automatically`() {
+    fun `게시 장애는 중복 경고 없이 알리고 자동으로 해제된다`() {
         val warningAt = Instant.parse("2026-09-01T11:30:00Z") // 20:30 Asia/Seoul
         val criticalAt = Instant.parse("2026-09-01T13:30:00Z") // 22:30 Asia/Seoul
         val targetDate = LocalDate.of(2026, 9, 2)
@@ -154,7 +154,7 @@ class DailyWordRecoveryTests(
     }
 
     @Test
-    fun `admin email operations mask recipients filter pages and summarize all statuses`() {
+    fun `관리자 메일 운영 화면은 수신자를 마스킹하고 페이지를 필터링하며 상태를 요약한다`() {
         val incident = incident()
         val dead = delivery(incident, "secret.owner@example.com", DailyWordIncidentEmailStatus.DEAD)
         delivery(incident, "sent.owner@example.com", DailyWordIncidentEmailStatus.SENT)
@@ -181,7 +181,7 @@ class DailyWordRecoveryTests(
     }
 
     @Test
-    fun `dead email requeue is idempotent and preserves attempt history`() {
+    fun `실패한 메일 재대기는 멱등하고 시도 이력을 보존한다`() {
         val dead = delivery(incident(), "retry.owner@example.com", DailyWordIncidentEmailStatus.DEAD)
         val operationId = UUID.randomUUID()
 
@@ -195,7 +195,7 @@ class DailyWordRecoveryTests(
     }
 
     @Test
-    fun `sent or processing email cannot be manually requeued and ordinary user is forbidden`() {
+    fun `발송 완료 또는 처리 중인 메일은 수동 재대기할 수 없고 일반 사용자는 거부된다`() {
         val sent = delivery(incident(), "sent.again@example.com", DailyWordIncidentEmailStatus.SENT)
         assertThrows(IllegalStateException::class.java) {
             incidentEmailService.requeue(sent.id, admin.id, UUID.randomUUID(), "이미 성공한 메일 재처리를 거부합니다")

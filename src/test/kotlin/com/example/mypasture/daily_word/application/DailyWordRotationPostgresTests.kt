@@ -114,7 +114,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `simultaneous first requests store one immutable snapshot and one broadcast`() {
+    fun `동시 최초 요청은 불변 스냅샷과 알림 방송을 각각 한 건만 저장한다`() {
         val executor = Executors.newFixedThreadPool(6); val ready = CountDownLatch(6); val start = CountDownLatch(1)
         try {
             val tasks = List(6) { executor.submit<UUID> { ready.countDown(); start.await(); rotation.ensurePublished(TODAY)!!.id } }
@@ -131,7 +131,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `new publication exposes the same one verse in both legacy and passage fields`() {
+    fun `새 게시물은 기존 필드와 범위 필드에 같은 한 절을 노출한다`() {
         val word = rotation.ensurePublished(TODAY)!!
         assertEquals(source(catalog.candidates(TODAY).first()).text, word.verseText)
         assertEquals(word.verse, word.endVerse)
@@ -146,7 +146,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `AI draft replacement preserves prior cost and model history but cancels its active lease`() {
+    fun `AI 초안 교체는 이전 비용과 모델 이력을 보존하면서 활성 임대를 취소한다`() {
         val old = draft(TODAY)
         val job = jobs.saveAndFlush(DailyWordGenerationJobEntity(wordDate = TODAY).also {
             it.claim(UUID.randomUUID(), NOW.plusSeconds(600), NOW)
@@ -161,7 +161,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `notification failure rolls back the persisted snapshot job cancellation and real broadcast`() {
+    fun `알림 실패는 저장한 스냅샷 작업 취소 실제 방송을 함께 롤백한다`() {
         val old = draft(TODAY)
         val job = jobs.saveAndFlush(DailyWordGenerationJobEntity(wordDate = TODAY))
         doAnswer { call ->
@@ -178,7 +178,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `published manual and rejected records survive automatic requests without new alerts`() {
+    fun `게시된 수동 콘텐츠와 거부된 콘텐츠는 자동 요청에도 남고 새 알림을 만들지 않는다`() {
         val published = draft(TODAY, DailyWordSource.MANUAL, DailyWordStatus.PUBLISHED)
         assertEquals(published.id, rotation.ensurePublished(TODAY)!!.id)
         words.deleteById(published.id)
@@ -194,7 +194,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `incomplete and blank candidate ranges are skipped without fabricating missing Scripture`() {
+    fun `불완전하거나 빈 후보 범위는 누락된 성경 구절을 지어내지 않고 건너뛴다`() {
         val candidates = catalog.candidates(TODAY)
         val missing = source(candidates[0], candidates[0].endVerse); verses.deleteById(missing.id)
         verses.saveAndFlush(source(candidates[1]).apply { text = "   " })
@@ -204,7 +204,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `verse without its topic is skipped even when the source is otherwise valid`() {
+    fun `원본이 유효해도 주제가 없는 절은 건너뛴다`() {
         val candidates = catalog.candidates(TODAY)
         source(candidates[0]).let { it.text = "QA 합성 본문에 해당 주제가 없습니다"; verses.saveAndFlush(it) }
         val word = rotation.ensurePublished(TODAY)!!
@@ -213,7 +213,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `no valid source leaves no publication or broadcast and dates outside recovery scope remain absent`() {
+    fun `유효한 원본이 없으면 게시와 방송이 없고 복구 범위 밖 날짜도 비워 둔다`() {
         verses.deleteAllInBatch()
         assertThrows(DailyWordGenerationException::class.java) { rotation.ensurePublished(TODAY) }
         assertEquals(0L, words.count()); assertEquals(0L, broadcasts.count())
@@ -224,7 +224,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `themed selection avoids recent overlap but returns to base order when all candidates were seen`() {
+    fun `주제별 선택은 최근 중복을 피하고 모두 사용했으면 기본 순서로 돌아간다`() {
         val candidates = catalog.candidates(TODAY)
         val old = draft(TODAY.minusDays(1), DailyWordSource.MANUAL, DailyWordStatus.PUBLISHED, candidates.first())
         assertEquals(candidates[1].id, rotation.ensurePublished(TODAY)!!.rotationEntryId)
@@ -238,7 +238,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `weekend publication uses a themed single verse and skips a recently published candidate`() {
+    fun `주말 게시도 주제별 한 절을 사용하고 최근 게시 후보는 건너뛴다`() {
         val saturday = LocalDate.of(2026, 10, 10)
         clock.set(saturday.atTime(12, 0).atZone(SEOUL).toInstant())
         val first = catalog.candidates(saturday).first()
@@ -252,7 +252,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `tomorrow broadcast is hidden until precisely midnight Korea time`() {
+    fun `내일 알림은 한국 시각 자정 전까지 숨긴다`() {
         val tomorrow = TODAY.plusDays(1); val word = rotation.ensurePublished(tomorrow)!!
         val event = broadcasts.findAll().single()
         val midnight = tomorrow.atStartOfDay(SEOUL).toInstant()
@@ -271,7 +271,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `UTC plus 14 cannot schedule tomorrow before Korea midnight and both zones can deliver at boundary`() = runBlocking {
+    fun `UTC 더하기 14에서도 한국 자정 전에 내일 알림을 예약하지 않고 경계에서 발송할 수 있다`() = runBlocking {
         val tomorrow = TODAY.plusDays(1); rotation.ensurePublished(tomorrow)
         val midnight = tomorrow.atStartOfDay(SEOUL).toInstant()
         val advanced = dueDevice("Pacific/Kiritimati", LocalTime.of(4, 59))
@@ -289,7 +289,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `legacy job then word lock completes while rotation waits without inverse order deadlock`() {
+    fun `기존 작업 잠금 뒤 말씀 잠금이 끝나고 로테이션 대기도 역순 교착 없이 완료된다`() {
         val word = draft(TODAY)
         val job = jobs.saveAndFlush(DailyWordGenerationJobEntity(wordDate = TODAY))
         val executor = Executors.newSingleThreadExecutor()
@@ -323,7 +323,7 @@ class DailyWordRotationPostgresTests(
     }
 
     @Test
-    fun `default today read crossing midnight uses one captured Korean date instead of disappearing`() {
+    fun `자정을 넘는 오늘 조회도 처음 잡은 한국 날짜를 유지해 결과가 사라지지 않는다`() {
         val boundary = TODAY.plusDays(1).atStartOfDay(SEOUL).toInstant()
         clock.advanceAfterFirstRead(boundary.minusSeconds(1), boundary)
         assertEquals(TODAY, service.getPublished().wordDate)

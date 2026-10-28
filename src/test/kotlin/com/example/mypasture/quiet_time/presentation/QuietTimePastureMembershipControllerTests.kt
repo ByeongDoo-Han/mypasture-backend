@@ -25,7 +25,7 @@ class QuietTimePastureMembershipControllerTests(
     @Autowired private val jdbcTemplate: JdbcTemplate,
 ) {
     @Test
-    fun `leader approval clears real name and member cannot join another pasture`() {
+    fun `목자 승인 시 본명을 삭제하고 목원은 다른 목장에 가입할 수 없다`() {
         val leader = account()
         val member = account()
         val outsider = account()
@@ -95,7 +95,7 @@ class QuietTimePastureMembershipControllerTests(
     }
 
     @Test
-    fun `expired invitation and rejected request cannot retain a real name`() {
+    fun `만료된 초대와 거절된 요청은 본명을 보관하지 않는다`() {
         val leader = account()
         val applicant = account()
         val pasture = createPasture(leader)

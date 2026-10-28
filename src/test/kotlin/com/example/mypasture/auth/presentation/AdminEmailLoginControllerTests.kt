@@ -80,7 +80,7 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `public request confirms admin session only once and persists HMAC without plaintext`() {
+    fun `공개 요청은 관리자 세션을 한 번만 확인하고 평문 없이 HMAC을 저장한다`() {
         val admin = admin()
         val response = mvc.post("/api/v1/auth/admin-email-login/requests") {
             contentType = MediaType.APPLICATION_JSON
@@ -113,7 +113,7 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `unknown non-admin and deleted accounts return same request contract without mail or session`() {
+    fun `없는 계정 비관리자 삭제 계정은 메일과 세션 없이 같은 요청 응답을 반환한다`() {
         val normal = users.saveAndFlush(UserEntity(email = uniqueEmail(), displayName = "Member"))
         val deleted = users.saveAndFlush(UserEntity(email = uniqueEmail(), displayName = "Deleted", role = UserRole.ADMIN, deletedAt = Instant.now()))
         for (email in listOf(uniqueEmail(), normal.email!!, deleted.email!!)) {
@@ -128,7 +128,7 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `five failures commit across separate rejected transactions and cannot be reset by resend`() {
+    fun `별도 거부 트랜잭션의 실패 5회는 확정되고 재전송으로 초기화되지 않는다`() {
         val user = admin()
         val first = request(user)
         repeat(3) { assertFailsWith<InvalidAdminEmailCodeException> { confirm(first, wrongCode(user)) } }
@@ -147,7 +147,7 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `expired failure window allows retry without silently reviving an expired code`() {
+    fun `만료된 실패 시간 창은 만료 코드를 되살리지 않고 재시도를 허용한다`() {
         val user = admin()
         val id = request(user)
         repeat(5) { assertFailsWith<InvalidAdminEmailCodeException> { confirm(id, wrongCode(user)) } }
@@ -161,7 +161,7 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `resend has a sixty second cooldown and five deliveries per hour`() {
+    fun `재전송에는 60초 대기와 시간당 5회 발송 제한을 적용한다`() {
         val user = admin()
         request(user)
         request(user)
@@ -178,7 +178,7 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `resend invalidates older challenge and binds HMAC to each new challenge`() {
+    fun `재전송은 이전 확인 코드를 무효화하고 새 코드마다 HMAC을 묶는다`() {
         val user = admin()
         val old = request(user)
         val oldCode = codes.getValue(user.email!!)
@@ -191,7 +191,7 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `SMTP failure returns generic response invalidates code and persists quota before retry`() {
+    fun `SMTP 실패는 일반 응답을 반환하고 코드를 무효화하며 재시도 전에 사용량을 저장한다`() {
         val user = admin()
         val previous = request(user)
         val previousCode = codes.getValue(user.email!!)
@@ -212,7 +212,7 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `role revocation authVersion changes and deletion all invalidate pending codes`() {
+    fun `역할 박탈 인증 버전 변경 계정 삭제는 대기 중인 코드를 모두 무효화한다`() {
         for (change in listOf("role = 'USER'", "auth_version = auth_version + 1", "deleted_at = CURRENT_TIMESTAMP")) {
             val user = admin()
             val challenge = request(user)
@@ -223,7 +223,7 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `two simultaneous confirmations create exactly one session`() {
+    fun `동시 확인 요청 두 건은 세션을 정확히 한 건만 만든다`() {
         val user = admin()
         val challenge = request(user)
         val code = codes.getValue(user.email!!)
@@ -236,7 +236,7 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `token generation failure rolls back both refresh session and challenge consumption`() {
+    fun `토큰 생성 실패는 갱신 세션과 코드 소비를 함께 롤백한다`() {
         val user = admin()
         val challenge = request(user)
         doThrow(IllegalStateException("Synthetic token generation failure"))
@@ -249,14 +249,14 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `admin session helper cannot issue outside its callers transaction`() {
+    fun `관리자 세션 헬퍼는 호출자 트랜잭션 밖에서 발급할 수 없다`() {
         val user = admin()
         assertFailsWith<IllegalTransactionStateException> { authService.issueAdminEmailSession(user.id, user.authVersion) }
         assertEquals(0, sessions(user.id))
     }
 
     @Test
-    fun `simultaneous initial requests share persistent cooldown without duplicate row or mail`() {
+    fun `동시 최초 요청은 영속적인 대기를 공유하고 행이나 메일을 중복 생성하지 않는다`() {
         val user = admin()
         concurrently { request(user) }
         assertEquals(1, deliveries.get())
@@ -264,7 +264,7 @@ class AdminEmailLoginControllerTests(
     }
 
     @Test
-    fun `confirmation failures use same public unauthorized error without token`() {
+    fun `확인 실패는 토큰 없이 같은 공개 인증 실패 응답을 반환한다`() {
         mvc.post("/api/v1/auth/admin-email-login/confirm") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"challengeId":"${UUID.randomUUID()}","code":"123456"}"""

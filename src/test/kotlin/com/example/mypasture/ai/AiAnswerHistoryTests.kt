@@ -78,7 +78,7 @@ class AiAnswerHistoryTests(
     @Autowired private val receipts: com.example.mypasture.ai.infrastructure.AiRequestReceiptRepository,
 ) {
     @Test
-    fun `completed answer stores encrypted question prayer citations and independent turn ids`() {
+    fun `완료된 답변은 암호화한 질문과 기도문과 인용 및 독립된 대화 ID를 저장한다`() {
         val user = user()
         val question = "창세기 1장 1절 설명 ${UUID.randomUUID()}"
         val requestId = UUID.randomUUID()
@@ -107,7 +107,7 @@ class AiAnswerHistoryTests(
     }
 
     @Test
-    fun `regeneration preserves original and deletion through child removes whole group`() = runTest {
+    fun `재생성은 원본을 보존하고 하위 답변 삭제는 전체 묶음을 삭제한다`() = runTest {
         val owner = user()
         val stranger = user()
         val question = "창세기 1장 1절을 설명해주세요 ${UUID.randomUUID()}"
@@ -132,7 +132,7 @@ class AiAnswerHistoryTests(
     }
 
     @Test
-    fun `cursor rejects tampering and use by another user`() {
+    fun `커서 변조와 다른 사용자의 커서 사용을 거부한다`() {
         val owner = user()
         val stranger = user()
         repeat(2) { assistant.ask(owner.id, SubscriptionTier.FREE, "창세기 1장 1절 설명 ${UUID.randomUUID()}") }
@@ -143,7 +143,7 @@ class AiAnswerHistoryTests(
     }
 
     @Test
-    fun `cleanup expires old root together with newer regenerated answer`() {
+    fun `오래된 원본을 정리할 때 이후 재생성된 답변도 함께 만료된다`() {
         val user = user()
         val response = assistant.ask(user.id, SubscriptionTier.FREE, "창세기 1장 1절 설명 ${UUID.randomUUID()}")
         val oldId = UUID.randomUUID()
@@ -189,7 +189,7 @@ class AiAnswerHistoryTests(
     }
 
     @Test
-    fun `regenerating a revision stays in original group and deleted history never reappears`() = runTest {
+    fun `재생성한 수정본은 원래 묶음에 남고 삭제한 기록은 다시 나타나지 않는다`() = runTest {
         val owner = user()
         val question = "창세기 1장 1절 설명 ${UUID.randomUUID()}"
         val original = assistant.ask(owner.id, SubscriptionTier.FREE, question)
@@ -214,7 +214,7 @@ class AiAnswerHistoryTests(
     }
 
     @Test
-    fun `usage receipt and history roll back together and repeated completion cannot restore deletion`() {
+    fun `사용량 영수증과 기록은 함께 롤백되며 중복 완료로 삭제 기록을 복원할 수 없다`() {
         val owner = user()
         val requestId = UUID.randomUUID()
         val reservation = usage.reserve(owner.id, "원자적 완료", 10, clientRequestId = requestId) as AiUsageReservation.Started
@@ -254,7 +254,7 @@ class AiAnswerHistoryTests(
     }
 
     @Test
-    fun `deletion committing during regeneration completion removes the entire group`() {
+    fun `재생성 완료와 동시에 삭제가 확정되면 전체 묶음이 삭제된다`() {
         val owner = user()
         val question = "창세기 설명 ${UUID.randomUUID()}"
         val original = assistant.ask(owner.id, SubscriptionTier.FREE, question)
@@ -290,7 +290,7 @@ class AiAnswerHistoryTests(
     }
 
     @Test
-    fun `equal timestamp cursor visits each UUID exactly once across sign boundary`() {
+    fun `시간이 같은 커서는 UUID 부호 경계를 넘어도 각 항목을 한 번씩 조회한다`() {
         val owner = user()
         val timestamp = Instant.parse("2026-09-30T00:00:00.123456Z")
         val ids = listOf("00000000-0000-0000-0000-000000000001", "7fffffff-ffff-ffff-ffff-ffffffffffff", "80000000-0000-0000-0000-000000000000", "ffffffff-ffff-ffff-ffff-ffffffffffff").map(UUID::fromString)
@@ -311,7 +311,7 @@ class AiAnswerHistoryTests(
     }
 
     @Test
-    fun `postgres completion waits for account deletion without holding usage lock or restoring history`() {
+    fun `PostgreSQL에서는 답변 완료가 계정 삭제를 기다리면서 사용량 잠금을 잡거나 기록을 복원하지 않는다`() {
         assumeTrue(!System.getenv("AI_HISTORY_TEST_JDBC_URL").isNullOrBlank(), "Requires PostgreSQL row-lock inspection")
         val owner = user()
         val reservation = usage.reserve(owner.id, "탈퇴 중 완료", 10) as AiUsageReservation.Started
@@ -356,7 +356,7 @@ class AiAnswerHistoryTests(
     }
 
     @Test
-    fun `postgres stale worker waiting on user cannot overwrite completion or deadlock account deletion`() {
+    fun `PostgreSQL에서 사용자를 기다리는 오래된 작업은 완료 결과를 덮거나 계정 삭제와 교착하지 않는다`() {
         assumeTrue(!System.getenv("AI_HISTORY_TEST_JDBC_URL").isNullOrBlank(), "Requires PostgreSQL row-lock inspection")
         for (withdraw in listOf(false, true)) {
             val owner = user()

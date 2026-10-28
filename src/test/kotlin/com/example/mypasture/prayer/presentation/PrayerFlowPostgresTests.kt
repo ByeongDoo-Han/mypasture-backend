@@ -41,7 +41,7 @@ class PrayerFlowPostgresTests(
     @Autowired private val jdbc: JdbcTemplate,
 ) {
     @Test
-    fun `private topic and strangers cannot read or send and friends receive one letter`() {
+    fun `비공개 기도제목은 외부인이 읽거나 편지를 보낼 수 없고 친구 편지 한 건만 받는다`() {
         if (System.getenv("PRAYER_TEST_JDBC_URL") != null)
             assertEquals("PostgreSQL", jdbc.dataSource!!.connection.use { it.metaData.databaseProductName })
         val owner = user()
@@ -107,7 +107,7 @@ class PrayerFlowPostgresTests(
     }
 
     @Test
-    fun `concurrent sends spend one recipient slot and verified ad grant is idempotent`() {
+    fun `동시 편지는 수신 대상 한 칸만 소비하고 검증한 광고 보상은 멱등하다`() {
         val sender = user()
         val recipient = user()
         val relation = service.requestFriend(sender.id, recipient.id)

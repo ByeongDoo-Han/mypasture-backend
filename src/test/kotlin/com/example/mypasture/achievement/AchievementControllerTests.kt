@@ -97,7 +97,7 @@ class AchievementControllerTests(
         }
     }
 
-    @Test fun `database rejects featuring an unearned achievement without application validation`() {
+    @Test fun `애플리케이션 검증 없이도 DB가 미획득 업적 대표 설정을 거부한다`() {
         val user = newUser()
         assertFailsWith<DataIntegrityViolationException> {
             jdbc.update("insert into user_achievement_featured (id, user_id, achievement_code, position) values (?, ?, ?, ?)", UUID.randomUUID(), user.id, "FIRST_CHAPTER", 0)
@@ -105,7 +105,7 @@ class AchievementControllerTests(
         assertTrue(service.summary(user.id).featuredCodes.isEmpty())
     }
 
-    @Test fun `anonymous endpoints are rejected and requested userId cannot change ownership`() {
+    @Test fun `익명 요청을 거부하고 요청 userId로 소유자를 바꿀 수 없다`() {
         mvc.get("/api/v1/achievements").andExpect { status { isUnauthorized() } }
         mvc.post("/api/v1/achievements/reconcile").andExpect { status { isUnauthorized() } }
         mvc.put("/api/v1/achievements/featured") { contentType = MediaType.APPLICATION_JSON; content = """{"codes":[]}""" }.andExpect { status { isUnauthorized() } }
@@ -117,7 +117,7 @@ class AchievementControllerTests(
         assertTrue(awards.findAllByUser_Id(owner.id).isEmpty())
     }
 
-    @Test fun `GET shows capped progress without awarding and reconciliation preserves first award time`() {
+    @Test fun `조회는 수치 상한을 적용하고 업적을 지급하지 않으며 재계산은 최초 지급 시각을 보존한다`() {
         val user = newUser(); seedReading(user)
         assertEquals(0, service.summary(user.id).earnedCount)
         assertTrue(awards.findAllByUser_Id(user.id).isEmpty())
@@ -129,7 +129,7 @@ class AchievementControllerTests(
         assertEquals(first.items, again.items)
     }
 
-    @Test fun `opening a chapter earns nothing but the reading API awards first completion atomically`() {
+    @Test fun `장 열람은 업적을 주지 않고 읽기 API의 첫 완독만 원자적으로 지급한다`() {
         val user = newUser(); val token = jwt.issueAccessToken(user).accessToken
         fun record(verse: Int) = mvc.put("/api/v1/reading/progress") {
             header("Authorization", "Bearer $token"); contentType = MediaType.APPLICATION_JSON
@@ -142,7 +142,7 @@ class AchievementControllerTests(
         assertEquals(1, service.summary(user.id).items.single { it.code == "READ_DAYS_7" }.progress)
     }
 
-    @Test fun `noncanonical and unfinished history cannot award reading day or streak badges`() {
+    @Test fun `비정규 성경과 미완료 기록은 읽은 날과 연속 읽기 업적을 지급하지 않는다`() {
         val user = newUser()
         states.saveAll(listOf(
             BibleReadingStateEntity(userId = user.id, bibleVersion = "KOR1910", bookCode = "UNKNOWN", chapter = 1, lastVerse = 1, completed = true),
@@ -161,7 +161,7 @@ class AchievementControllerTests(
         assertTrue(result.items.filter { it.category.name.startsWith("READING") || it.code == "FIRST_CHAPTER" }.all { it.progress == 0 })
     }
 
-    @Test fun `featured badges require earned ownership preserve order and support idempotent clearing`() {
+    @Test fun `대표 업적은 본인이 획득한 것만 순서를 보존해 설정하고 반복 해제할 수 있다`() {
         val user = newUser(); seedReading(user); service.reconcile(user.id)
         val token = jwt.issueAccessToken(user).accessToken
         fun choose(body: String, ok: Boolean) {
@@ -187,7 +187,7 @@ class AchievementControllerTests(
         assertTrue(service.summary(user.id).featuredCodes.isEmpty())
     }
 
-    @Test fun `simultaneous reconciliation awards each badge once`() {
+    @Test fun `동시 업적 재계산은 각 업적을 한 번만 지급한다`() {
         val user = newUser(); seedReading(user)
         val pool = Executors.newFixedThreadPool(6); val ready = CountDownLatch(6); val start = CountDownLatch(1)
         try {
@@ -199,7 +199,7 @@ class AchievementControllerTests(
         } finally { start.countDown(); pool.shutdownNow() }
     }
 
-    @Test fun `six concurrent first reading writes persist one state history and award`() {
+    @Test fun `동시 첫 읽기 6건은 상태와 기록과 업적을 각각 한 건만 저장한다`() {
         val user = newUser()
         val pool = Executors.newFixedThreadPool(6); val ready = CountDownLatch(6); val start = CountDownLatch(1)
         try {
@@ -220,7 +220,7 @@ class AchievementControllerTests(
         } finally { start.countDown(); pool.shutdownNow() }
     }
 
-    @Test fun `database award write failure rolls back source records and permits a clean retry`() {
+    @Test fun `DB 업적 저장 실패는 원천 기록을 롤백하고 정상 재시도를 허용한다`() {
         val user = newUser()
         // Scope the injected failure to this fixture user so existing test awards remain valid.
         val constraint = "ck_test_achievement_award_failure"
@@ -241,7 +241,7 @@ class AchievementControllerTests(
         assertEquals(listOf("FIRST_CHAPTER"), awards.findAllByUser_Id(user.id).map { it.achievementCode })
     }
 
-    @Test fun `book completion deduplicates translations and requires every canonical chapter in the database`() {
+    @Test fun `책 완독은 번역본을 중복 계산하지 않고 DB의 모든 정규 장을 요구한다`() {
         val user = newUser()
         fun row(version: String, code: String, chapter: Int) = BibleReadingStateEntity(
             userId = user.id, bibleVersion = version, bookCode = code, chapter = chapter, lastVerse = 1, completed = true,
@@ -260,7 +260,7 @@ class AchievementControllerTests(
         assertTrue(service.reconcile(user.id).newlyAwardedCodes.isEmpty())
     }
 
-    @Test fun `source and awards roll back together`() {
+    @Test fun `원천 기록과 업적은 함께 롤백된다`() {
         val user = newUser()
         assertFailsWith<IllegalStateException> {
             TransactionTemplate(transactionManager).executeWithoutResult {
@@ -274,7 +274,7 @@ class AchievementControllerTests(
         assertTrue(states.findAllByUserIdOrderByLastReadAtDesc(user.id).isEmpty())
     }
 
-    @Test fun `memo creation uses Korean date editing does not add a day and deleting preserves old evidence`() {
+    @Test fun `메모 생성은 한국 날짜를 사용하고 수정은 날짜를 추가하지 않으며 삭제해도 과거 근거를 보존한다`() {
         val user = newUser()
         val old = listOf("2026-09-27T15:01:00Z", "2026-09-28T15:01:00Z").map { date ->
             notes.save(BibleNoteEntity(userId = user.id, content = "기존 메모", createdAt = Instant.parse(date)))
@@ -293,7 +293,7 @@ class AchievementControllerTests(
         assertEquals(3, service.summary(user.id).items.single { it.code == "NOTE_DAYS_3" }.progress)
     }
 
-    @Test fun `bookmark threshold is current distinct positions and the badge survives deletion`() {
+    @Test fun `북마크 단계는 현재의 서로 다른 위치를 기준으로 하고 지급한 업적은 삭제 뒤에도 남는다`() {
         val user = newUser()
         val book = books.findByVersionAndCode("KOR1910", "OBA")!!
         for (number in 1..5) {
@@ -321,7 +321,7 @@ class AchievementControllerTests(
         assertEquals(4, summary.items.single { it.code == "BOOKMARKS_20" }.progress)
     }
 
-    @Test fun `memo award persistence failure rolls back memo links and activity days`() {
+    @Test fun `메모 업적 저장 실패는 메모 연결과 활동 날짜를 롤백한다`() {
         val user = newUser()
         notes.saveAll(listOf("2026-09-27T15:01:00Z", "2026-09-28T15:01:00Z").map {
             BibleNoteEntity(userId = user.id, content = "기존 메모", createdAt = Instant.parse(it))
@@ -341,7 +341,7 @@ class AchievementControllerTests(
         assertEquals(listOf("NOTE_DAYS_3"), awards.findAllByUser_Id(user.id).map { it.achievementCode })
     }
 
-    @Test fun `account erasure removes featured awards and memo day evidence`() {
+    @Test fun `계정 삭제는 대표 업적과 메모 날짜 근거를 제거한다`() {
         val user = newUser(); seedReading(user); service.reconcile(user.id)
         val token = jwt.issueAccessToken(user).accessToken
         service.setFeatured(user.id, listOf("FIRST_CHAPTER"))

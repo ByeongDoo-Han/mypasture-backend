@@ -23,7 +23,7 @@ import java.math.BigDecimal
 /** 생성 답변이 평가를 통과하거나 한 번 수정된 뒤에만 외부로 반환되는지 검증합니다. */
 class AiAnswerQualityServiceTests {
     @Test
-    fun `streams first draft and resets it before a revision`() = runTest {
+    fun `첫 초안을 스트리밍하고 수정 전에 초안을 초기화한다`() = runTest {
         val completion = FakeCompletion(listOf("근거: [42] 첫 초안", "근거: [42] 수정 답변"))
         val evaluator = FakeEvaluator(listOf(evaluation(passed = false), evaluation(passed = true)))
         val events = mutableListOf<String>()
@@ -40,7 +40,7 @@ class AiAnswerQualityServiceTests {
     }
 
     @Test
-    fun `returns first answer when every evaluation criterion passes`() = runTest {
+    fun `모든 평가 기준을 통과하면 첫 답변을 반환한다`() = runTest {
         val completion = FakeCompletion(listOf("근거: [42] 첫 답변"))
         val evaluator = FakeEvaluator(listOf(evaluation(passed = true)))
 
@@ -54,7 +54,7 @@ class AiAnswerQualityServiceTests {
     }
 
     @Test
-    fun `revises once and aggregates generator and evaluator cost`() = runTest {
+    fun `한 번 수정하고 생성기와 평가기 비용을 합산한다`() = runTest {
         val completion = FakeCompletion(listOf("근거가 약한 답변", "근거: [42] 수정 답변"))
         val evaluator = FakeEvaluator(
             listOf(
@@ -75,7 +75,7 @@ class AiAnswerQualityServiceTests {
     }
 
     @Test
-    fun `rejects answer when revised result still fabricates scripture`() = runTest {
+    fun `수정한 답변에도 지어낸 성경 구절이 있으면 거부한다`() = runTest {
         val completion = FakeCompletion(listOf("첫 답변", "수정 답변"))
         val evaluator = FakeEvaluator(
             listOf(

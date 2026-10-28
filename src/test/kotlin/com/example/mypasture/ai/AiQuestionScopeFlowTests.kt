@@ -37,7 +37,7 @@ class AiQuestionScopeFlowTests(
     @BeforeEach fun reset() { scope.override = null; scope.calls = 0; scope.fail = false; scope.unknownFailure = false; cache.gets = 0 }
     private fun user() = users.save(UserEntity(email = "scope-${UUID.randomUUID()}@example.com", displayName = "Scope"))
 
-    @Test fun `unrelated request fails before cache search and delta while preserving usage and receipt`() {
+    @Test fun `무관한 요청은 캐시 검색과 스트리밍 전에 실패하지만 사용량과 영수증은 남긴다`() {
         val user = user(); val id = UUID.randomUUID(); val stages = mutableListOf<AiAssistantStage>(); val deltas = mutableListOf<String>()
         assertThrows(AiQuestionOutOfScopeException::class.java) {
             useCase.stream(user.id, SubscriptionTier.FREE, "불안하니 비트코인 시세 알려줘", clientRequestId = id, onStage = { stages += it }) { deltas += it }
@@ -52,7 +52,7 @@ class AiQuestionScopeFlowTests(
         assertEquals("AI_QUESTION_OUT_OF_SCOPE", useCase.requestStatus(user.id, id).errorCode)
     }
 
-    @Test fun `unclear malformed and downstream grounding failures record assessment cost`() {
+    @Test fun `모호한 요청 잘못된 형식 근거 검색 실패에도 질문 평가 비용을 기록한다`() {
         val unclear = user()
         assertThrows(AiQuestionScopeUnclearException::class.java) { useCase.ask(unclear.id, SubscriptionTier.FREE, "그냥") }
         assertEquals("AI_QUESTION_SCOPE_UNCLEAR", usages.findAllByUserId(unclear.id).single().errorCode)
@@ -65,7 +65,7 @@ class AiQuestionScopeFlowTests(
         assertEquals(BigDecimal("0.000100"), usages.findAllByUserId(noGrounding.id).single().estimatedCostUsd)
     }
 
-    @Test fun `new cache request assesses again and completed same id replay skips assessment`() {
+    @Test fun `새 캐시 요청은 다시 평가하고 완료된 동일 ID 재전송은 평가를 건너뛴다`() {
         val user = user(); val id = UUID.randomUUID(); val question = "창세기 1장 1절을 설명해주세요"
         val first = useCase.ask(user.id, SubscriptionTier.FREE, question, clientRequestId = id)
         assertEquals(1, scope.calls)
@@ -80,7 +80,7 @@ class AiQuestionScopeFlowTests(
         assertEquals(gets, cache.gets)
     }
 
-    @Test fun `owned religious context does not allow topic switch and short followup remains supported`() {
+    @Test fun `소유한 종교 대화 문맥으로 주제를 바꿀 수 없지만 짧은 후속 질문은 지원한다`() {
         val user = user(); val first = useCase.ask(user.id, SubscriptionTier.PREMIUM, "창세기 말씀을 설명해주세요")
         val short = useCase.ask(user.id, SubscriptionTier.PREMIUM, "마음의 평안", first.conversationId)
         assertEquals(first.conversationId, short.conversationId); assertNotNull(scope.context)
@@ -91,7 +91,7 @@ class AiQuestionScopeFlowTests(
         assertEquals(calls, scope.calls)
     }
 
-    @Test fun `regeneration scope rejection rolls back feedback and records cost without quota`() = runTest {
+    @Test fun `재생성 범위 거부는 평가를 롤백하고 사용 한도 없이 비용만 기록한다`() = runTest {
         val user = user(); val question = "창세기 말씀을 설명해주세요"; val original = useCase.ask(user.id, SubscriptionTier.FREE, question)
         feedbackService.submit(user.id, original.turnId, AiFeedbackRating.NOT_HELPFUL, setOf(AiFeedbackReason.TOO_GENERIC), null)
         scope.override = AiQuestionScope.UNRELATED
@@ -103,7 +103,7 @@ class AiQuestionScopeFlowTests(
         assertEquals("FAILED", feedbacks.findByUserIdAndTurnId(user.id, original.turnId)?.regenerationStatus?.name)
     }
 
-    @Test fun `provider outage blocks unrelated classification without keyword fallback or invented usage`() {
+    @Test fun `제공자 장애에는 키워드 대체 분류나 지어낸 사용량 없이 무관 질문 분류를 중단한다`() {
         val user = user(); scope.unknownFailure = true
         assertThrows(AiProviderException::class.java) { useCase.ask(user.id, SubscriptionTier.FREE, "창세기 말씀") }
         assertEquals(0, cache.gets)
@@ -112,14 +112,14 @@ class AiQuestionScopeFlowTests(
         assertEquals(BigDecimal("0.000000"), failure.estimatedCostUsd)
     }
 
-    @Test fun `financial background emotional support passes while direct Samsung quote and ambiguous help fail`() {
+    @Test fun `금전 배경의 정서 지원은 허용하고 삼성 주가 직접 조회와 모호한 도움 요청은 거부한다`() {
         val user = user(); val answer = useCase.ask(user.id, SubscriptionTier.FREE, "주가가 떨어져서 마음이 불안해. 창세기 말씀으로 마음을 다잡고 싶어.")
         assertTrue(answer.citations.isNotEmpty())
         assertThrows(AiQuestionOutOfScopeException::class.java) { useCase.ask(user.id, SubscriptionTier.FREE, "삼성전자 주가 좀 알려줘") }
         assertThrows(AiQuestionScopeUnclearException::class.java) { useCase.ask(user.id, SubscriptionTier.FREE, "어떻게 해야 할까?") }
     }
 
-    @Test fun `regeneration completes with assessment cost and keeps crisis priority after ownership`() = runTest {
+    @Test fun `재생성은 평가 비용을 포함해 완료하고 소유권 검사 뒤에도 위기 대응을 우선한다`() = runTest {
         val user = user(); val question = "창세기 말씀을 설명해주세요"; val original = useCase.ask(user.id, SubscriptionTier.FREE, question)
         feedbackService.submit(user.id, original.turnId, AiFeedbackRating.NOT_HELPFUL, setOf(AiFeedbackReason.TOO_GENERIC), null)
         val regenerated = feedbackService.regenerate(user.id, SubscriptionTier.FREE, original.turnId, question)
@@ -138,7 +138,7 @@ class AiQuestionScopeFlowTests(
         catch (_: AiFeedbackRegenerationUnavailableException) { }
     }
 
-    @Test fun `context-only source regeneration restores original owned context and preserves original answer`() = runTest {
+    @Test fun `문맥만 사용한 원본 재생성은 소유한 원래 문맥과 답변을 보존한다`() = runTest {
         val user = user(); val first = useCase.ask(user.id, SubscriptionTier.PREMIUM, "창세기 말씀을 설명해주세요")
         val followup = useCase.ask(user.id, SubscriptionTier.PREMIUM, "네", first.conversationId)
         feedbackService.submit(user.id, followup.turnId, AiFeedbackRating.NOT_HELPFUL, setOf(AiFeedbackReason.TOO_GENERIC), null)

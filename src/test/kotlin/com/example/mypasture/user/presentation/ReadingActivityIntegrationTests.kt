@@ -34,7 +34,7 @@ class ReadingActivityIntegrationTests(
     @Autowired private val jwt: JwtTokenProvider,
 ) {
     @Test
-    fun `concurrent first reads and completion updates remain one completed chapter`() {
+    fun `동시 최초 읽기와 완료 갱신은 완료된 장 한 건으로 수렴한다`() {
         val token = tokenFor("Concurrent reader")
         concurrentReads(token, includeCompletion = false)
         expectToday(token, chaptersRead = 1, chaptersCompleted = 0)
@@ -61,7 +61,7 @@ class ReadingActivityIntegrationTests(
     }
 
     @Test
-    fun `reading retries count one chapter and preserve completion without inventing a visit`() {
+    fun `읽기 재시도는 장을 한 번만 세고 방문을 지어내지 않으면서 완료 상태를 보존한다`() {
         val token = tokenFor("Reading activity")
         repeat(2) { record(token, lastVerse = 1) }
         expectToday(token, chaptersRead = 1, chaptersCompleted = 0)
@@ -87,7 +87,7 @@ class ReadingActivityIntegrationTests(
     }
 
     @Test
-    fun `reading and calendar ownership follow JWT across separate client sessions`() {
+    fun `별도 클라이언트 세션에서도 읽기와 달력의 소유권은 JWT를 따른다`() {
         val owner = users.save(UserEntity(displayName = "First reader"))
         val ownerToken = jwt.issueAccessToken(owner).accessToken
         val other = users.save(UserEntity(displayName = "Second reader"))
@@ -111,7 +111,7 @@ class ReadingActivityIntegrationTests(
     }
 
     @Test
-    fun `invalid and anonymous reading requests do not create activity`() {
+    fun `잘못된 요청과 익명 읽기는 활동을 생성하지 않는다`() {
         val token = tokenFor("Rejected reading")
         val body = """{"version":"KOR1910","bookCode":"GEN","chapter":1,"lastVerse":199,"timezone":"Asia/Seoul"}"""
         mvc.put("/api/v1/reading/progress") {
@@ -127,7 +127,7 @@ class ReadingActivityIntegrationTests(
     }
 
     @Test
-    fun `invalid timezone rolls back changes to existing reading state and history`() {
+    fun `잘못된 시간대는 기존 읽기 상태와 이력 변경을 롤백한다`() {
         val token = tokenFor("Timezone reader")
         record(token, lastVerse = 1)
         mvc.put("/api/v1/reading/progress") {

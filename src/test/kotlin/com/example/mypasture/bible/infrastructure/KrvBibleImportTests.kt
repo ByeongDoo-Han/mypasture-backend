@@ -20,7 +20,7 @@ class KrvBibleImportTests(
     @Autowired private val verseRepository: BibleVerseEntityRepository,
 ) {
     @Test
-    fun `imports all KRV verses once and preserves verse ids`() {
+    fun `개역한글 전체 절을 한 번 가져오고 절 ID를 보존한다`() {
         assertEquals(false, readerService.getVersions().any { it.code == BibleCatalog.KRV_VERSION })
         val first = coordinator.importKrv()
         assertEquals(66, first.books)

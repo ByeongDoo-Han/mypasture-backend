@@ -33,7 +33,7 @@ class KakaoWebCodeExchangeClientTests {
     )
 
     @Test
-    fun `exchange posts fixed redirect and server secret with PKCE verifier`() {
+    fun `인가 코드 교환은 고정된 리다이렉트와 서버 시크릿 및 PKCE 검증값을 보낸다`() {
         val builder = RestClient.builder()
         val server = MockRestServiceServer.bindTo(builder).build()
         server.expect(requestTo("https://kauth.kakao.com/oauth/token"))
@@ -49,7 +49,7 @@ class KakaoWebCodeExchangeClientTests {
     }
 
     @Test
-    fun `exchange rejects provider errors without exposing response details`() {
+    fun `제공자 오류는 응답 상세를 노출하지 않고 거부한다`() {
         val builder = RestClient.builder()
         val server = MockRestServiceServer.bindTo(builder).build()
         server.expect(requestTo("https://kauth.kakao.com/oauth/token"))
@@ -63,7 +63,7 @@ class KakaoWebCodeExchangeClientTests {
     }
 
     @Test
-    fun `web readiness stays disabled without secret or HTTPS callback`() {
+    fun `시크릿이나 HTTPS 콜백이 없으면 웹 로그인 준비 상태를 비활성화한다`() {
         assertEquals(false, KakaoWebProperties(restApiKey = "test-key", redirectUri = "https://app.mypasture.app/oauth/kakao").isConfigured())
         assertEquals(false, KakaoWebProperties(restApiKey = "test-key", clientSecret = "secret", redirectUri = "http://example.com").isConfigured())
     }

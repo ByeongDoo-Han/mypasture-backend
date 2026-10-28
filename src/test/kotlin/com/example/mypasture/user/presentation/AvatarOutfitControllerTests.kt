@@ -31,7 +31,7 @@ class AvatarOutfitControllerTests(
     @Autowired private val service: AvatarOutfitService,
     @Autowired private val outfits: UserAvatarOutfitRepository,
 ) {
-    @Test fun `only authenticated owner can equip and remove a matching item`() {
+    @Test fun `인증한 소유자만 맞는 아이템을 장착하고 해제할 수 있다`() {
         val first = users.save(UserEntity(displayName = "꾸미기테스트${System.nanoTime()}"))
         val second = users.save(UserEntity(displayName = "다른꾸미기${System.nanoTime()}"))
         val firstToken = jwt.issueAccessToken(first).accessToken
@@ -83,7 +83,7 @@ class AvatarOutfitControllerTests(
         assertTrue(outfits.findById(second.id).isEmpty)
     }
 
-    @Test fun `simultaneous first selections keep one outfit row`() {
+    @Test fun `동시 최초 장착은 복장 행을 한 건만 유지한다`() {
         val user = users.save(UserEntity(displayName = "동시꾸미기${System.nanoTime()}"))
         val executor = Executors.newFixedThreadPool(2)
         val start = CountDownLatch(1)

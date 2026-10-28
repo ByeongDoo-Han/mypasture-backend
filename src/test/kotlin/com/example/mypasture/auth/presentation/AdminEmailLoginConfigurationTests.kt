@@ -25,7 +25,7 @@ class AdminEmailLoginConfigurationTests {
     private val strongKey = "independent-admin-secret-at-least-thirty-two-bytes"
 
     @Test
-    fun `disabled feature returns generic request and denies confirmation without touching dependencies`() {
+    fun `기능이 꺼져 있으면 의존성에 접근하지 않고 일반 요청만 반환하며 확인을 거부한다`() {
         val users = mock(UserRepository::class.java)
         val states = mock(AdminEmailLoginStateRepository::class.java)
         val sender = mock(AdminEmailLoginSender::class.java)
@@ -40,7 +40,7 @@ class AdminEmailLoginConfigurationTests {
     }
 
     @Test
-    fun `enabled feature rejects missing short and local placeholder keys`() {
+    fun `기능을 켜도 키가 없거나 짧거나 로컬 예시 값이면 거부한다`() {
         for (key in listOf("", "short", "local-secret-not-for-production-12345678", "change-me-123456789012345678901234567890")) {
             assertFailsWith<IllegalArgumentException> { AdminEmailLoginProperties(enabled = true, hmacSecret = key) }
         }
@@ -48,7 +48,7 @@ class AdminEmailLoginConfigurationTests {
     }
 
     @Test
-    fun `SMTP is mandatory when enabled and production requires credentials plus transport encryption`() {
+    fun `기능을 켜려면 SMTP가 필요하고 운영에서는 인증 정보와 전송 암호화가 필요하다`() {
         val properties = AdminEmailLoginProperties(enabled = true, hmacSecret = strongKey)
         assertFailsWith<IllegalArgumentException> { SmtpAdminEmailLoginSender(properties, MailProperties(), MockEnvironment()) }
         val mail = MailProperties().apply { host = "smtp.example.test" }
@@ -62,7 +62,7 @@ class AdminEmailLoginConfigurationTests {
     }
 
     @Test
-    fun `production accepts implicit TLS without STARTTLS and rejects explicit plaintext transport`() {
+    fun `운영에서는 STARTTLS 없는 암시적 TLS를 허용하고 평문 전송을 거부한다`() {
         val properties = AdminEmailLoginProperties(enabled = true, hmacSecret = strongKey)
         val mail = MailProperties().apply {
             host = "smtp.mx.cloudflare.net"

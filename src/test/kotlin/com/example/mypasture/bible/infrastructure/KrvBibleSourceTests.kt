@@ -11,7 +11,7 @@ class KrvBibleSourceTests {
     private val source = KrvBibleSource(ObjectMapper())
 
     @Test
-    fun `complete canonical KRV source has distinct wording`() {
+    fun `개역한글 정규 원본은 기존 번역과 문구가 다르다`() {
         source.validateSource()
         val genesis = BibleCatalog.findBook("GEN")!!
         val chapter = source.readChapter(genesis, 1)

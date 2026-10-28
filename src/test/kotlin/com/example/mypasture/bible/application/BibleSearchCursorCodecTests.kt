@@ -13,20 +13,20 @@ import kotlin.test.assertFalse
 class BibleSearchCursorCodecTests {
     private val position = BibleSearchPosition(1, 1, 2, 42)
 
-    @Test fun `normalization handles NFC whitespace and unicode character limits`() {
+    @Test fun `검색어 정규화는 NFC 공백과 유니코드 글자 수 제한을 처리한다`() {
         assertEquals("요", BibleSearchCursorCodec.normalizeKeyword(" ${Normalizer.normalize("요", Normalizer.Form.NFD)} "))
         assertEquals("😀".repeat(50), BibleSearchCursorCodec.normalizeKeyword("😀".repeat(50)))
         for (invalid in listOf("", " \t ", "가".repeat(51), "😀".repeat(51), "a\u0000b")) assertFailsWith<IllegalArgumentException> { BibleSearchCursorCodec.normalizeKeyword(invalid) }
     }
 
-    @Test fun `cursor is bound to normalized keyword and version but not page size`() {
+    @Test fun `커서는 정규화한 검색어와 번역본에 묶이지만 페이지 크기에는 묶이지 않는다`() {
         val cursor = BibleSearchCursorCodec.encode("kor1910", "  Word  ", position)
         assertEquals(position, BibleSearchCursorCodec.decode(cursor, "KOR1910", "word"))
         assertFailsWith<IllegalArgumentException> { BibleSearchCursorCodec.decode(cursor, "KOR1910", "world") }
         assertFailsWith<IllegalArgumentException> { BibleSearchCursorCodec.decode(cursor, "OTHER", "word") }
     }
 
-    @Test fun `invalid cursor format revision and locations are rejected without echoing input`() {
+    @Test fun `잘못된 커서 형식 버전 위치는 입력을 되돌려 보여주지 않고 거부한다`() {
         val valid = BibleSearchCursorCodec.encode("KOR1910", "요", position)
         val payload = String(Base64.getUrlDecoder().decode(valid), UTF_8)
         val invalidRevision = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.replaceFirst("1|", "2|").toByteArray(UTF_8))
@@ -39,7 +39,7 @@ class BibleSearchCursorCodecTests {
         }
     }
 
-    @Test fun `canonically equivalent Korean keywords share a cursor`() {
+    @Test fun `정규화 결과가 같은 한글 검색어는 같은 커서를 사용한다`() {
         val cursor = BibleSearchCursorCodec.encode("KOR1910", "요", position)
         assertEquals(position, BibleSearchCursorCodec.decode(cursor, "KOR1910", Normalizer.normalize("요", Normalizer.Form.NFD)))
     }

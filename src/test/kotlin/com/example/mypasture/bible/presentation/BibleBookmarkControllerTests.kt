@@ -36,7 +36,7 @@ class BibleBookmarkControllerTests(
     @Autowired private val objectMapper: ObjectMapper,
 ) {
     @Test
-    fun `authenticated user saves lists and deletes a verse bookmark idempotently`() {
+    fun `인증 사용자는 절 북마크를 멱등하게 저장 조회 삭제한다`() {
         val token = createUserToken()
         val path = "/api/v1/bookmarks/KOR1910/GEN/1/1"
 
@@ -78,7 +78,7 @@ class BibleBookmarkControllerTests(
     }
 
     @Test
-    fun `bookmarks are isolated by authenticated user`() {
+    fun `북마크는 인증된 사용자별로 격리된다`() {
         val ownerToken = createUserToken()
         val otherToken = createUserToken()
         save("/api/v1/bookmarks/KOR1910/GEN/1/1", ownerToken)
@@ -103,7 +103,7 @@ class BibleBookmarkControllerTests(
     }
 
     @Test
-    fun `concurrent saves for the same user and verse converge to one bookmark`() {
+    fun `같은 사용자가 같은 절을 동시에 저장해도 북마크 한 건으로 수렴한다`() {
         val token = createUserToken()
         val path = "/api/v1/bookmarks/KOR1910/GEN/1/1"
         val start = CountDownLatch(1)
@@ -132,7 +132,7 @@ class BibleBookmarkControllerTests(
     }
 
     @Test
-    fun `bookmark endpoints reject unauthenticated and invalid requests`() {
+    fun `북마크 API는 익명 요청과 잘못된 입력을 거부한다`() {
         mockMvc.get("/api/v1/bookmarks")
             .andExpect { status { isUnauthorized() } }
 

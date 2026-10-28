@@ -57,7 +57,7 @@ class AuthControllerTests(
     @Autowired private val jdbcTemplate: JdbcTemplate,
 ) {
     @Test
-    fun `web session cookie restores login and logout removes it`() {
+    fun `웹 세션 쿠키는 로그인을 복원하고 로그아웃 시 제거된다`() {
         val email = "web-session-${UUID.randomUUID()}@example.com"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
@@ -112,7 +112,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `web session rejects untrusted or missing origin and missing cookie`() {
+    fun `신뢰하지 않는 출처 출처 누락 쿠키 누락은 웹 세션에서 거부된다`() {
         for (origin in listOf(null, "https://attacker.example")) {
             mockMvc.post("/api/v1/auth/web/refresh") {
                 if (origin != null) header("Origin", origin)
@@ -155,7 +155,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `social provider readiness is public and does not expose client identifiers`() {
+    fun `소셜 제공자 준비 상태는 공개하되 클라이언트 ID는 노출하지 않는다`() {
         mockMvc.get("/api/v1/auth/social-login/providers")
             .andExpect {
                 status { isOk() }
@@ -168,7 +168,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `signup creates email user`() {
+    fun `회원가입은 이메일 사용자를 만든다`() {
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content =
@@ -189,7 +189,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `signup rejects duplicate email`() {
+    fun `회원가입은 중복 이메일을 거부한다`() {
         val payload =
             """
             {
@@ -216,7 +216,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `nickname availability rejects invalid and taken names and signup rechecks uniqueness`() {
+    fun `닉네임 중복 검사는 잘못되거나 이미 사용 중인 이름을 거부하고 가입 때 다시 검증한다`() {
         mockMvc.get("/api/v1/auth/nicknames/availability") { param("nickname", "중복검사") }
             .andExpect { status { isOk() }; jsonPath("$.available") { value(true) } }
         mockMvc.get("/api/v1/auth/nicknames/availability") { param("nickname", "띄어 쓰기") }
@@ -233,7 +233,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `availability rejects emoji symbols and names beyond Korean or English limit`() {
+    fun `닉네임 중복 검사는 이모지 기호 및 한글 영어 길이 제한 초과를 거부한다`() {
         listOf("가 나", "사랑🙂", "안녕!", "한글123", "가".repeat(9), "a".repeat(11)).forEach { nickname ->
             mockMvc.get("/api/v1/auth/nicknames/availability") { param("nickname", nickname) }
                 .andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_DISPLAY_NAME") } }
@@ -241,7 +241,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `login returns jwt access token and me returns current user`() {
+    fun `로그인은 JWT 액세스 토큰을 반환하고 내 정보는 현재 사용자를 반환한다`() {
         val email = "jwt-login@example.com"
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
@@ -289,7 +289,7 @@ class AuthControllerTests(
 
 
     @Test
-    fun `social login creates google user and returns jwt`() {
+    fun `구글 소셜 로그인은 사용자를 만들고 JWT를 반환한다`() {
         val challenge = createSocialChallenge()
         given(googleOidcOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.GOOGLE, "valid-google-id-token", null, null))).willReturn(
             SocialUserProfile(
@@ -339,7 +339,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `social login creates apple user and returns jwt`() {
+    fun `애플 소셜 로그인은 사용자를 만들고 JWT를 반환한다`() {
         val challenge = createSocialChallenge()
         given(appleOidcOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.APPLE, "valid-apple-id-token", null, "Apple User"))).willReturn(
             SocialUserProfile(
@@ -372,7 +372,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `social login creates kakao user and returns jwt`() {
+    fun `카카오 소셜 로그인은 사용자를 만들고 JWT를 반환한다`() {
         given(kakaoOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.KAKAO, null, "valid-kakao-access-token", "Kakao User"))).willReturn(
             SocialUserProfile(
                 provider = AuthProvider.KAKAO,
@@ -402,7 +402,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `web kakao code exchange issues the same social login session`() {
+    fun `웹 카카오 인가 코드 교환은 일반 소셜 로그인과 같은 세션을 발급한다`() {
         val verifier = "A".repeat(43)
         given(kakaoWebCodeExchangeClient.exchange("single-use-code", verifier)).willReturn("web-kakao-access-token")
         given(kakaoOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.KAKAO, null, "web-kakao-access-token", null))).willReturn(
@@ -429,7 +429,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `web kakao login rejects invalid code without returning the code`() {
+    fun `웹 카카오 로그인은 잘못된 코드를 돌려주지 않고 거부한다`() {
         val verifier = "A".repeat(43)
         given(kakaoWebCodeExchangeClient.exchange("invalid-code", verifier))
             .willThrow(InvalidSocialTokenException("Kakao authorization code is invalid"))
@@ -445,7 +445,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `web kakao login validates code and PKCE verifier`() {
+    fun `웹 카카오 로그인은 인가 코드와 PKCE 검증값을 검사한다`() {
         for (body in listOf(
             """{"code":"","codeVerifier":"${"A".repeat(43)}"}""",
             """{"code":"valid-code","codeVerifier":"short"}""",
@@ -458,7 +458,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `social login rejects email provider`() {
+    fun `소셜 로그인은 이메일 제공자를 거부한다`() {
         mockMvc.post("/api/v1/auth/social-login") {
             contentType = MediaType.APPLICATION_JSON
             content =
@@ -486,7 +486,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `me rejects request without bearer token`() {
+    fun `내 정보 API는 Bearer 토큰이 없으면 거부한다`() {
         mockMvc.get("/api/v1/auth/me")
             .andExpect {
                 status { isUnauthorized() }
@@ -495,7 +495,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `update me saves a checked nickname and keeps current token valid`() {
+    fun `내 정보 수정은 검증한 닉네임을 저장하고 기존 토큰을 유지한다`() {
         val email = "profile-${java.util.UUID.randomUUID()}@example.com"
         val token = signupAndLoginWithDisplayName(email, "ProfileOne")
 
@@ -526,7 +526,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `update me validates authentication and display name`() {
+    fun `내 정보 수정은 인증과 표시 이름을 검증한다`() {
         mockMvc.patch("/api/v1/auth/me") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"displayName":"새 이름"}"""
@@ -557,7 +557,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `refresh token rotates once and reuse revokes the token family`() {
+    fun `갱신 토큰은 한 번만 교체되고 재사용 시 토큰 계열을 폐기한다`() {
         val email = "refresh-${java.util.UUID.randomUUID()}@example.com"
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
@@ -594,7 +594,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `logout revokes access and refresh sessions`() {
+    fun `로그아웃은 액세스 및 갱신 세션을 폐기한다`() {
         val email = "logout-${java.util.UUID.randomUUID()}@example.com"
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
@@ -622,7 +622,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `password reset changes password invalidates sessions and consumes token once`() {
+    fun `비밀번호 재설정은 비밀번호를 바꾸고 세션을 무효화하며 토큰을 한 번만 소비한다`() {
         val email = "password-reset@example.com"
         val oldPassword = "old-password123!"
         val newPassword = "new-password456!"
@@ -692,7 +692,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `password reset request does not reveal whether account exists`() {
+    fun `비밀번호 재설정 요청은 계정 존재 여부를 드러내지 않는다`() {
         mockMvc.post("/api/v1/auth/password-reset/requests") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"email":"unknown-account@example.com"}"""
@@ -703,7 +703,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `delete account anonymizes user invalidates token and allows signup again`() {
+    fun `회원 탈퇴는 사용자를 익명화하고 토큰을 무효화하며 재가입을 허용한다`() {
         val email = "withdraw@example.com"
         val password = "password123!"
         val token = signupAndLogin(email, password)
@@ -799,7 +799,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `delete account erases private data anonymizes shared records and evicts cache`() {
+    fun `회원 탈퇴는 개인 데이터를 삭제하고 공유 기록을 익명화하며 캐시를 비운다`() {
         val email = "withdraw-data@example.com"
         val password = "password123!"
         val token = signupAndLogin(email, password)
@@ -885,7 +885,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `delete account requires current password for email account`() {
+    fun `이메일 계정 탈퇴에는 현재 비밀번호가 필요하다`() {
         val email = "withdraw-reauth@example.com"
         val password = "password123!"
         val token = signupAndLogin(email, password)

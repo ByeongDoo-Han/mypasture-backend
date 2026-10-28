@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test
 /** embedding index use case의 batch 멱등성, 비용 집계와 분산 lock 경계를 검증합니다. */
 class BibleEmbeddingIndexServiceTests {
     @Test
-    fun `indexes one pending batch and reports usage`() {
+    fun `대기 중인 한 배치를 색인하고 사용량을 보고한다`() {
         val store = FakeEmbeddingStore(
             pending = mutableListOf(
                 BibleEmbeddingSource(1, "창세기 1:1 태초에", "hash-1"),
@@ -34,7 +34,7 @@ class BibleEmbeddingIndexServiceTests {
     }
 
     @Test
-    fun `does not call embedding provider when another instance owns lock`() {
+    fun `다른 인스턴스가 잠금을 소유하면 임베딩 제공자를 호출하지 않는다`() {
         val store = FakeEmbeddingStore(mutableListOf(BibleEmbeddingSource(1, "본문", "hash")), lockAvailable = false)
         val provider = FakeEmbeddingPort()
         val service = BibleEmbeddingIndexService(properties(), provider, store)
@@ -47,7 +47,7 @@ class BibleEmbeddingIndexServiceTests {
     }
 
     @Test
-    fun `rejects dimensions that do not match Flyway vector schema`() {
+    fun `Flyway 벡터 스키마와 차원이 다른 임베딩을 거부한다`() {
         val service = BibleEmbeddingIndexService(
             properties().copy(embeddingDimensions = 512),
             FakeEmbeddingPort(dimensions = 512),

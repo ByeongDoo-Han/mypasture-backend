@@ -9,7 +9,7 @@ import kotlin.test.assertEquals
 
 /** 실제 PostgreSQL에서 V42.13만 기존 버전 이후로 적용하고 제약·롤백을 확인합니다. */
 class AvatarOutfitMigrationPostgresTests {
-    @Test fun `outfit migration applies after baseline and preserves account uniqueness`() {
+    @Test fun `복장 마이그레이션은 기본 스키마 뒤에 적용되고 계정 유일성을 유지한다`() {
         val url = System.getenv("AVATAR_OUTFIT_MIGRATION_JDBC_URL")
         assumeTrue(!url.isNullOrBlank(), "PostgreSQL URL is required for this suite")
         val user = System.getenv("AVATAR_OUTFIT_MIGRATION_JDBC_USER") ?: "postgres"

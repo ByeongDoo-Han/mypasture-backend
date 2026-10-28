@@ -3,6 +3,7 @@
 
 import argparse
 import hashlib
+from http.client import RemoteDisconnected
 import json
 import os
 import re
@@ -39,7 +40,7 @@ def wait_until_ready():
             with urlopen(BASE_URL + "/actuator/health", timeout=2) as response:
                 if response.status == 200 and json.load(response).get("status") == "UP":
                     return
-        except (HTTPError, URLError, TimeoutError):
+        except (HTTPError, URLError, TimeoutError, RemoteDisconnected):
             pass
         time.sleep(1)
     raise RuntimeError("Local backend did not become healthy within 120 seconds")

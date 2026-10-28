@@ -21,6 +21,19 @@ MODE=reading k6 run scripts/load/app-api.js
 
 기본값은 VU 1명·1회 반복입니다. VU마다 서로 다른 토큰을 사용하므로 동시 사용자 수만큼 로컬 계정을 준비합니다. `VUS`는 최대 200, `ITERATIONS`는 VU당 최대 100입니다. 읽기 진도는 동일한 장의 동일 절을 갱신하므로 매 반복마다 새 기록을 무한히 늘리지 않습니다.
 
+`PROFILE=steady`는 지정한 VU 수를 10초~3분 유지합니다. 10명 단기 확인 다음에는 30→50→100명을 **각각 별도 실행**해 오류율·p95와 컨테이너 CPU/메모리를 비교합니다. 기본 반복 간격은 1초이며 `THINK_SECONDS`로 1~30초를 지정할 수 있습니다. 아래 1초 간격의 반복은 병목 탐색을 위해 실제 읽기 속도보다 빠르게 요청하므로 운영 트래픽 예측치로 해석하지 않습니다. 계정별 액세스 토큰 만료 전에 세 실행을 마치거나 새 계정을 준비합니다.
+
+```bash
+python3 scripts/load/prepare-local-users.py --users 100
+MODE=reading PROFILE=steady VUS=30 DURATION=60s k6 run scripts/load/app-api.js
+MODE=reading PROFILE=steady VUS=50 DURATION=60s k6 run scripts/load/app-api.js
+MODE=reading PROFILE=steady VUS=100 DURATION=60s k6 run scripts/load/app-api.js
+```
+
+AI SSE는 사용자당 이용 한도가 있어 지속 실행을 차단합니다. 모의 AI로 동시 요청 수만 바꿔 1회씩 확인하고, 실행별 `AI_RUN_ID`를 바꿔 캐시 적중과 새 생성 요청을 구분합니다. 실제 OpenAI 연동은 소량의 별도 통합 검사로 측정합니다. QT SSE는 `SSE_VUS`로 토큰 수 이하의 동시 연결 수를 지정하고 `qt-sse.mjs`로 유지 상태와 답변 이벤트 수를 측정합니다.
+
+2026-10-28에 실행한 30·50·100명 측정 조건과 결과는 [검증 기록](load-test-results-2026-10-28.md)에 남겼습니다.
+
 | 명령 | 실제 요청 | 준비 사항 |
 | --- | --- | --- |
 | `MODE=reading VUS=10 ITERATIONS=3 k6 run scripts/load/app-api.js` | 내 진도 GET + 창세기 1:1 진도 PUT | `--users 10`으로 계정 준비 |

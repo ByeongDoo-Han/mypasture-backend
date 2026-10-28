@@ -6,18 +6,22 @@ const sessionId = process.env.QT_SESSION_ID;
 const tokenFile = process.env.TOKENS_FILE || './scripts/load/tokens.local.json';
 const seconds = Number(process.env.SSE_SECONDS || 15);
 const tokens = JSON.parse(readFileSync(tokenFile, 'utf8'));
+const vus = Number(process.env.SSE_VUS || tokens.length);
 
 if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(baseUrl)) throw new Error('Local-only SSE test');
 if (!/^[0-9a-f-]{36}$/i.test(sessionId || '')) throw new Error('QT_SESSION_ID must be a session UUID');
 if (!Number.isSafeInteger(seconds) || seconds < 1 || seconds > 120) throw new Error('SSE_SECONDS must be 1..120');
 if (!Array.isArray(tokens) || !tokens.length || tokens.length > 200) throw new Error('Expected 1..200 access tokens');
+if (!Number.isSafeInteger(vus) || vus < 1 || vus > tokens.length) throw new Error('SSE_VUS must be 1..token count');
 
-const controllers = tokens.map(() => new AbortController());
+const selectedTokens = tokens.slice(0, vus);
+const controllers = selectedTokens.map(() => new AbortController());
+const answerEventsBySubscriber = selectedTokens.map(() => 0);
 let connected = 0;
 let earlyClosures = 0;
 let failures = 0;
 
-async function subscribe(token, controller) {
+async function subscribe(token, controller, index) {
   const response = await fetch(`${baseUrl}/api/v1/quiet-time/sessions/${sessionId}/answers/stream`, {
     headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
     signal: controller.signal,
@@ -35,9 +39,15 @@ async function subscribe(token, controller) {
         break;
       }
       pending += decoder.decode(value, { stream: true });
-      if (!sawConnected && /event:\s*connected\b/.test(pending)) {
-        sawConnected = true;
-        connected += 1;
+      const frames = pending.split(/\r?\n\r?\n/);
+      pending = frames.pop() || '';
+      for (const frame of frames) {
+        const event = frame.match(/^event:\s*(\S+)/m)?.[1];
+        if (event === 'connected' && !sawConnected) {
+          sawConnected = true;
+          connected += 1;
+        }
+        if (event === 'answer-updated') answerEventsBySubscriber[index] += 1;
       }
       if (pending.length > 8192) pending = pending.slice(-2048);
     }
@@ -48,7 +58,7 @@ async function subscribe(token, controller) {
 }
 
 const start = performance.now();
-const tasks = tokens.map((token, index) => subscribe(token, controllers[index]).catch((error) => {
+const tasks = selectedTokens.map((token, index) => subscribe(token, controllers[index], index).catch((error) => {
   if (!controllers[index].signal.aborted) {
     failures += 1;
     console.error(`Subscription ${index + 1} failed: ${error.message}`);
@@ -58,15 +68,15 @@ const tasks = tokens.map((token, index) => subscribe(token, controllers[index]).
 try {
   // Give every subscription time to receive its initial connected event.
   const deadline = Date.now() + 10000;
-  while (connected + failures < tokens.length && Date.now() < deadline) {
+  while (connected + failures < selectedTokens.length && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   const established = connected;
   await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
   controllers.forEach((controller) => controller.abort());
   await Promise.all(tasks);
-  console.log(JSON.stringify({ requested: tokens.length, established, earlyClosures, failures, holdSeconds: seconds, elapsedMs: Math.round(performance.now() - start) }));
-  if (established !== tokens.length || earlyClosures || failures) process.exitCode = 1;
+  console.log(JSON.stringify({ requested: selectedTokens.length, established, earlyClosures, failures, holdSeconds: seconds, answerEvents: answerEventsBySubscriber.reduce((sum, value) => sum + value, 0), subscribersWithUpdates: answerEventsBySubscriber.filter((value) => value > 0).length, elapsedMs: Math.round(performance.now() - start) }));
+  if (established !== selectedTokens.length || earlyClosures || failures) process.exitCode = 1;
 } finally {
   controllers.forEach((controller) => controller.abort());
 }

@@ -1,0 +1,14 @@
+# Compose v2.34+: isolate load-test containers and ports from an existing local stack.
+services:
+  postgres:
+    container_name: !reset null
+    ports: !override
+      - "127.0.0.1:15432:5432"
+  redis:
+    container_name: !reset null
+    ports: !override
+      - "127.0.0.1:16379:6379"
+  backend:
+    container_name: !reset null
+    ports: !override
+      - "127.0.0.1:18080:8080"

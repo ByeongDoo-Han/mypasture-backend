@@ -60,3 +60,26 @@ crash.*.log
 scripts/load/tokens.local.json
 scripts/load/qt-session.local.txt
 scripts/load/results/
+
+# Local-only agent settings and rule packages
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+/.agents/skills/**/*.md
+/.agents/skills/**/*.toml
+/.agents/skills/**/*.yaml
+/.agents/skills/**/*.yml
+/.agents/skills/**/*.json
+/.agents/roles/
+/.agents/*.md
+/.agents/*.yml
+/.agents/*.yaml
+/.agents/*.toml
+/.agents/*.json
+/.codex/
+/.claude/
+/.cursor/rules/
+/.cursorrules
+/.windsurfrules
+/.github/copilot-instructions.md
+/.github/instructions/

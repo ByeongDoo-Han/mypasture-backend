@@ -3,7 +3,7 @@
 ## 계획과 근거
 
 - 종류: 개발 절차 개선
-- Issue: [#247](https://github.com/ByeongDoo-Han/mypasture-backend/issues/247)
+- Issue: [#247](https://github.com/ByeongDoo-Han/mypasture-backend/issues/247), 구현 [PR #248](https://github.com/ByeongDoo-Han/mypasture-backend/pull/248)
 - 기존 상태: 위험도 정책과 CI 선택기는 있으나 서버 서브에이전트가 변경 검증과 API 소비자 인수를 실행할 프로젝트 스킬이 없었다.
 - 목표: 실제 diff 기반 검증과 서버 계약·모바일/관리자 인수를 반복 가능한 절차로 제공한다.
 - Owner·허용 경로: 서버 문서 담당 / `AGENTS.md`, `.agents/skills/**`, `.github/scripts/select_tests.py`, `.github/scripts/test_select_tests.py`, `docs/tasks/**`
@@ -28,9 +28,9 @@
 
 | 단계 | 작성 시점 상태 |
 | --- | --- |
-| 로컬 구현·검증 | 위 검사 완료 |
-| PR 최종 커밋 CI | 미실행 |
-| `dev` 병합 | 미실행 |
+| 로컬 구현·검증 | 위 검사 완료, `4b1b078` |
+| PR 최종 커밋 CI | [Server CI run 43815506264](https://github.com/ByeongDoo-Han/mypasture-backend/actions/runs/43815506264) 통과 |
+| `dev` 병합 | PR #248 merge `31a6ecf`, 원격 기능 브랜치 삭제 |
 | `main` 병합·운영 배포 | 미실행 |
 
 이후 상태는 이슈와 PR의 최신 커밋·CI에서 확인한다.

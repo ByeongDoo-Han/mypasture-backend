@@ -3,9 +3,11 @@ name: Server CI
 on:
   pull_request:
     branches:
+      - dev
       - main
   push:
     branches:
+      - dev
       - main
   workflow_dispatch:
 
@@ -17,6 +19,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-source:
+    name: Release PR comes from dev
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require dev as source branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: test "$HEAD_REF" = dev
+
   changes:
     name: Select affected checks
     runs-on: ubuntu-latest

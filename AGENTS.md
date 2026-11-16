@@ -94,15 +94,15 @@
 
 ## GitHub 작업 흐름
 
-- 변경 전에 기존 관련 Issue를 확인하고 없으면 GitHub Issue를 만듭니다. 최신 기본 브랜치(`main`, 없으면 `master`)에서 작업을 시작합니다. 기존 사용자 변경을 보존하고 다른 변경이 있는 작업 트리 대신 별도 worktree를 사용합니다.
+- 변경 전에 기존 관련 Issue를 확인하고 없으면 GitHub Issue를 만듭니다. 최신 `dev`에서 세부 작업 브랜치를 만들고, 기존 사용자 변경을 보존하며 별도 worktree를 사용합니다.
 - Issue 본문은 `.github/ISSUE_TEMPLATE/feature.md` 구조를 따르는 GitHub Flavored Markdown으로 작성합니다.
 - 작업 범위, 완료 조건과 검증 계획은 `- [ ]` 체크박스로 작성하고 실제 줄바꿈을 유지합니다. 검증한 항목만 완료로 표시합니다.
 - GitHub CLI에서는 본문을 Markdown 파일로 준비해 `gh issue create --body-file <file>`을 사용합니다. PR 본문도 `--body-file`을 사용하며 백틱이 포함된 본문을 셸 인자로 직접 전달하지 않습니다.
 - 브랜치 이름은 `feat/<domain>-<issue-number>-<feature-slug>` 형식을 사용합니다.
 - 기능 커밋은 `feat(<domain>): <summary> (#<issue-number>)` 형식을 기본으로 합니다. 수정·문서·테스트 작업은 목적에 맞는 타입을 사용합니다.
-- PR의 base는 기본 브랜치(`main`, 없으면 `master`)이며 본문에 `Closes #<issue-number>`를 포함합니다. 여러 PR이 필요한 작업은 마지막 완료 PR에서 Issue를 닫고 나머지 PR에서는 관련 Issue를 참조합니다.
+- 세부 작업 PR의 base는 `dev`입니다. 검증된 `dev`만 릴리스 PR로 `main`에 병합합니다. 세부 작업 PR에 `Closes #<issue-number>`를 포함하고, 릴리스 PR에는 포함된 변경·CI·배포 계획을 기록합니다.
 - 변경 영향에 맞는 로컬 필수 검증과 최종 커밋의 관련 CI가 통과한 뒤 승인된 범위에서 merge하고 원격 기능 브랜치를 삭제합니다.
-- 기본 브랜치 병합과 별개로 운영 배포는 사람의 별도 승인이 필요합니다.
+- `main` 병합과 별개로 운영 배포는 사람의 별도 승인이 필요합니다. 자동 배포가 연결된 변경은 `main` 병합 전에 배포 영향과 승인 범위를 확인합니다.
 - 병합 직전 base 변경·충돌·자동 배포 연결을 다시 확인합니다. 병합 뒤 발견한 별도 결함은 후속 Issue/PR로 추적합니다.
 
 ## 여러 저장소의 연동

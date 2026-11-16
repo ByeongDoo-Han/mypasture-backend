@@ -371,7 +371,7 @@ Content-Type: application/json
 
 EMAIL 계정은 현재 비밀번호가 필수다. 소셜 전용 계정은 `currentPassword`를 생략한다. Response `204`.
 
-탈퇴 시 로그인 제공자 연결, token, AI·개인 신앙 기록, 말씀 이용 기록과 알림 정보를 물리 삭제한다. 공동 QT 모임은 유지하되 작성자·기기 정보를 익명화하고, 사용자 행은 참조 무결성용 익명 tombstone으로 남긴다. 전체 DB 처리는 한 트랜잭션이며 기존 JWT는 즉시 무효화되고 동일 이메일로 재가입할 수 있다. 상세 정책은 `docs/account-erasure-policy.ko.md`를 따른다.
+탈퇴 시 로그인 제공자 연결, token, AI·개인 신앙 기록, 말씀 이용 기록과 알림 정보를 물리 삭제한다. 공동 QT 모임은 유지하되 작성자·기기 정보를 익명화하고, 사용자 행은 참조 무결성용 익명 tombstone으로 남긴다. 전체 DB 처리는 한 트랜잭션이며 기존 JWT는 즉시 무효화되고 동일 이메일로 재가입할 수 있다. 상세 정책은 `docs/domain/account-erasure-policy.ko.md`를 따른다.
 
 Errors:
 
@@ -602,7 +602,7 @@ POST /api/v1/admin/bible-commentaries/{commentaryId}/publish
 POST /api/v1/admin/bible-commentaries/{commentaryId}/reject
 ```
 
-상세 운영 절차는 `docs/bible-commentary-pipeline.ko.md`를 따른다.
+상세 운영 절차는 `docs/operations/bible-commentary-pipeline.ko.md`를 따른다.
 
 ### 3.5 Highlights
 
@@ -1153,9 +1153,9 @@ QR 상태는 SCHEDULED, OPEN, EXPIRED, REVOKED, CLOSED입니다.
 
 `POST /api/v1/quiet-time/join-codes/resolve`는 JWT가 필요하며 `{"joinCode":"ABC234"}`를 받아 기존 `QuietTimeSessionResponse`를 반환합니다. 서버는 앞뒤 공백과 소문자를 정규화하고 사용자별 Redis rate limit으로 코드 추측을 제한합니다.
 
-상세 정책: [큐티 모임 QR 만료 및 폐기 정책](quiet-time-qr-policy.ko.md)
+상세 정책: [큐티 모임 QR 만료 및 폐기 정책](../domain/quiet-time-qr-policy.ko.md)
 
-범위와 소유권 정책: [고정 목장 및 일회성 QT 정책](quiet-time-session-scope-policy.ko.md)
+범위와 소유권 정책: [고정 목장 및 일회성 QT 정책](../domain/quiet-time-session-scope-policy.ko.md)
 
 ### 7.10 큐티 질문별 실시간 답변
 

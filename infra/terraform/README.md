@@ -9,5 +9,5 @@
 - `environments/prod`: HA 데이터 계층과 외부 HTTPS Load Balancer를 사용하는 운영 환경
 
 실제 비밀번호와 API 키는 `.tfvars`나 Terraform resource에 넣지 않습니다. 자세한 최초 구축 및 배포 순서는
-[`docs/gcp-terraform-deployment.ko.md`](../../docs/gcp-terraform-deployment.ko.md)를 따릅니다.
-관리자 서비스의 최초 image/IAP/WIF 순서는 [`docs/admin-cloud-run-operations.ko.md`](../../docs/admin-cloud-run-operations.ko.md)를 따릅니다.
+[`docs/operations/gcp-terraform-deployment.ko.md`](../../docs/operations/gcp-terraform-deployment.ko.md)를 따릅니다.
+관리자 서비스의 최초 image/IAP/WIF 순서는 [`docs/operations/admin-cloud-run-operations.ko.md`](../../docs/operations/admin-cloud-run-operations.ko.md)를 따릅니다.

@@ -126,7 +126,7 @@ https://app.mypasture.app/q/qt/{offlineCode}
 
 ## API 테스트 순서
 
-아래 순서대로 [mypasture-flow.http](../http/mypasture-flow.http)를 `local` 환경으로 실행하면 전체 서비스 흐름을 확인할 수 있습니다. 변수는 [http-client.env.json](../http/http-client.env.json)에 분리되어 있습니다.
+아래 순서대로 [mypasture-flow.http](../../http/mypasture-flow.http)를 `local` 환경으로 실행하면 전체 서비스 흐름을 확인할 수 있습니다. 변수는 [http-client.env.json](../../http/http-client.env.json)에 분리되어 있습니다.
 
 IntelliJ HTTP Client에서 요청 실행 시 `Run with environment`를 `local`로 선택하세요.
 

@@ -4,7 +4,7 @@
 
 ## API
 
-계약은 `ScriptureCopyApi`, 실행 예제는 [scripture-copies.http](../http/scripture-copies.http)에 있습니다. 모두 JWT 본인 대상입니다.
+계약은 `ScriptureCopyApi`, 실행 예제는 [scripture-copies.http](../../http/scripture-copies.http)에 있습니다. 모두 JWT 본인 대상입니다.
 
 | Method / 경로 | 용도 |
 | --- | --- |

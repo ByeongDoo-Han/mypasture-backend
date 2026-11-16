@@ -63,7 +63,7 @@ Package: `com.example.mypasture.ai`
 - [~] 단위 테스트: RAG 결과 없음과 index batch 완료, quota/cache 추가 필요
 - [~] 통합 테스트: AI usage log 완료, 실제 Redis 장애 테스트 필요
 
-운영 문서: [AI 목자 pgvector RAG 운영 가이드](ai-rag-operations.ko.md)
+운영 문서: [AI 목자 pgvector RAG 운영 가이드](../operations/ai-rag-operations.ko.md)
 
 ## Quiet Time QR Domain
 
@@ -113,9 +113,9 @@ Package: com.example.mypasture.quiet_time
 - [ ] 고정 목장 membership과 리더·부리더 역할
 - [ ] 일회성 참가자의 동의 기반 고정 목장 전환
 
-정책 문서: [큐티 모임 QR 만료 및 폐기 정책](quiet-time-qr-policy.ko.md)
+정책 문서: [큐티 모임 QR 만료 및 폐기 정책](../domain/quiet-time-qr-policy.ko.md)
 
-범위 정책: [고정 목장 및 일회성 QT 정책](quiet-time-session-scope-policy.ko.md)
+범위 정책: [고정 목장 및 일회성 QT 정책](../domain/quiet-time-session-scope-policy.ko.md)
 
 
 ## Auth Domain
@@ -217,7 +217,7 @@ Package: `com.example.mypasture.bible`
 - [ ] 해설 오프라인 동기화와 오류 신고
 - [ ] 목회자·신학 검수 기준과 감사 이력 확정
 
-정책 문서: [성경 장별 AI 해설 생성 및 게시 운영 가이드](bible-commentary-pipeline.ko.md),
+정책 문서: [성경 장별 AI 해설 생성 및 게시 운영 가이드](../operations/bible-commentary-pipeline.ko.md),
 [성경 저장 및 오프라인 설계](bible-storage-and-offline.ko.md)
 
 ## Pasture Domain
@@ -292,7 +292,7 @@ Package: `com.example.mypasture.daily_word`
 - [ ] 생성 실패율·대기 시간·비용 Micrometer 지표
 - [ ] 성경력과 교회 절기를 반영한 주제 편성
 
-운영 문서: [오늘의 말씀 생성·검수·게시 운영 가이드](daily-word-publishing-operations.ko.md)
+운영 문서: [오늘의 말씀 생성·검수·게시 운영 가이드](../operations/daily-word-publishing-operations.ko.md)
 
 ## Notification Domain
 
@@ -317,7 +317,7 @@ Package: `com.example.mypasture.notification`
 - [ ] delivery 상태별 Micrometer metric과 운영 알림
 - [ ] `DEAD` 작업 수동 재처리·감사 API
 
-운영 문서: [푸시 발송 복구 및 재시도 운영 가이드](notification-delivery-operations.ko.md)
+운영 문서: [푸시 발송 복구 및 재시도 운영 가이드](../operations/notification-delivery-operations.ko.md)
 
 ## Reward Domain
 

@@ -135,7 +135,7 @@ docker build --tag mypasture-backend:local .
 
 실제 OpenAI 연결을 최소 토큰으로 확인하는 테스트는 명시적으로만 실행합니다.
 
-앱의 실제 API 요청을 재현하는 로컬 k6 부하 테스트는 [실행 가이드](docs/local-load-test.md)를 따릅니다.
+앱의 실제 API 요청을 재현하는 로컬 k6 부하 테스트는 [실행 가이드](docs/verification/local-load-test.md)를 따릅니다.
 
 ```bash
 OPENAI_API_KEY=<key> ./gradlew openAiSmokeTest
@@ -160,15 +160,16 @@ Terraform 구성은 다음을 관리합니다.
 
 ## Documentation
 
+- [문서 전체 색인](docs/README.md)
 - [Architecture index](docs/architecture/README.md)
-- [API specification](docs/api-spec.md)
-- [Domain implementation checklist](docs/domain-checklist.md)
-- [Security hardening](docs/security-hardening.ko.md)
-- [AI RAG operations](docs/ai-rag-operations.ko.md)
-- [GCP Terraform deployment](docs/gcp-terraform-deployment.ko.md)
+- [API specification](docs/reference/api-spec.md)
+- [Domain implementation checklist](docs/product/domain-checklist.md)
+- [Security hardening](docs/verification/security-hardening.ko.md)
+- [AI RAG operations](docs/operations/ai-rag-operations.ko.md)
+- [GCP Terraform deployment](docs/operations/gcp-terraform-deployment.ko.md)
 - API 명세: 관리자 웹에 로그인한 뒤 **API 문서** 메뉴에서 조회합니다. 서버의 `/swagger-ui/**`와 `/v3/api-docs/**`는 활성 `ADMIN` JWT만 허용합니다. 직접 요청할 때는 `Authorization: Bearer <관리자 access token>` 헤더가 필요합니다. 관리자 웹의 문서 화면은 조회 전용입니다.
-- [QT QR policy](docs/quiet-time-qr-policy.ko.md)
-- [Today word operations](docs/daily-word-publishing-operations.ko.md)
+- [QT QR policy](docs/domain/quiet-time-qr-policy.ko.md)
+- [Today word operations](docs/operations/daily-word-publishing-operations.ko.md)
 
 문서의 `구현`, `부분 구현`, `계획` 표기를 코드 완료 상태와 구분해서 확인합니다.
 

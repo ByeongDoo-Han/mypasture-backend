@@ -1,5 +1,7 @@
 # My Pasture Architecture
 
+[문서 전체 색인](../README.md)
+
 이 디렉터리는 My Pasture 백엔드의 현재 아키텍처를 설명하는 기준 문서입니다.
 문서 구조는 arc42를 따르고, 구조도는 C4 Model, 기술 결정은 ADR로 관리합니다.
 
@@ -30,9 +32,9 @@
 
 ## 기존 상세 문서
 
-- [기능별 구현 체크리스트](../domain-checklist.md)
-- [API 명세](../api-spec.md)
-- [보안 강화 내역](../security-hardening.ko.md)
-- [AI RAG 운영 가이드](../ai-rag-operations.ko.md)
-- [알림 전달 운영 가이드](../notification-delivery-operations.ko.md)
-- [GCP Terraform 배포 가이드](../gcp-terraform-deployment.ko.md)
+- [기능별 구현 체크리스트](../product/domain-checklist.md)
+- [API 명세](../reference/api-spec.md)
+- [보안 강화 내역](../verification/security-hardening.ko.md)
+- [AI RAG 운영 가이드](../operations/ai-rag-operations.ko.md)
+- [알림 전달 운영 가이드](../operations/notification-delivery-operations.ko.md)
+- [GCP Terraform 배포 가이드](../operations/gcp-terraform-deployment.ko.md)

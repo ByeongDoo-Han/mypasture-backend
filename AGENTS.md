@@ -121,10 +121,10 @@
 
 ## 운영 문서
 
-- [환경 설정](docs/environment.md)
-- [GCP 배포 절차](docs/gcp-terraform-deployment.ko.md)
-- [운영 설계](docs/production-design.md)
-- [보안 기준](docs/security-hardening.ko.md)
+- [환경 설정](docs/operations/environment.md)
+- [GCP 배포 절차](docs/operations/gcp-terraform-deployment.ko.md)
+- [운영 설계](docs/product/production-design.md)
+- [보안 기준](docs/verification/security-hardening.ko.md)
 - [실제 배포 워크플로](.github/workflows/deploy-gcp.yml)
 
 환경별 명령·설정은 기존 운영 문서에서 관리하고 새 절차는 필요에 따라 `docs/runbooks/`에 둡니다. `AGENTS.md`에는 판단 기준과 문서 링크를 유지하며 비밀값이나 변하기 쉬운 설정값을 복제하지 않습니다. `main`의 Server CI 성공 후 자동 배포는 변경 선택 결과가 runtime에 영향을 준 경우에만 시작하므로 병합 직전에 실제 선택 결과와 대상 환경을 확인합니다.

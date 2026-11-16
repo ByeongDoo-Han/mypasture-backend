@@ -19,4 +19,4 @@ Redis AOF는 VM의 부팅 디스크에 저장되므로 `google_compute_instance.
 
 관리자 이메일 로그인은 `admin_email_login_enabled`로 API에서만 활성화합니다. `admin_email_login_from`, `smtp_port`, `smtp_starttls_enabled`, `smtp_ssl_enabled`를 함께 설정합니다. 관리자 HMAC Secret 메타데이터는 활성화 여부와 무관하게 보존하며 payload는 Terraform 밖에서 저장합니다. 기능을 끄면 API의 Secret 연결만 제거합니다. 일반 이메일/비밀번호 재설정/incident 발송 모드는 이 플래그로 변경하지 않습니다. 기존 서비스에서 SMTP를 사용하지 않더라도 API에는 SMTP username/password Secret을 연결합니다. worker와 job에는 관리자 HMAC 또는 추가 SMTP 자격증명을 연결하지 않습니다. 단, 현재 API/worker/job이 runtime service account를 공유하므로 이 구분은 환경변수 바인딩 범위이며 별도 IAM 주체 격리를 의미하지 않습니다.
 
-기존 HMAC Secret/IAM import 및 공개 운영 API에 해당하는 staging 설정은 [`관리자 이메일 배포 절차`](../../../../docs/admin-email-login.md#terraform-설정과-기존-secret-인수)를 따릅니다.
+기존 HMAC Secret/IAM import 및 공개 운영 API에 해당하는 staging 설정은 [`관리자 이메일 배포 절차`](../../../../docs/operations/admin-email-login.md#terraform-설정과-기존-secret-인수)를 따릅니다.

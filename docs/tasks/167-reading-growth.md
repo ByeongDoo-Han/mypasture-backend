@@ -22,7 +22,7 @@
 | 기능/역할 | 실제 Agent | 허용 경로 |
 | --- | --- | --- |
 | Lead·계약·통합 | /root | server migration/HTTP/CI/작업 기록, app navigation/package/config/shared API/auth 및 최종 BibleScreen 공유 연결 |
-| 독서 업적 전체 | achievement | server achievement/**, reading/application/ReadingService.kt, bible/application/{BibleBookmarkService,BibleNoteService}.kt, user/infrastructure/JdbcAccountDataErasureAdapter.kt, 해당 신규 테스트/docs/achievements.md; mobile features/achievements/**, profile/{MoreScreen,BookmarksScreen,BibleNotesScreen}.tsx, 업적 단위/PWA/tests/docs |
+| 독서 업적 전체 | achievement | server achievement/**, reading/application/ReadingService.kt, bible/application/{BibleBookmarkService,BibleNoteService}.kt, user/infrastructure/JdbcAccountDataErasureAdapter.kt, 해당 신규 테스트/docs/product/achievements.md; mobile features/achievements/**, profile/{MoreScreen,BookmarksScreen,BibleNotesScreen}.tsx, 업적 단위/PWA/tests/docs |
 | 말씀카드 전체 | verse_card | mobile features/verseCard/**, assets/verse-card/**, tests/verse-card* 및 tests/pwa/verse-card*, docs/verse-card.md; 공유 파일 직접 수정 금지 |
 | 안정성·기기 조사 | stability | mobile BibleScreen.tsx의 오류 상태/스타일만, tests/pwa/bible-error*, 안정성 검증 기록; 이후 공유 BibleScreen 소유권은 Lead로 이전 |
 | QA | stability (업적·카드 구현 종료 후) | 업적/말씀카드의 실제 diff·검사/브라우저/기기 근거, 기능 코드 수정 금지 |

@@ -135,6 +135,8 @@ docker build --tag mypasture-backend:local .
 
 실제 OpenAI 연결을 최소 토큰으로 확인하는 테스트는 명시적으로만 실행합니다.
 
+앱의 실제 API 요청을 재현하는 로컬 k6 부하 테스트는 [실행 가이드](docs/local-load-test.md)를 따릅니다.
+
 ```bash
 OPENAI_API_KEY=<key> ./gradlew openAiSmokeTest
 ```

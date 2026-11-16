@@ -55,3 +55,8 @@ out/
 !*.tfvars.example
 crash.log
 crash.*.log
+
+# Local load-test credentials and reports
+scripts/load/tokens.local.json
+scripts/load/qt-session.local.txt
+scripts/load/results/

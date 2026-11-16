@@ -379,11 +379,13 @@ class BibleCommentaryService(
         }
     }
 
-    private fun BibleChapter.sourceHash(): String {
-        val source = verses.joinToString("\n") { "${it.verse}:${it.text}" }
-        val digest = MessageDigest.getInstance("SHA-256").digest(source.toByteArray(StandardCharsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }
-    }
+}
+
+/** 저장된 해설이 현재 본문과 같은지 비교하기 위한 장 단위 지문입니다. */
+internal fun BibleChapter.sourceHash(): String {
+    val source = verses.joinToString("\n") { "${it.verse}:${it.text}" }
+    val digest = MessageDigest.getInstance("SHA-256").digest(source.toByteArray(StandardCharsets.UTF_8))
+    return digest.joinToString("") { "%02x".format(it) }
 }
 
 private fun BibleChapterCommentaryEntity.toModel(bookName: String): BibleChapterCommentary =

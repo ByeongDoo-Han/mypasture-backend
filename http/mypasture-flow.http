@@ -38,14 +38,23 @@ client.test("Email verification returns a signup token", function () {
 client.global.set("emailVerificationToken", response.body.verificationToken);
 %}
 
-### 01-2. Sign up with the one-time verification token
+### 01-2. Check nickname availability before signing up
+GET {{baseUrl}}/api/v1/auth/nicknames/availability?nickname=FlowTester
+
+> {%
+client.test("Nickname is available", function () {
+  client.assert(response.status === 200 && response.body.available === true, "Choose another nickname");
+});
+%}
+
+### 01-3. Sign up with the one-time verification token
 POST {{baseUrl}}/api/v1/auth/signup
 Content-Type: application/json
 
 {
   "email": "{{email}}",
   "password": "{{password}}",
-  "displayName": "Flow Tester",
+  "displayName": "FlowTester",
   "verificationToken": "{{emailVerificationToken}}"
 }
 
@@ -72,6 +81,16 @@ client.test("Login returns token", function () {
   client.assert(!!response.body.token, "Expected token");
 });
 client.global.set("accessToken", response.body.token);
+%}
+
+### 02-1. Check a new nickname before changing it in My Page
+GET {{baseUrl}}/api/v1/auth/me/nickname-availability?nickname=FriendlyFox
+Authorization: Bearer {{accessToken}}
+
+> {%
+client.test("Nickname availability is returned", function () {
+  client.assert(response.status === 200 && typeof response.body.available === "boolean", "Expected availability result");
+});
 %}
 
 ### 03. Bible versions
@@ -141,6 +160,75 @@ client.test("AI answer contains verified Bible citations", function () {
 client.global.set("aiTurnId", response.body.turnId);
 %}
 
+### 06-1-range. An explicit passage range grounds every requested verse
+POST {{baseUrl}}/api/v1/ai/chat
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "고린도전서 15:12 ~ 15:19에서 말하는 부활은 무엇을 뜻하나요?"
+}
+
+> {%
+client.test("Passage range answers from the requested verses", function () {
+  client.assert(response.status === 200, "Expected HTTP 200");
+  client.assert(response.body.retrievalStrategy === "DIRECT_REFERENCE", "Expected direct passage retrieval");
+  client.assert(response.body.citations.length > 0, "Expected grounded citations");
+  client.assert(response.body.citations.every(function (citation) { return citation.chapter === 15 && citation.verse >= 12 && citation.verse <= 19; }), "Expected citations within the selected passage");
+});
+%}
+
+### 06-1-scope. Unrelated questions return guidance without scripture or prayer
+POST {{baseUrl}}/api/v1/ai/chat
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "오늘 삼성전자 주식 가격 알려줘"
+}
+
+> {%
+client.test("Unrelated request stops before scripture and prayer generation", function () {
+  client.assert(response.status === 422, "Expected HTTP 422");
+  client.assert(response.body.code === "AI_QUESTION_OUT_OF_SCOPE", "Expected scope guidance");
+  client.assert(!response.body.citations && !response.body.prayer && !response.body.blocks, "No scripture or prayer response");
+});
+%}
+
+### 06-1-unclear. Ambiguous questions ask the user to clarify
+POST {{baseUrl}}/api/v1/ai/chat
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "어떻게 해야 할까?"
+}
+
+> {%
+client.test("Ambiguous request receives clarification guidance", function () {
+  client.assert(response.status === 422, "Expected HTTP 422");
+  client.assert(response.body.code === "AI_QUESTION_SCOPE_UNCLEAR", "Expected clarification guidance");
+  client.assert(!response.body.citations && !response.body.prayer, "No scripture or prayer response");
+});
+%}
+
+### 06-1-counseling. A financial situation can be the background of pastoral support
+POST {{baseUrl}}/api/v1/ai/chat
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "question": "오늘 삼성전자 주식 가격이 떨어져서 마음이 불안해"
+}
+
+> {%
+client.test("Emotional support follows the grounded counseling flow", function () {
+  client.assert(response.status === 200, "Expected HTTP 200 when grounding exists");
+  client.assert(response.body.questionIntent === "PASTORAL_COUNSELING", "Expected pastoral counseling");
+  client.assert(response.body.citations.length > 0, "Expected grounded support");
+});
+%}
+
 ### 06-1-a. Submit answer feedback without consuming AI quota
 POST {{baseUrl}}/api/v1/ai/feedback
 Authorization: Bearer {{accessToken}}
@@ -199,7 +287,9 @@ client.test("Explicit reference returns the exact database verse", function () {
 %}
 
 ### 06-2. Stream AI pastor answer with server-side RAG
-POST {{baseUrl}}/api/v1/ai/chat/stream
+# delta는 생성 중인 초안입니다. draft_reset이 오면 이전 delta를 지우고 다음 delta부터 다시 누적합니다.
+# response와 done 이후에만 답변을 확정합니다. 평가 실패나 연결 종료 시 초안을 보관하지 않습니다.
+POST {{baseUrl}}/api/v1/ai/chat/stream?liveDraft=true
 Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 Accept: text/event-stream
@@ -218,6 +308,27 @@ client.test("AI stream completes with citations and usage", function () {
   client.assert(response.body.indexOf("event:citations") >= 0, "Expected citations event");
   client.assert(response.body.indexOf("event:usage") >= 0, "Expected usage event");
   client.assert(response.body.indexOf("event:done") >= 0, "Expected done event");
+});
+%}
+
+### 06-2-scope. SSE refuses unrelated requests without answer events
+POST {{baseUrl}}/api/v1/ai/chat/stream
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+Accept: text/event-stream
+
+{
+  "question": "오늘 삼성전자 주식 가격 알려줘"
+}
+
+> {%
+client.test("Scope guidance is delivered through the existing SSE error contract", function () {
+  client.assert(response.status === 200, "Expected opened SSE connection");
+  client.assert(response.body.indexOf("event:error") >= 0, "Expected error event");
+  client.assert(response.body.indexOf("AI_QUESTION_OUT_OF_SCOPE") >= 0, "Expected scope code");
+  client.assert(response.body.indexOf("event:delta") < 0, "No answer delta");
+  client.assert(response.body.indexOf("event:response") < 0, "No structured answer/prayer");
+  client.assert(response.body.indexOf("event:citations") < 0, "No citations event");
 });
 %}
 
@@ -581,3 +692,17 @@ client.test("Invalid size is rejected", function () {
   client.assert(response.body.code === "INVALID_QUIET_TIME_REQUEST", "Expected INVALID_QUIET_TIME_REQUEST");
 });
 %}
+
+### 성경 이름 + 구절 cursor 검색 (비로그인 허용, 기존 page 검색과 별도)
+GET {{baseUrl}}/api/v1/bibles/KOR1910/search/cursor?keyword=요&size=20
+
+> {%
+client.global.set("bibleSearchCursor", response.body.nextCursor || "");
+%}
+
+### 응답 nextCursor를 그대로 넣어 다음 구절 조회 (마지막 응답은 hasNext=false, nextCursor=null)
+# @name bibleCursorNextPage
+GET {{baseUrl}}/api/v1/bibles/KOR1910/search/cursor?keyword=요&size=20&cursor={{bibleSearchCursor}}
+
+### 검색어 변경 시 cursor 없이 첫 페이지 조회 (%, _는 문자 그대로 검색)
+GET {{baseUrl}}/api/v1/bibles/KOR1910/search/cursor?keyword=%25&size=20

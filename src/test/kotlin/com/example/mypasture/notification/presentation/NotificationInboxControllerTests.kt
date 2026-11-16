@@ -79,7 +79,7 @@ class NotificationInboxControllerTests(
     }
 
     @Test
-    fun `publishing daily word creates one broadcast and operation retry stays idempotent`() {
+    fun `오늘의 말씀 게시는 방송 한 건을 만들고 운영 재시도는 멱등하다`() {
         val admin = user(UserRole.ADMIN)
         val word = word(BASE_WORD_DATE.plusDays(10))
         val operationId = UUID.randomUUID()
@@ -92,7 +92,7 @@ class NotificationInboxControllerTests(
     }
 
     @Test
-    fun `cursor pages remain stable and read state is isolated per user`() {
+    fun `커서 페이지는 안정적이고 읽음 상태는 사용자별로 격리된다`() {
         val firstUser = user()
         val secondUser = user()
         val broadcasts = createBroadcasts(3)
@@ -132,7 +132,7 @@ class NotificationInboxControllerTests(
     }
 
     @Test
-    fun `invalid cursor is rejected and anonymous inbox access requires authentication`() {
+    fun `잘못된 커서는 거부하고 익명 알림함 접근에는 인증이 필요하다`() {
         val member = user()
         mockMvc.get("/api/v1/notifications") { header("Authorization", "Bearer ${token(member)}"); param("cursor", "not-a-cursor") }
             .andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_NOTIFICATION_REQUEST") } }
@@ -140,7 +140,7 @@ class NotificationInboxControllerTests(
     }
 
     @Test
-    fun `delivery acknowledgement is owned by user and device and remains idempotent`() {
+    fun `수신 확인은 사용자와 기기 소유권을 따르고 반복 요청에 멱등하다`() {
         val member = user()
         val otherMember = user()
         val broadcast = createBroadcasts(1).single()
@@ -182,7 +182,7 @@ class NotificationInboxControllerTests(
     }
 
     @Test
-    fun `admin operations distinguish provider acceptance from app opens and reject ordinary users`() {
+    fun `관리자 운영 화면은 제공자 수락과 앱 열람을 구분하고 일반 사용자를 거부한다`() {
         val admin = user(UserRole.ADMIN)
         val member = user()
         val broadcast = createBroadcasts(1).single()

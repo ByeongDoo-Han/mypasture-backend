@@ -1,5 +1,7 @@
 package com.example.mypasture.bible.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -29,7 +31,7 @@ class BibleNoteControllerTests(
     @Autowired private val objectMapper: ObjectMapper,
 ) {
     @Test
-    fun `owner creates lists updates and deletes a multi verse note`() {
+    fun `소유자는 여러 절 메모를 생성 조회 수정 삭제한다`() {
         val ownerToken = createUserToken("owner")
         val created = mockMvc.post("/api/v1/bible-notes") {
             header("Authorization", "Bearer $ownerToken")
@@ -103,7 +105,7 @@ class BibleNoteControllerTests(
     }
 
     @Test
-    fun `note endpoints require authentication and validate content verses and page`() {
+    fun `메모 API는 인증을 요구하고 내용 절 페이지 입력을 검증한다`() {
         mockMvc.get("/api/v1/bible-notes")
             .andExpect { status { isUnauthorized() } }
 
@@ -165,7 +167,7 @@ class BibleNoteControllerTests(
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"말씀 독자"}"""
+            content = """{"email":"$email","password":"$password","displayName":"${uniqueTestNickname()}"}"""
         }.andExpect { status { isCreated() } }
 
         val result = mockMvc.post("/api/v1/auth/login") {

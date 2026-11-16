@@ -41,6 +41,7 @@ class QuietTimeService(
     private val questionAnswerRepository: QuietTimeQuestionAnswerRepository,
     private val attendanceService: AttendanceService,
     private val questionSetService: QuietTimeQuestionSetService,
+    private val membershipService: QuietTimePastureMembershipService,
     private val qrProperties: QuietTimeQrProperties,
     private val clock: Clock = Clock.systemUTC(),
 ) {
@@ -55,6 +56,7 @@ class QuietTimeService(
         val normalizedTheme = theme?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
         return passageRepository.findByActiveTrue()
             .asSequence()
+            .filter { it.origin == "CURATED" }
             .filter { passage -> normalizedTheme == null || passage.normalizedTags().any { it.contains(normalizedTheme) || normalizedTheme.contains(it) } }
             .filter { passage -> !beginnerOnly || passage.beginnerScore >= 4 && passage.sensitivityLevel != QuietTimeSensitivityLevel.HIGH }
             .sortedWith(compareByDescending<QuietTimePassageEntity> { it.totalRecommendationScore() }.thenBy { it.estimatedMinutes })
@@ -67,23 +69,12 @@ class QuietTimeService(
         leaderUserId: UUID,
         name: String,
         leaderName: String,
-    ): QuietTimePastureEntity {
-        require(name.trim().length in 2..80) { "Pasture name length must be between 2 and 80." }
-        require(leaderName.trim().length in 2..80) { "Leader name length must be between 2 and 80." }
-        return pastureRepository.save(
-            QuietTimePastureEntity(
-                name = name.trim(),
-                leaderName = leaderName.trim(),
-                leaderUserId = leaderUserId,
-                inviteCode = generateInviteCode(),
-            ),
-        )
-    }
+    ): QuietTimePastureEntity = membershipService.createPasture(leaderUserId, name, leaderName)
 
     /** 로그인 사용자가 리더로 관리하는 고정 목장 목록을 반환합니다. */
     @Transactional(readOnly = true)
     fun getManagedPastures(userId: UUID): List<QuietTimePastureEntity> =
-        pastureRepository.findAllByLeaderUserIdOrderByCreatedAtDesc(userId)
+        membershipService.managedPastures(userId)
 
     /** 기존 내부 호출을 고정 목장 QT 생성으로 연결하는 호환 진입점입니다. */
     @Transactional
@@ -127,11 +118,13 @@ class QuietTimeService(
         joinStartsAt: Instant?,
         focusThemeCode: String? = null,
         questionStyle: QuietTimeQuestionStyle? = null,
+        questionOverrides: QuietTimeQuestionOverrides? = null,
     ): QuietTimeSessionQrView {
         val now = Instant.now(clock)
         val pasture = pastureRepository.findById(pastureId)
             .orElseThrow { QuietTimeNotFoundException("Quiet time pasture was not found: $pastureId") }
         requirePastureLeader(pasture, leaderUserId)
+        membershipService.requireLeader(leaderUserId, pastureId)
 
         return createSession(
             scope = QuietTimeSessionScope.PASTURE,
@@ -143,6 +136,7 @@ class QuietTimeService(
             theme = theme,
             focusThemeCode = focusThemeCode,
             questionStyle = questionStyle,
+            questionOverrides = questionOverrides,
             meetingDate = meetingDate,
             meetingStartsAt = meetingStartsAt,
             meetingEndsAt = meetingEndsAt,
@@ -165,6 +159,7 @@ class QuietTimeService(
         joinStartsAt: Instant?,
         focusThemeCode: String? = null,
         questionStyle: QuietTimeQuestionStyle? = null,
+        questionOverrides: QuietTimeQuestionOverrides? = null,
     ): QuietTimeSessionQrView {
         require(hostDisplayName.trim().length in 1..80) { "Host display name length must be between 1 and 80." }
         return createSession(
@@ -177,6 +172,7 @@ class QuietTimeService(
             theme = theme,
             focusThemeCode = focusThemeCode,
             questionStyle = questionStyle,
+            questionOverrides = questionOverrides,
             meetingDate = meetingDate,
             meetingStartsAt = meetingStartsAt,
             meetingEndsAt = meetingEndsAt,
@@ -195,6 +191,7 @@ class QuietTimeService(
         theme: String?,
         focusThemeCode: String?,
         questionStyle: QuietTimeQuestionStyle?,
+        questionOverrides: QuietTimeQuestionOverrides?,
         meetingDate: LocalDate?,
         meetingStartsAt: Instant?,
         meetingEndsAt: Instant?,
@@ -216,6 +213,9 @@ class QuietTimeService(
         val expiresAt = endsAt.plusSeconds(qrProperties.expiryGraceMinutes * 60)
         validateQrWindow(now, startsAt, endsAt, participationStartsAt, expiresAt)
         val questionSet = questionSetService.selectForSession(passage, focusThemeCode, theme, questionStyle)
+        val questions = questionOverrides?.validated() ?: QuietTimeQuestionOverrides(
+            questionSet.observationQuestions, questionSet.meditationQuestions, questionSet.sharingQuestions,
+        )
 
         val session = sessionRepository.save(
             QuietTimeSessionEntity(
@@ -232,9 +232,9 @@ class QuietTimeService(
                 focusThemeName = questionSet.focusTheme.name,
                 questionStyle = questionSet.style,
                 questionSetVersion = questionSet.version,
-                observationQuestions = questionSet.observationQuestions.joinToString("|"),
-                meditationQuestions = questionSet.meditationQuestions.joinToString("|"),
-                sharingQuestions = questionSet.sharingQuestions.joinToString("|"),
+                observationQuestions = questions.observationQuestions.joinToString("|"),
+                meditationQuestions = questions.meditationQuestions.joinToString("|"),
+                sharingQuestions = questions.sharingQuestions.joinToString("|"),
                 actionGuide = questionSet.actionGuide,
                 prayerGuide = questionSet.prayerGuide,
                 questionSetLockedAt = now,
@@ -465,7 +465,7 @@ class QuietTimeService(
         }
 
     private fun ensureDefaultPassages() {
-        if (passageRepository.countByActiveTrue() > 0) return
+        if (passageRepository.countByActiveTrueAndOrigin("CURATED") > 0) return
         passageRepository.saveAll(defaultPassages())
     }
 
@@ -558,6 +558,27 @@ class QuietTimeService(
         private const val CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         private const val JOIN_CODE_LENGTH = 6
         private val JOIN_CODE_PATTERN = Regex("^[A-HJ-NP-Z2-9]{$JOIN_CODE_LENGTH}$")
+    }
+}
+
+/** 공용 생성 결과를 변경하지 않고 한 모임에만 적용할 질문 목록입니다. */
+data class QuietTimeQuestionOverrides(
+    val observationQuestions: List<String>,
+    val meditationQuestions: List<String>,
+    val sharingQuestions: List<String>,
+) {
+    fun validated(): QuietTimeQuestionOverrides {
+        fun normalize(questions: List<String>): List<String> {
+            require(questions.size in 1..6) { "질문은 범주마다 1~6개여야 합니다." }
+            return questions.map { question ->
+                val normalized = question.trim()
+                require(normalized.length in 1..300 && '|' !in normalized) { "질문은 1~300자이며 | 문자를 포함할 수 없습니다." }
+                normalized
+            }
+        }
+        return QuietTimeQuestionOverrides(
+            normalize(observationQuestions), normalize(meditationQuestions), normalize(sharingQuestions),
+        )
     }
 }
 

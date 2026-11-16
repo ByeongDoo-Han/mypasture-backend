@@ -119,10 +119,10 @@ sequenceDiagram
 QR에는 앱 전용 scheme만 넣지 않고, 운영에서는 HTTPS landing URL을 넣는 것을 권장합니다.
 
 ```text
-https://mypasture.app/q/qt/{offlineCode}
+https://app.mypasture.app/q/qt/{offlineCode}
 ```
 
-앱에는 Universal Link/App Link 라우팅이 구성되어 있습니다. 운영 전 mypasture.app에 iOS AASA, Android assetlinks.json, 앱 미설치 사용자를 위한 설치 안내 페이지를 배포해야 합니다.
+웹 초대 경로는 로그인과 필수 동의를 거친 뒤 동일한 offlineCode로 세션 진입을 이어갑니다. 앱은 QR의 `/q/qt/{offlineCode}` 또는 직접 입력한 6자리 참여 코드를 계속 처리합니다.
 
 ## API 테스트 순서
 

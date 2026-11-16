@@ -1,5 +1,7 @@
 package com.example.mypasture.auth.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.example.mypasture.ai.application.AiCachePort
 import com.example.mypasture.auth.application.PasswordResetNotificationSender
 import com.example.mypasture.auth.application.SocialLoginCommand
@@ -8,6 +10,8 @@ import com.example.mypasture.auth.domain.AuthProvider
 import com.example.mypasture.auth.infrastructure.AppleOidcOAuthClient
 import com.example.mypasture.auth.infrastructure.GoogleOidcOAuthClient
 import com.example.mypasture.auth.infrastructure.KakaoOAuthClient
+import com.example.mypasture.auth.infrastructure.KakaoWebCodeExchangeClient
+import com.example.mypasture.auth.infrastructure.InvalidSocialTokenException
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.any
@@ -43,12 +47,88 @@ import kotlin.test.assertTrue
         "app.oauth.google.web-client-ids=google-review-client.apps.googleusercontent.com",
         "app.oauth.apple.client-ids=com.mypasture.app",
         "app.oauth.kakao.app-ids=123456789",
+        "app.oauth.kakao.web.rest-api-key=test-rest-key",
+        "app.oauth.kakao.web.client-secret=test-client-secret",
+        "app.oauth.kakao.web.redirect-uri=https://app.mypasture.app/oauth/kakao",
     ],
 )
 class AuthControllerTests(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val jdbcTemplate: JdbcTemplate,
 ) {
+    @Test
+    fun `웹 세션 쿠키는 로그인을 복원하고 로그아웃 시 제거된다`() {
+        val email = "web-session-${UUID.randomUUID()}@example.com"
+        mockMvc.post("/api/v1/auth/signup") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"password123!","displayName":"WebSession"}"""
+        }.andExpect { status { isCreated() } }
+        val login = mockMvc.post("/api/v1/auth/login") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"password123!"}"""
+        }.andExpect { status { isOk() } }.andReturn()
+        val originalRefresh = com.fasterxml.jackson.databind.ObjectMapper().readTree(login.response.contentAsString)["refreshToken"].asText()
+
+        val created = mockMvc.post("/api/v1/auth/web/session") {
+            header("Origin", "http://localhost:8084")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"$originalRefresh"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.refreshToken") { doesNotExist() }
+            jsonPath("$.user.email") { value(email) }
+            header { string("Cache-Control", "no-store") }
+        }.andReturn()
+        val firstCookie = created.response.getHeader("Set-Cookie")!!
+        assertTrue(firstCookie.startsWith("__Host-mypasture-web-refresh="))
+        assertTrue(firstCookie.contains("HttpOnly"))
+        assertTrue(firstCookie.contains("Secure"))
+        assertTrue(firstCookie.contains("SameSite=Strict"))
+        assertTrue(firstCookie.contains("Path=/"))
+        val cookieValue = firstCookie.substringAfter('=').substringBefore(';')
+
+        val restored = mockMvc.post("/api/v1/auth/web/refresh") {
+            header("Origin", "http://localhost:8084")
+            cookie(jakarta.servlet.http.Cookie("__Host-mypasture-web-refresh", cookieValue))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.refreshToken") { doesNotExist() }
+            jsonPath("$.user.email") { value(email) }
+        }.andReturn()
+        val rotatedCookie = restored.response.getHeader("Set-Cookie")!!.substringAfter('=').substringBefore(';')
+        assertTrue(rotatedCookie != cookieValue)
+
+        mockMvc.post("/api/v1/auth/web/logout") {
+            header("Origin", "http://localhost:8084")
+            cookie(jakarta.servlet.http.Cookie("__Host-mypasture-web-refresh", rotatedCookie))
+        }.andExpect {
+            status { isNoContent() }
+            header { string("Set-Cookie", org.hamcrest.Matchers.containsString("Max-Age=0")) }
+        }
+        mockMvc.post("/api/v1/auth/web/refresh") {
+            header("Origin", "http://localhost:8084")
+            cookie(jakarta.servlet.http.Cookie("__Host-mypasture-web-refresh", rotatedCookie))
+        }.andExpect { status { isUnauthorized() } }
+    }
+
+    @Test
+    fun `신뢰하지 않는 출처 출처 누락 쿠키 누락은 웹 세션에서 거부된다`() {
+        for (origin in listOf(null, "https://attacker.example")) {
+            mockMvc.post("/api/v1/auth/web/refresh") {
+                if (origin != null) header("Origin", origin)
+            }.andExpect { status { isForbidden() } }
+        }
+        mockMvc.post("/api/v1/auth/web/refresh") {
+            header("Origin", "http://localhost:8084")
+        }.andExpect {
+            status { isUnauthorized() }
+            header { string("Set-Cookie", org.hamcrest.Matchers.containsString("Max-Age=0")) }
+        }
+        mockMvc.post("/api/v1/auth/web/refresh") {
+            header("Origin", "http://localhost:8084")
+            cookie(jakarta.servlet.http.Cookie("__Host-mypasture-web-refresh", "x".repeat(1001)))
+        }.andExpect { status { isUnauthorized() } }
+    }
     @MockitoBean
     private lateinit var googleOidcOAuthClient: GoogleOidcOAuthClient
 
@@ -57,6 +137,9 @@ class AuthControllerTests(
 
     @MockitoBean
     private lateinit var kakaoOAuthClient: KakaoOAuthClient
+
+    @MockitoBean
+    private lateinit var kakaoWebCodeExchangeClient: KakaoWebCodeExchangeClient
 
     @MockitoBean
     private lateinit var passwordResetNotificationSender: PasswordResetNotificationSender
@@ -72,19 +155,20 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `social provider readiness is public and does not expose client identifiers`() {
+    fun `소셜 제공자 준비 상태는 공개하되 클라이언트 ID는 노출하지 않는다`() {
         mockMvc.get("/api/v1/auth/social-login/providers")
             .andExpect {
                 status { isOk() }
                 jsonPath("$.providers.GOOGLE") { value(true) }
                 jsonPath("$.providers.APPLE") { value(true) }
                 jsonPath("$.providers.KAKAO") { value(true) }
+                jsonPath("$.providers.KAKAO_WEB") { value(true) }
                 jsonPath("$.providers.clientIds") { doesNotExist() }
             }
     }
 
     @Test
-    fun `signup creates email user`() {
+    fun `회원가입은 이메일 사용자를 만든다`() {
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content =
@@ -92,26 +176,26 @@ class AuthControllerTests(
                 {
                   "email": "signup-success@example.com",
                   "password": "password123!",
-                  "displayName": "Signup User"
+                  "displayName": "SignupUser"
                 }
                 """.trimIndent()
         }.andExpect {
             status { isCreated() }
             jsonPath("$.user.id") { exists() }
             jsonPath("$.user.email") { value("signup-success@example.com") }
-            jsonPath("$.user.displayName") { value("Signup User") }
+            jsonPath("$.user.displayName") { value("SignupUser") }
             jsonPath("$.user.subscriptionTier") { value("FREE") }
         }
     }
 
     @Test
-    fun `signup rejects duplicate email`() {
+    fun `회원가입은 중복 이메일을 거부한다`() {
         val payload =
             """
             {
               "email": "duplicate@example.com",
               "password": "password123!",
-              "displayName": "Duplicate User"
+              "displayName": "Duplicate"
             }
             """.trimIndent()
 
@@ -132,7 +216,32 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `login returns jwt access token and me returns current user`() {
+    fun `닉네임 중복 검사는 잘못되거나 이미 사용 중인 이름을 거부하고 가입 때 다시 검증한다`() {
+        mockMvc.get("/api/v1/auth/nicknames/availability") { param("nickname", "중복검사") }
+            .andExpect { status { isOk() }; jsonPath("$.available") { value(true) } }
+        mockMvc.get("/api/v1/auth/nicknames/availability") { param("nickname", "띄어 쓰기") }
+            .andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_DISPLAY_NAME") } }
+
+        val first = """{"email":"nickname-first@example.com","password":"password123!","displayName":"중복검사"}"""
+        mockMvc.post("/api/v1/auth/signup") { contentType = MediaType.APPLICATION_JSON; content = first }
+            .andExpect { status { isCreated() } }
+        mockMvc.get("/api/v1/auth/nicknames/availability") { param("nickname", "중복검사") }
+            .andExpect { status { isOk() }; jsonPath("$.available") { value(false) } }
+        val second = """{"email":"nickname-second@example.com","password":"password123!","displayName":"중복검사"}"""
+        mockMvc.post("/api/v1/auth/signup") { contentType = MediaType.APPLICATION_JSON; content = second }
+            .andExpect { status { isConflict() }; jsonPath("$.code") { value("NICKNAME_ALREADY_USED") } }
+    }
+
+    @Test
+    fun `닉네임 중복 검사는 이모지 기호 및 한글 영어 길이 제한 초과를 거부한다`() {
+        listOf("가 나", "사랑🙂", "안녕!", "한글123", "가".repeat(9), "a".repeat(11)).forEach { nickname ->
+            mockMvc.get("/api/v1/auth/nicknames/availability") { param("nickname", nickname) }
+                .andExpect { status { isBadRequest() }; jsonPath("$.code") { value("INVALID_DISPLAY_NAME") } }
+        }
+    }
+
+    @Test
+    fun `로그인은 JWT 액세스 토큰을 반환하고 내 정보는 현재 사용자를 반환한다`() {
         val email = "jwt-login@example.com"
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
@@ -142,7 +251,7 @@ class AuthControllerTests(
                 {
                   "email": "$email",
                   "password": "$password",
-                  "displayName": "JWT User"
+                  "displayName": "JWTUser"
                 }
                 """.trimIndent()
         }.andExpect {
@@ -169,19 +278,18 @@ class AuthControllerTests(
         val token = com.fasterxml.jackson.databind.ObjectMapper()
             .readTree(loginResult.response.contentAsString)["token"]
             .asText()
-
         mockMvc.get("/api/v1/auth/me") {
             header("Authorization", "Bearer $token")
         }.andExpect {
             status { isOk() }
             jsonPath("$.email") { value(email) }
-            jsonPath("$.displayName") { value("JWT User") }
+            jsonPath("$.displayName") { value("JWTUser") }
         }
     }
 
 
     @Test
-    fun `social login creates google user and returns jwt`() {
+    fun `구글 소셜 로그인은 사용자를 만들고 JWT를 반환한다`() {
         val challenge = createSocialChallenge()
         given(googleOidcOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.GOOGLE, "valid-google-id-token", null, null))).willReturn(
             SocialUserProfile(
@@ -209,8 +317,14 @@ class AuthControllerTests(
             jsonPath("$.token") { exists() }
             jsonPath("$.tokenType") { value("Bearer") }
             jsonPath("$.user.email") { value("google-user@example.com") }
-            jsonPath("$.user.displayName") { value("Google User") }
+            jsonPath("$.user.displayName") { exists() }
         }.andReturn()
+
+        val generatedNickname = com.fasterxml.jackson.databind.ObjectMapper()
+            .readTree(loginResult.response.contentAsString)["user"]["displayName"].asText()
+        assertTrue(generatedNickname.length in 5..6)
+        assertTrue(generatedNickname.all { it in '가'..'힣' })
+        assertTrue(generatedNickname != "Google User")
 
         val token = com.fasterxml.jackson.databind.ObjectMapper()
             .readTree(loginResult.response.contentAsString)["token"]
@@ -225,7 +339,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `social login creates apple user and returns jwt`() {
+    fun `애플 소셜 로그인은 사용자를 만들고 JWT를 반환한다`() {
         val challenge = createSocialChallenge()
         given(appleOidcOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.APPLE, "valid-apple-id-token", null, "Apple User"))).willReturn(
             SocialUserProfile(
@@ -258,7 +372,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `social login creates kakao user and returns jwt`() {
+    fun `카카오 소셜 로그인은 사용자를 만들고 JWT를 반환한다`() {
         given(kakaoOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.KAKAO, null, "valid-kakao-access-token", "Kakao User"))).willReturn(
             SocialUserProfile(
                 provider = AuthProvider.KAKAO,
@@ -288,7 +402,63 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `social login rejects email provider`() {
+    fun `웹 카카오 인가 코드 교환은 일반 소셜 로그인과 같은 세션을 발급한다`() {
+        val verifier = "A".repeat(43)
+        given(kakaoWebCodeExchangeClient.exchange("single-use-code", verifier)).willReturn("web-kakao-access-token")
+        given(kakaoOAuthClient.fetchProfile(SocialLoginCommand(AuthProvider.KAKAO, null, "web-kakao-access-token", null))).willReturn(
+            SocialUserProfile(
+                provider = AuthProvider.KAKAO,
+                providerUserId = "web-kakao-sub-001",
+                email = "web-kakao-user@example.com",
+                emailVerified = true,
+                displayName = "Web Kakao User",
+            ),
+        )
+
+        mockMvc.post("/api/v1/auth/social-login/kakao/web") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"code":"single-use-code","codeVerifier":"$verifier"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.tokenType") { value("Bearer") }
+            jsonPath("$.token") { exists() }
+            jsonPath("$.user.email") { value("web-kakao-user@example.com") }
+            jsonPath("$.accessToken") { doesNotExist() }
+        }
+        verify(kakaoWebCodeExchangeClient).exchange("single-use-code", verifier)
+    }
+
+    @Test
+    fun `웹 카카오 로그인은 잘못된 코드를 돌려주지 않고 거부한다`() {
+        val verifier = "A".repeat(43)
+        given(kakaoWebCodeExchangeClient.exchange("invalid-code", verifier))
+            .willThrow(InvalidSocialTokenException("Kakao authorization code is invalid"))
+
+        val result = mockMvc.post("/api/v1/auth/social-login/kakao/web") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"code":"invalid-code","codeVerifier":"$verifier"}"""
+        }.andExpect {
+            status { isUnauthorized() }
+            jsonPath("$.code") { value("INVALID_SOCIAL_TOKEN") }
+        }.andReturn()
+        assertTrue(!result.response.contentAsString.contains("invalid-code"))
+    }
+
+    @Test
+    fun `웹 카카오 로그인은 인가 코드와 PKCE 검증값을 검사한다`() {
+        for (body in listOf(
+            """{"code":"","codeVerifier":"${"A".repeat(43)}"}""",
+            """{"code":"valid-code","codeVerifier":"short"}""",
+        )) {
+            mockMvc.post("/api/v1/auth/social-login/kakao/web") {
+                contentType = MediaType.APPLICATION_JSON
+                content = body
+            }.andExpect { status { isBadRequest() } }
+        }
+    }
+
+    @Test
+    fun `소셜 로그인은 이메일 제공자를 거부한다`() {
         mockMvc.post("/api/v1/auth/social-login") {
             contentType = MediaType.APPLICATION_JSON
             content =
@@ -316,7 +486,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `me rejects request without bearer token`() {
+    fun `내 정보 API는 Bearer 토큰이 없으면 거부한다`() {
         mockMvc.get("/api/v1/auth/me")
             .andExpect {
                 status { isUnauthorized() }
@@ -325,36 +495,44 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `update me normalizes display name and keeps current token valid`() {
+    fun `내 정보 수정은 검증한 닉네임을 저장하고 기존 토큰을 유지한다`() {
         val email = "profile-${java.util.UUID.randomUUID()}@example.com"
-        val token = signupAndLoginWithDisplayName(email, "Profile User")
+        val token = signupAndLoginWithDisplayName(email, "ProfileOne")
+
+        mockMvc.get("/api/v1/auth/me/nickname-availability") {
+            header("Authorization", "Bearer $token")
+            param("nickname", "ProfileOne")
+        }.andExpect { status { isOk() }; jsonPath("$.available") { value(true) } }
+
+        mockMvc.get("/api/v1/auth/me/nickname-availability") { param("nickname", "새이름") }
+            .andExpect { status { isUnauthorized() } }
 
         mockMvc.patch("/api/v1/auth/me") {
             header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
-            content = """{"displayName":"  새   이름  "}"""
+            content = """{"displayName":"새이름"}"""
         }.andExpect {
             status { isOk() }
             jsonPath("$.email") { value(email) }
-            jsonPath("$.displayName") { value("새 이름") }
+            jsonPath("$.displayName") { value("새이름") }
         }
 
         mockMvc.get("/api/v1/auth/me") {
             header("Authorization", "Bearer $token")
         }.andExpect {
             status { isOk() }
-            jsonPath("$.displayName") { value("새 이름") }
+            jsonPath("$.displayName") { value("새이름") }
         }
     }
 
     @Test
-    fun `update me validates authentication and display name`() {
+    fun `내 정보 수정은 인증과 표시 이름을 검증한다`() {
         mockMvc.patch("/api/v1/auth/me") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"displayName":"새 이름"}"""
         }.andExpect { status { isUnauthorized() } }
 
-        val token = signupAndLoginWithDisplayName("profile-validation-${java.util.UUID.randomUUID()}@example.com", "Profile User")
+        val token = signupAndLoginWithDisplayName("profile-validation-${java.util.UUID.randomUUID()}@example.com", "ProfileTwo")
         mockMvc.patch("/api/v1/auth/me") {
             header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
@@ -379,12 +557,12 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `refresh token rotates once and reuse revokes the token family`() {
+    fun `갱신 토큰은 한 번만 교체되고 재사용 시 토큰 계열을 폐기한다`() {
         val email = "refresh-${java.util.UUID.randomUUID()}@example.com"
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"Refresh User"}"""
+            content = """{"email":"$email","password":"$password","displayName":"RefreshOne"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON
@@ -416,12 +594,12 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `logout revokes access and refresh sessions`() {
+    fun `로그아웃은 액세스 및 갱신 세션을 폐기한다`() {
         val email = "logout-${java.util.UUID.randomUUID()}@example.com"
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"Logout User"}"""
+            content = """{"email":"$email","password":"$password","displayName":"LogoutOne"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON
@@ -444,7 +622,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `password reset changes password invalidates sessions and consumes token once`() {
+    fun `비밀번호 재설정은 비밀번호를 바꾸고 세션을 무효화하며 토큰을 한 번만 소비한다`() {
         val email = "password-reset@example.com"
         val oldPassword = "old-password123!"
         val newPassword = "new-password456!"
@@ -514,7 +692,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `password reset request does not reveal whether account exists`() {
+    fun `비밀번호 재설정 요청은 계정 존재 여부를 드러내지 않는다`() {
         mockMvc.post("/api/v1/auth/password-reset/requests") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"email":"unknown-account@example.com"}"""
@@ -525,11 +703,27 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `delete account anonymizes user invalidates token and allows signup again`() {
+    fun `회원 탈퇴는 사용자를 익명화하고 토큰을 무효화하며 재가입을 허용한다`() {
         val email = "withdraw@example.com"
         val password = "password123!"
         val token = signupAndLogin(email, password)
         val deletedUserId = jdbcTemplate.queryForObject("select id from users where email = ?", UUID::class.java, email)!!
+        jdbcTemplate.update(
+            "insert into user_visits(id, user_id, visited_on, created_at) values (?, ?, current_date, current_timestamp)",
+            UUID.randomUUID(), deletedUserId,
+        )
+        jdbcTemplate.update(
+            "insert into prayer_profiles(user_id, sunday_reminder_enabled, updated_at) values (?, true, current_timestamp)",
+            deletedUserId,
+        )
+        jdbcTemplate.update(
+            "insert into user_avatar_platforms(user_id, selected_code, updated_at) values (?, 'WOOD', current_timestamp)",
+            deletedUserId,
+        )
+        jdbcTemplate.update(
+            "insert into weekly_prayer_topics(id, user_id, week_start, content, visible_to_friends, created_at, updated_at) values (?, ?, current_date, ?, false, current_timestamp, current_timestamp)",
+            UUID.randomUUID(), deletedUserId, "탈퇴 시 삭제할 기도제목",
+        )
         jdbcTemplate.update(
             "insert into bible_notes(id, user_id, content, revision, created_at, updated_at) values (?, ?, ?, ?, current_timestamp, current_timestamp)",
             UUID.randomUUID(),
@@ -575,6 +769,10 @@ class AuthControllerTests(
             status { isUnauthorized() }
         }
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from bible_notes where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from user_visits where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from prayer_profiles where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from user_avatar_platforms where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from weekly_prayer_topics where user_id = ?", Long::class.java, deletedUserId) ?: -1L)
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from faith_assessments where id = ?", Long::class.java, assessmentId) ?: -1L)
 
         mockMvc.post("/api/v1/auth/login") {
@@ -591,23 +789,24 @@ class AuthControllerTests(
                 {
                   "email": "$email",
                   "password": "$password",
-                  "displayName": "Rejoined User"
+                  "displayName": "Rejoined"
                 }
                 """.trimIndent()
         }.andExpect {
             status { isCreated() }
-            jsonPath("$.user.displayName") { value("Rejoined User") }
+            jsonPath("$.user.displayName") { value("Rejoined") }
         }
     }
 
     @Test
-    fun `delete account erases private data anonymizes shared records and evicts cache`() {
+    fun `회원 탈퇴는 개인 데이터를 삭제하고 공유 기록을 익명화하며 캐시를 비운다`() {
         val email = "withdraw-data@example.com"
         val password = "password123!"
         val token = signupAndLogin(email, password)
         val userId = jdbcTemplate.queryForObject("select id from users where email = ?", UUID::class.java, email)!!
         val now = Instant.now()
         val conversationId = UUID.randomUUID()
+        val answerTurnId = UUID.randomUUID()
         val readingStateId = UUID.randomUUID()
         val deviceId = UUID.randomUUID()
         val pastureId = UUID.randomUUID()
@@ -624,6 +823,18 @@ class AuthControllerTests(
             "encrypted-private-context",
             now.plusSeconds(3600),
             now,
+            now,
+        )
+        jdbcTemplate.update(
+            """
+            insert into ai_answer_history(
+              turn_id, user_id, question_ciphertext, response_ciphertext, assistant_version, response_schema_version, created_at
+            ) values (?, ?, ?, ?, 'ai-pastor-v1', 'assistant-response-v2', ?)
+            """.trimIndent(),
+            answerTurnId,
+            userId,
+            "encrypted-question",
+            "encrypted-answer",
             now,
         )
         jdbcTemplate.update(
@@ -664,6 +875,7 @@ class AuthControllerTests(
         }
 
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from ai_conversations where user_id = ?", Long::class.java, userId))
+        assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from ai_answer_history where user_id = ?", Long::class.java, userId))
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from bible_reading_states where user_id = ?", Long::class.java, userId))
         assertEquals(0L, jdbcTemplate.queryForObject("select count(*) from notification_devices where user_id = ?", Long::class.java, userId))
         assertNull(jdbcTemplate.queryForObject("select leader_user_id from quiet_time_pastures where id = ?", UUID::class.java, pastureId))
@@ -673,7 +885,7 @@ class AuthControllerTests(
     }
 
     @Test
-    fun `delete account requires current password for email account`() {
+    fun `이메일 계정 탈퇴에는 현재 비밀번호가 필요하다`() {
         val email = "withdraw-reauth@example.com"
         val password = "password123!"
         val token = signupAndLogin(email, password)
@@ -714,7 +926,7 @@ class AuthControllerTests(
                 {
                   "email": "$email",
                   "password": "$password",
-                  "displayName": "Auth Test User"
+                  "displayName": "${uniqueTestNickname()}"
                 }
                 """.trimIndent()
         }.andExpect {

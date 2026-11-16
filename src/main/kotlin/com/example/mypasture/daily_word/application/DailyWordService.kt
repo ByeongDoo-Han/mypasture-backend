@@ -86,12 +86,20 @@ class DailyWordService(
     private val verseRepository: BibleVerseEntityRepository,
     private val auditRepository: AdminAuditLogRepository,
     private val publishedPort: DailyWordPublishedPort,
+    private val rotation: DailyWordRotationService,
+    private val passageReader: DailyWordPassageReader,
+    private val properties: com.example.mypasture.config.DailyWordProperties,
     private val clock: Clock = Clock.systemUTC(),
 ) {
-    fun getPublished(date: LocalDate = LocalDate.now(SEOUL)): DailyWordEntity =
-        repository.findByWordDateAndStatus(date, DailyWordStatus.PUBLISHED)
+    @Transactional
+    fun getPublished(date: LocalDate? = null): DailyWordEntity {
+        val today = LocalDate.now(clock.withZone(SEOUL))
+        val target = date ?: today
+        rotation.ensurePublished(target, today)
+        return repository.findByWordDateAndStatus(target, DailyWordStatus.PUBLISHED)
             ?.also { verifyStoredVerse(it) }
-            ?: throw DailyWordNotPublishedException(date)
+            ?: throw DailyWordNotPublishedException(target)
+    }
 
     fun list(from: LocalDate, to: LocalDate, status: DailyWordStatus?): List<DailyWordEntity> {
         validateRange(from, to)
@@ -146,6 +154,7 @@ class DailyWordService(
     /** 스케줄러는 이미 콘텐츠나 활성 작업이 있으면 비용을 발생시키지 않고 건너뜁니다. */
     @Transactional
     fun queueScheduled(date: LocalDate): DailyWordGenerationJobEntity? {
+        if (properties.rotationEnabled) return null
         if (repository.findByWordDate(date) != null || hasActiveJob(date)) return null
         return saveJob(DailyWordGenerationJobEntity(wordDate = date, requestReason = "scheduled"))
     }
@@ -159,6 +168,7 @@ class DailyWordService(
         regenerate: Boolean,
         reason: String,
     ): DailyWordGenerationJobEntity {
+        if (properties.rotationEnabled) throw DailyWordConflictException("요일별 본문 순환 제공 중에는 AI 생성 작업을 예약하지 않습니다. 수동 복구 초안을 사용해 주세요.")
         val normalizedReason = normalizeReason(reason)
         val fingerprint = fingerprint("QUEUE", "$date|$regenerate|$normalizedReason")
         existingJob(operationId, AdminAuditAction.DAILY_WORD_GENERATION_QUEUED, fingerprint)?.let { return it }
@@ -176,6 +186,7 @@ class DailyWordService(
     /** lease를 보유한 워커만 RAG 결과를 실제 DB 절과 비교한 뒤 초안을 저장할 수 있습니다. */
     @Transactional
     fun saveGeneratedDraft(jobId: UUID, leaseToken: UUID, citation: BibleCitation, generated: GeneratedDailyWord): DailyWordEntity {
+        rotation.lockIfEnabled()
         val job = jobRepository.findByIdForUpdate(jobId) ?: throw DailyWordNotFoundException("생성 작업을 찾을 수 없습니다.")
         check(job.status == DailyWordGenerationJobStatus.PROCESSING && job.leaseToken == leaseToken) {
             "오늘의 말씀 생성 작업 lease가 유효하지 않습니다."
@@ -233,6 +244,7 @@ class DailyWordService(
         replaceExisting: Boolean,
         reason: String,
     ): DailyWordEntity {
+        rotation.lockIfEnabled()
         val today = LocalDate.now(clock.withZone(SEOUL))
         require(!date.isBefore(today) && !date.isAfter(today.plusDays(14))) { "수동 초안은 오늘부터 14일 이내 날짜만 만들 수 있습니다." }
         validateCopy(meditation, actionQuestion)
@@ -300,6 +312,7 @@ class DailyWordService(
         actionQuestion: String,
         reason: String,
     ): DailyWordEntity {
+        rotation.lockIfEnabled()
         val normalizedReason = normalizeReason(reason)
         validateCopy(meditation, actionQuestion)
         val fingerprint = fingerprint("UPDATE", "$id|$verseId|${meditation.trim()}|${actionQuestion.trim()}|$normalizedReason")
@@ -314,6 +327,7 @@ class DailyWordService(
 
     @Transactional
     fun publish(id: UUID, adminId: UUID, operationId: UUID, reason: String): DailyWordEntity {
+        rotation.lockIfEnabled()
         val normalizedReason = normalizeReason(reason)
         val fingerprint = fingerprint("PUBLISH", "$id|$normalizedReason")
         existingWord(operationId, AdminAuditAction.DAILY_WORD_PUBLISHED, fingerprint)?.let { return it }
@@ -328,6 +342,7 @@ class DailyWordService(
 
     @Transactional
     fun reject(id: UUID, adminId: UUID, operationId: UUID, reason: String): DailyWordEntity {
+        rotation.lockIfEnabled()
         val normalizedReason = normalizeReason(reason)
         val fingerprint = fingerprint("REJECT", "$id|$normalizedReason")
         existingWord(operationId, AdminAuditAction.DAILY_WORD_REJECTED, fingerprint)?.let { return it }
@@ -377,12 +392,7 @@ class DailyWordService(
             }
 
     private fun verifyStoredVerse(word: DailyWordEntity) {
-        val verseId = word.verseId ?: throw DailyWordGenerationException("오늘의 말씀이 실제 성경 절과 연결되지 않았습니다.")
-        val source = verseRepository.findById(verseId).orElseThrow { DailyWordGenerationException("연결된 성경 절을 찾을 수 없습니다.") }
-        if (
-            source.version != word.bibleVersion || source.book.code != word.bookCode ||
-            source.chapter != word.chapter || source.verse != word.verse || source.text != word.verseText
-        ) throw DailyWordGenerationException("게시된 오늘의 말씀 본문이 현재 성경 원문과 일치하지 않습니다.")
+        passageReader.verify(word)
     }
 
     private fun validateGenerated(generated: GeneratedDailyWord) = validateCopy(generated.meditation, generated.actionQuestion)

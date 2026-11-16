@@ -31,7 +31,7 @@ class OpenAiLiveSmokeTest {
     private val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
 
     @Test
-    fun `configured key can access the application model and create a minimal response`() {
+    fun `설정된 키로 앱 모델에 접근하고 최소 응답을 생성할 수 있다`() {
         verifyModelAccess(applicationModel)
 
         val requestBody = objectMapper.writeValueAsString(

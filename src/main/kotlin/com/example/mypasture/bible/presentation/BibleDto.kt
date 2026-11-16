@@ -7,6 +7,7 @@ import com.example.mypasture.bible.domain.BibleChapterPointer
 import com.example.mypasture.bible.domain.BibleSearchResult
 import com.example.mypasture.bible.domain.BibleVerse
 import com.example.mypasture.bible.domain.BibleVersion
+import com.example.mypasture.bible.domain.BibleCursorSearchResult
 import java.time.Instant
 import java.util.UUID
 
@@ -33,6 +34,17 @@ data class BibleVerseResponse(
     val chapter: Int,
     val verse: Int,
     val text: String,
+)
+
+/** cursor 검색은 전체 건수 없이 권 이름과 다음 본문 페이지의 존재 여부를 반환합니다. */
+data class BibleCursorSearchResponse(
+    val version: String,
+    val keyword: String,
+    val size: Int,
+    val books: List<BibleBookResponse>,
+    val results: List<BibleVerseResponse>,
+    val hasNext: Boolean,
+    val nextCursor: String?,
 )
 
 /** 한 장 전체 조회 API 응답 DTO입니다. */
@@ -112,6 +124,8 @@ fun BibleChapter.toResponse(): BibleChapterResponse =
 
 fun BibleSearchResult.toResponse(): BibleSearchResponse =
     BibleSearchResponse(version, keyword, page, size, total, hasNext, verses.map { it.toResponse() })
+
+fun BibleCursorSearchResult.toResponse() = BibleCursorSearchResponse(version, keyword, size, books.map { it.toResponse() }, verses.map { it.toResponse() }, hasNext, nextCursor)
 
 fun BibleChapterCommentary.toResponse(): BibleChapterCommentaryResponse =
     BibleChapterCommentaryResponse(

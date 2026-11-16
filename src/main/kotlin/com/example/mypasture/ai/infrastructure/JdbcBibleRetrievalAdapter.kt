@@ -126,6 +126,17 @@ class JdbcBibleRetrievalAdapter(
         val verse = reference.verse ?: return null
         val book = bookRepository.findByVersionAndCode(VERSION, reference.bookCode)
             ?: return BibleRetrievalResult(emptyList(), strategy = RagRetrievalStrategy.DIRECT_REFERENCE)
+        reference.endVerse?.let { endVerse ->
+            val expectedCount = endVerse - verse + 1
+            val matches = verseRepository.findAllByVersionAndBook_IdAndChapterOrderByVerse(VERSION, book.id, chapter)
+                .filter { it.verse in verse..endVerse }
+            val complete = matches.size == expectedCount &&
+                matches.map { it.verse } == (verse..endVerse).toList()
+            return BibleRetrievalResult(
+                citations = if (complete) matches.map { it.toCitation() } else emptyList(),
+                strategy = RagRetrievalStrategy.DIRECT_REFERENCE,
+            )
+        }
         val citation = verseRepository.findByVersionAndBook_IdAndChapterAndVerse(VERSION, book.id, chapter, verse)
             ?.toCitation()
         return BibleRetrievalResult(

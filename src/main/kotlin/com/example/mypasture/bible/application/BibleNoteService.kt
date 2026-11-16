@@ -1,5 +1,6 @@
 package com.example.mypasture.bible.application
 
+import com.example.mypasture.achievement.application.AchievementService
 import com.example.mypasture.bible.domain.BibleNoteEntity
 import com.example.mypasture.bible.domain.BibleNoteVerseEntity
 import com.example.mypasture.bible.domain.BibleVerseEntity
@@ -12,6 +13,9 @@ import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
 
 data class BibleNoteVerseSelection(
     val version: String,
@@ -44,13 +48,19 @@ class BibleNoteService(
     private val verseRepository: BibleVerseEntityRepository,
     private val noteRepository: BibleNoteRepository,
     private val noteVerseRepository: BibleNoteVerseRepository,
+    private val achievements: AchievementService,
+    private val clock: Clock = Clock.systemUTC(),
 ) {
     @Transactional
     fun create(userId: UUID, content: String, selections: List<BibleNoteVerseSelection>): BibleNoteDetail {
         val normalizedContent = validateContent(content)
         val verses = resolveVerses(selections)
-        val note = noteRepository.save(BibleNoteEntity(userId = userId, content = normalizedContent))
-        return BibleNoteDetail(note, saveLinks(note, verses))
+        achievements.lockUser(userId)
+        val now = Instant.now(clock)
+        val note = noteRepository.save(BibleNoteEntity(userId = userId, content = normalizedContent, createdAt = now, updatedAt = now))
+        val links = saveLinks(note, verses)
+        achievements.preserveNotesAndRecord(userId, now.atZone(ZoneId.of("Asia/Seoul")).toLocalDate())
+        return BibleNoteDetail(note, links)
     }
 
     @Transactional(readOnly = true)
@@ -82,6 +92,7 @@ class BibleNoteService(
         selections: List<BibleNoteVerseSelection>,
     ): BibleNoteDetail {
         require(expectedRevision >= 0) { "Expected revision must be greater than or equal to 0." }
+        achievements.lockUser(userId)
         val note = ownedNote(userId, noteId)
         if (note.revision != expectedRevision) throw BibleNoteConflictException()
         val normalizedContent = validateContent(content)
@@ -95,7 +106,9 @@ class BibleNoteService(
 
     @Transactional
     fun delete(userId: UUID, noteId: UUID) {
+        achievements.lockUser(userId)
         val note = ownedNote(userId, noteId)
+        achievements.preserveNotesAndRecord(userId)
         noteVerseRepository.deleteAllByNoteId(note.id)
         noteRepository.delete(note)
     }

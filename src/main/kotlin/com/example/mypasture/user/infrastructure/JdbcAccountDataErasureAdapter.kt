@@ -57,6 +57,11 @@ class JdbcAccountDataErasureAdapter(
             """.trimIndent(),
             command.userId,
         )
+        anonymized += update(
+            "quiet_time_shared_question_sets",
+            "update quiet_time_shared_question_sets set created_by_user_id = null where created_by_user_id = ?",
+            command.userId,
+        )
         anonymized += update("ai_runtime_config_versions", "update ai_runtime_config_versions set created_by = null where created_by = ?", command.userId)
         anonymized += update("daily_words", "update daily_words set reviewed_by = null where reviewed_by = ?", command.userId)
         anonymized += update("daily_word_generation_jobs", "update daily_word_generation_jobs set requested_by = null where requested_by = ?", command.userId)
@@ -99,6 +104,14 @@ class JdbcAccountDataErasureAdapter(
 
         // 사용자 소유 데이터는 자식 테이블부터 물리 삭제해 원문과 토큰을 남기지 않습니다.
         deleted += update(
+            "quiet_time_question_generation_attempts",
+            "delete from quiet_time_question_generation_attempts where user_id = ?",
+            command.userId,
+        )
+        deleted += update("user_achievement_featured", "delete from user_achievement_featured where user_id = ?", command.userId)
+        deleted += update("user_achievement_awards", "delete from user_achievement_awards where user_id = ?", command.userId)
+        deleted += update("user_note_activity_days", "delete from user_note_activity_days where user_id = ?", command.userId)
+        deleted += update(
             "ai_answer_feedback_reasons",
             "delete from ai_answer_feedback_reasons where feedback_id in (select id from ai_answer_feedbacks where user_id = ?)",
             command.userId,
@@ -112,6 +125,7 @@ class JdbcAccountDataErasureAdapter(
         )
         deleted += update("ai_conversations_legacy", "delete from ai_conversations_legacy where user_id = ?", command.userId)
         deleted += update("ai_conversations", "delete from ai_conversations where user_id = ?", command.userId)
+        deleted += update("ai_answer_history", "delete from ai_answer_history where user_id = ?", command.userId)
         deleted += update("ai_usage_logs", "delete from ai_usage_logs where user_id = ?", command.userId)
 
         deleted += update(
@@ -119,18 +133,35 @@ class JdbcAccountDataErasureAdapter(
             "delete from bible_note_verses where note_id in (select id from bible_notes where user_id = ?)",
             command.userId,
         )
+        deleted += update("scripture_copies", "delete from scripture_copies where user_id = ?", command.userId)
         deleted += update("bible_notes", "delete from bible_notes where user_id = ?", command.userId)
+        deleted += update("worship_records", "delete from worship_records where user_id = ?", command.userId)
         deleted += update("bookmarks", "delete from bookmarks where user_id = ?", command.userId)
         deleted += update("highlights", "delete from highlights where user_id = ?", command.userId)
         deleted += update("reading_progress", "delete from reading_progress where user_id = ?", command.userId)
         deleted += update("bible_reading_states", "delete from bible_reading_states where user_id = ?", command.userId)
+        deleted += update("user_visits", "delete from user_visits where user_id = ?", command.userId)
         deleted += update("bible_reading_history", "delete from bible_reading_history where user_id = ?", command.userId)
+
+        deleted += update("prayer_notifications", "delete from prayer_notifications where user_id = ?", command.userId)
+        deleted += update("prayer_ad_intents", "delete from prayer_ad_intents where user_id = ?", command.userId)
+        deleted += update(
+            "prayer_letters",
+            "delete from prayer_letters where sender_id = ? or recipient_id = ? or topic_id in (select id from weekly_prayer_topics where user_id = ?)",
+            command.userId, command.userId, command.userId,
+        )
+        deleted += update("weekly_prayer_topics", "delete from weekly_prayer_topics where user_id = ?", command.userId)
+        deleted += update("prayer_friendships", "delete from prayer_friendships where user_low = ? or user_high = ?", command.userId, command.userId)
+        deleted += update("prayer_profiles", "delete from prayer_profiles where user_id = ?", command.userId)
 
         deleted += update("prayers", "delete from prayers where user_id = ?", command.userId)
         deleted += update("journal_entries", "delete from journal_entries where user_id = ?", command.userId)
         deleted += update("quiet_time_question_answers", "delete from quiet_time_question_answers where user_id = ?", command.userId)
         deleted += update("quiet_time_reflections", "delete from quiet_time_reflections where user_id = ?", command.userId)
         deleted += update("pasture_attendances", "delete from pasture_attendances where user_id = ?", command.userId)
+        deleted += update("quiet_time_pasture_join_requests", "delete from quiet_time_pasture_join_requests where user_id = ?", command.userId)
+        deleted += update("quiet_time_pasture_invites", "delete from quiet_time_pasture_invites where created_by_user_id = ?", command.userId)
+        deleted += update("quiet_time_pasture_memberships", "delete from quiet_time_pasture_memberships where user_id = ?", command.userId)
         deleted += update("pasture_members", "delete from pasture_members where user_id = ?", command.userId)
         deleted += update("challenge_participants", "delete from challenge_participants where user_id = ?", command.userId)
 
@@ -176,6 +207,8 @@ class JdbcAccountDataErasureAdapter(
             command.userId,
         )
 
+        deleted += update("user_avatar_outfits", "delete from user_avatar_outfits where user_id = ?", command.userId)
+        deleted += update("user_avatar_platforms", "delete from user_avatar_platforms where user_id = ?", command.userId)
         deleted += update("user_collectibles", "delete from user_collectibles where user_id = ?", command.userId)
         deleted += update("user_entitlements", "delete from user_entitlements where user_id = ?", command.userId)
         deleted += update("coupon_redemptions", "delete from coupon_redemptions where user_id = ?", command.userId)

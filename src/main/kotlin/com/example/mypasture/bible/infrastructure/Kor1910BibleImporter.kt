@@ -49,6 +49,7 @@ class Kor1910BibleImporter(
 @Service
 class BibleImportCoordinator(
     private val parser: Kor1910HtmlBibleParser,
+    private val krvSource: KrvBibleSource,
     private val bookRepository: BibleBookEntityRepository,
     private val chapterRepository: BibleChapterEntityRepository,
     private val verseRepository: BibleVerseEntityRepository,
@@ -58,11 +59,25 @@ class BibleImportCoordinator(
     @Transactional
     fun importAll(): BibleImportSummary {
         parser.validateSourceDirectory()
-        val postgres = isPostgresDatabase()
-        if (!acquireImportLock(postgres)) return BibleImportSummary(lockAcquired = false)
+        return importVersion(BibleCatalog.KOR1910_VERSION, IMPORT_LOCK_KEY, parser::readChapter)
+    }
 
-        val books = synchronizeBooks()
-        val chapters = chapterRepository.findAllByVersion(BibleCatalog.KOR1910_VERSION)
+    @Transactional
+    fun importKrv(): BibleImportSummary {
+        krvSource.validateSource()
+        return importVersion(BibleCatalog.KRV_VERSION, KRV_IMPORT_LOCK_KEY, krvSource::readChapter)
+    }
+
+    private fun importVersion(
+        version: String,
+        lockKey: Long,
+        readChapter: (BibleBook, Int) -> ParsedBibleChapterSource?,
+    ): BibleImportSummary {
+        val postgres = isPostgresDatabase()
+        if (!acquireImportLock(postgres, lockKey)) return BibleImportSummary(lockAcquired = false)
+
+        val books = synchronizeBooks(version)
+        val chapters = chapterRepository.findAllByVersion(version)
             .associateBy { ChapterKey(it.book.id, it.chapter) }
         var available = 0
         var empty = 0
@@ -74,10 +89,11 @@ class BibleImportCoordinator(
             val book = books.getValue(catalogBook.code)
             (1..catalogBook.chapterCount).forEach { chapterNumber ->
                 val result = synchronizeChapter(
+                    version,
                     book,
                     catalogBook,
                     chapterNumber,
-                    parser.readChapter(catalogBook, chapterNumber),
+                    readChapter(catalogBook, chapterNumber),
                     postgres,
                     chapters[ChapterKey(book.id, chapterNumber)],
                 )
@@ -102,12 +118,12 @@ class BibleImportCoordinator(
         )
     }
 
-    private fun synchronizeBooks(): Map<String, BibleBookEntity> {
-        val existing = bookRepository.findAllByVersionOrderByDisplayOrder(BibleCatalog.KOR1910_VERSION).associateBy { it.code }
+    private fun synchronizeBooks(version: String): Map<String, BibleBookEntity> {
+        val existing = bookRepository.findAllByVersionOrderByDisplayOrder(version).associateBy { it.code }
         val synchronized = BibleCatalog.books.map { book ->
             existing[book.code]?.apply { synchronize(book) }
                 ?: BibleBookEntity(
-                    version = BibleCatalog.KOR1910_VERSION,
+                    version = version,
                     code = book.code,
                     name = book.name,
                     testament = book.testament,
@@ -118,6 +134,7 @@ class BibleImportCoordinator(
     }
 
     private fun synchronizeChapter(
+        version: String,
         book: BibleBookEntity,
         catalogBook: BibleBook,
         chapterNumber: Int,
@@ -141,12 +158,12 @@ class BibleImportCoordinator(
         }
 
         val existingVerses = verseRepository.findAllByVersionAndBook_IdAndChapterOrderByVerse(
-            BibleCatalog.KOR1910_VERSION,
+            version,
             book.id,
             chapterNumber,
         )
         val chapter = existingChapter ?: BibleChapterEntity(
-            version = BibleCatalog.KOR1910_VERSION,
+            version = version,
             book = book,
             chapter = chapterNumber,
             contentStatus = BibleChapterContentStatus.EMPTY,
@@ -179,12 +196,12 @@ class BibleImportCoordinator(
         chapterRepository.saveAndFlush(chapter)
 
         if (postgres) {
-            batchUpsertVerses(book.id, chapterNumber, source.verses)
+            batchUpsertVerses(version, book.id, chapterNumber, source.verses)
         } else {
             val synchronizedVerses = source.verses.map { parsed ->
                 existingByNumber[parsed.verse]?.apply { updateText(parsed.text) }
                     ?: BibleVerseEntity(
-                        version = BibleCatalog.KOR1910_VERSION,
+                        version = version,
                         book = book,
                         chapter = chapterNumber,
                         verse = parsed.verse,
@@ -197,9 +214,9 @@ class BibleImportCoordinator(
         return ChapterImportResult(BibleChapterContentStatus.AVAILABLE, source.verses.size, true)
     }
 
-    private fun batchUpsertVerses(bookId: Long, chapter: Int, verses: List<ParsedBibleVerse>) {
+    private fun batchUpsertVerses(version: String, bookId: Long, chapter: Int, verses: List<ParsedBibleVerse>) {
         jdbcTemplate.batchUpdate(UPSERT_VERSE_SQL, verses, VERSE_BATCH_SIZE) { statement, verse ->
-            statement.setString(1, BibleCatalog.KOR1910_VERSION)
+            statement.setString(1, version)
             statement.setLong(2, bookId)
             statement.setInt(3, chapter)
             statement.setInt(4, verse.verse)
@@ -212,12 +229,12 @@ class BibleImportCoordinator(
             .orEmpty()
             .contains("PostgreSQL", ignoreCase = true)
 
-    private fun acquireImportLock(postgres: Boolean): Boolean {
+    private fun acquireImportLock(postgres: Boolean, lockKey: Long): Boolean {
         if (!postgres) return true
         return jdbcTemplate.queryForObject(
             "select pg_try_advisory_xact_lock(?)",
             Boolean::class.java,
-            IMPORT_LOCK_KEY,
+            lockKey,
         ) ?: false
     }
 
@@ -231,6 +248,7 @@ class BibleImportCoordinator(
 
     companion object {
         private const val IMPORT_LOCK_KEY = 1_910_066L
+        private const val KRV_IMPORT_LOCK_KEY = 1_961_066L
         private const val VERSE_BATCH_SIZE = 500
         private const val UPSERT_VERSE_SQL = """
             insert into bible_verses(version, book_id, chapter, verse, text)

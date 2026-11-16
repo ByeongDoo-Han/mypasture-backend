@@ -39,7 +39,7 @@ data class UserDto(
 /** 사용자가 직접 변경할 수 있는 공개 프로필 필드만 받는 요청 DTO입니다. */
 data class UpdateMyProfileRequest(
     @field:NotBlank
-    @field:Size(max = 40)
+    @field:Size(max = 10)
     val displayName: String,
 )
 
@@ -53,7 +53,7 @@ data class UserSignupRequest(
     @field:Size(min = 8, max = 72)
     val password: String,
     @field:NotBlank
-    @field:Size(min = 1, max = 80)
+    @field:Size(min = 1, max = 10)
     val displayName: String,
     @field:Size(max = 1000)
     val verificationToken: String? = null,
@@ -116,6 +116,15 @@ data class SocialLoginRequest(
     val displayName: String? = null,
 )
 
+/** 웹 카카오 인가 코드와 해당 요청의 PKCE verifier만 서버로 전달합니다. */
+data class KakaoWebLoginRequest(
+    @field:NotBlank
+    @field:Size(max = 2048)
+    val code: String,
+    @field:Pattern(regexp = "[A-Za-z0-9._~-]{43,128}")
+    val codeVerifier: String,
+)
+
 /** 클라이언트가 OIDC 요청에 넣고 서버가 일회성으로 검증하는 nonce challenge입니다. */
 data class SocialLoginChallengeResponse(
     val challengeId: UUID,
@@ -137,6 +146,25 @@ data class UserLoginResponse(
     val expiresAt: Instant,
     val user: UserDto,
 )
+
+/** 브라우저에 refresh token을 다시 노출하지 않는 웹 세션 응답입니다. */
+data class WebSessionResponse(
+    val token: String,
+    val tokenType: String,
+    val expiresIn: Long,
+    val expiresAt: Instant,
+    val user: UserDto,
+) {
+    companion object {
+        fun from(response: UserLoginResponse) = WebSessionResponse(
+            token = response.token,
+            tokenType = response.tokenType,
+            expiresIn = response.expiresIn,
+            expiresAt = response.expiresAt,
+            user = response.user,
+        )
+    }
+}
 
 /** 만료된 access token을 회전형 refresh token으로 갱신하는 요청입니다. */
 data class RefreshAccessTokenRequest(

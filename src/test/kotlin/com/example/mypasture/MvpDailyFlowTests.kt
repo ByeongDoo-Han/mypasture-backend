@@ -45,7 +45,7 @@ class MvpDailyFlowTests(
     @Autowired private val attendanceService: AttendanceService,
     @Autowired private val aiUseCase: AskBibleAssistantUseCase,
 ) {
-    @Test fun `reading progress is upserted and daily history is recorded`() {
+    @Test fun `읽기 진행 상태를 갱신하고 일일 기록을 남긴다`() {
         val user = newUser()
         readingService.record(user.id, "KOR1910", "GEN", 1, 1, false, "Asia/Seoul")
         readingService.record(user.id, "KOR1910", "GEN", 1, 2, true, "Asia/Seoul")
@@ -56,20 +56,20 @@ class MvpDailyFlowTests(
         assertEquals("창세기", readingController.progress(principal).single().bookName)
     }
 
-    @Test fun `daily word is generated once and shared by all users`() {
+    @Test fun `오늘의 말씀은 한 번 생성해 모든 사용자에게 공유한다`() {
         val date = LocalDate.of(2026, 8, 14)
         val published = DailyWordFixtures.published(date, dailyWordRepository, bibleBookRepository, bibleVerseRepository)
         assertEquals(published.id, dailyWordService.getPublished(date).id)
         assertEquals(published.id, dailyWordService.getPublished(date).id)
     }
 
-    @Test fun `daily notification setting validates timezone and persists`() {
+    @Test fun `오늘의 말씀 알림 설정은 시간대를 검증하고 저장한다`() {
         val user = newUser()
         val setting = notificationService.updateSetting(user.id, true, LocalTime.of(8, 0), "Asia/Seoul")
         assertTrue(setting.enabled); assertEquals(LocalTime.of(8, 0), notificationService.setting(user.id).notificationTime)
     }
 
-    @Test fun `authenticated qr join creates one attendance and allows reflection sharing`() {
+    @Test fun `인증한 QR 참여는 출석을 한 건 만들고 묵상 나눔을 허용한다`() {
         val user = newUser()
         val pasture = quietTimeService.createPasture(user.id, "테스트 목장", "리더")
         val session = quietTimeService.createOfflineSession(user.id, pasture.id, null, null, "불안", null, null, null, null)
@@ -80,7 +80,7 @@ class MvpDailyFlowTests(
         assertEquals(1, attendanceService.summary(user.id, LocalDate.now().minusDays(1), LocalDate.now().plusDays(1)).records.size)
     }
 
-    @Test fun `crisis language is escalated before AI provider call`() {
+    @Test fun `위기 표현은 AI 제공자 호출 전에 긴급 대응으로 분류한다`() {
         val user = newUser()
         assertThrows<AiSafetyException> { aiUseCase.ask(user.id, SubscriptionTier.FREE, "죽고 싶다는 생각이 들어") }
     }

@@ -68,6 +68,10 @@ class QuietTimePassageEntity(
     val prayerGuide: String,
     val active: Boolean = true,
     val createdAt: Instant = Instant.now(),
+    /** 추천 본문과 목자가 직접 선택한 말씀을 구분합니다. */
+    val origin: String = "CURATED",
+    @Column(unique = true, length = 120)
+    val selectedKey: String? = null,
 )
 
 /** 오프라인 큐티 모임을 여는 목장 정보를 저장하는 JPA entity입니다. */

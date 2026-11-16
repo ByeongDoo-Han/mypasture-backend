@@ -1,7 +1,10 @@
 package com.example.mypasture.ai.presentation
 
+import com.example.mypasture.ai.application.AiQuestionOutOfScopeException
+import com.example.mypasture.ai.application.AiQuestionScopeUnclearException
 import com.example.mypasture.ai.application.AiProviderException
 import com.example.mypasture.ai.application.AiGroundingNotFoundException
+import com.example.mypasture.ai.application.AiPassageRangeException
 import com.example.mypasture.ai.application.AiInputTooLongException
 import com.example.mypasture.ai.application.AiQuotaExceededException
 import com.example.mypasture.ai.application.AiSafetyException
@@ -183,8 +186,8 @@ class AiController(
         return askBibleAssistant.requestStatus(principal.userId, clientRequestId).toResponse()
     }
 
-    /** 평가가 켜진 경우 검증된 최종 답변만 delta로 보내고 완료 후 인용과 사용량을 전달합니다. */
-    override fun stream(principal: JwtPrincipal, request: AskAiRequest): SseEmitter {
+    /** 구버전 앱에는 최종 답변을, 초안 지원 앱에는 생성 중 검증 가능한 조각을 전달합니다. */
+    override fun stream(principal: JwtPrincipal, request: AskAiRequest, liveDraft: Boolean): SseEmitter {
         policyConsentService.requireCurrent(principal.userId, setOf(PolicyScope.ACCOUNT, PolicyScope.AI))
         val emitter = SseEmitter(properties.streamTimeoutMs)
         val active = AtomicBoolean(true)
@@ -200,14 +203,21 @@ class AiController(
                         question = request.question,
                         conversationId = request.conversationId,
                         clientRequestId = request.clientRequestId,
+                        liveDraft = liveDraft,
                         onStage = { stage ->
                             sendIfActive(active, emitter, SseEmitter.event().name("status").data(mapOf("stage" to stage.name)))
                         },
+                        onReset = {
+                            if (liveDraft) sendIfActive(active, emitter, SseEmitter.event().name("draft_reset").data(mapOf("reason" to "REVISION")))
+                        },
                         onDelta = { delta ->
-                            sendIfActive(active, emitter, SseEmitter.event().name("delta").data(delta))
+                            if (liveDraft) sendIfActive(active, emitter, SseEmitter.event().name("delta").data(delta))
                         },
                     )
                 if (active.get()) {
+                    if (!liveDraft) result.answer.chunked(24).forEach { delta ->
+                        sendIfActive(active, emitter, SseEmitter.event().name("delta").data(delta))
+                    }
                     sendIfActive(active, emitter, SseEmitter.event().name("response").data(result.toResponse()))
                     sendIfActive(active, emitter, SseEmitter.event().name("citations").data(result.citations))
                     sendIfActive(active, emitter, SseEmitter.event().name("usage").data(result.toStreamUsage()))
@@ -220,10 +230,11 @@ class AiController(
                 val response = error.toStreamErrorResponse()
                 // 상담 질문이나 provider 응답은 남기지 않고 운영에 필요한 분류 정보만 기록합니다.
                 logger.warn(
-                    "AI stream failed userId={} code={} exception={}",
+                    "AI stream failed userId={} code={} exception={} failureKind={}",
                     principal.userId,
                     response.code,
                     error::class.qualifiedName,
+                    (error as? AiProviderException)?.failureKind?.name ?: "NOT_PROVIDER",
                 )
                 if (active.compareAndSet(true, false)) {
                     runCatching {
@@ -302,7 +313,10 @@ private fun Throwable.toStreamErrorResponse(): ApiErrorResponse =
     when (this) {
         is AiInputTooLongException -> ApiErrorResponse.of(AiErrorCode.INPUT_TOO_LONG, message = message ?: AiErrorCode.INPUT_TOO_LONG.defaultMessage)
         is AiQuotaExceededException -> ApiErrorResponse.of(AiErrorCode.QUOTA_EXCEEDED, message = message ?: AiErrorCode.QUOTA_EXCEEDED.defaultMessage)
+        is AiQuestionOutOfScopeException -> ApiErrorResponse.of(AiErrorCode.QUESTION_OUT_OF_SCOPE, message = message ?: AiErrorCode.QUESTION_OUT_OF_SCOPE.defaultMessage)
+        is AiQuestionScopeUnclearException -> ApiErrorResponse.of(AiErrorCode.QUESTION_SCOPE_UNCLEAR, message = message ?: AiErrorCode.QUESTION_SCOPE_UNCLEAR.defaultMessage)
         is AiGroundingNotFoundException -> ApiErrorResponse.of(AiErrorCode.GROUNDING_NOT_FOUND, message = message ?: AiErrorCode.GROUNDING_NOT_FOUND.defaultMessage)
+        is AiPassageRangeException -> ApiErrorResponse.of(AiErrorCode.INVALID_PASSAGE_RANGE, message = message ?: AiErrorCode.INVALID_PASSAGE_RANGE.defaultMessage)
         is AiAnswerRejectedException -> ApiErrorResponse.of(AiErrorCode.EVALUATION_REJECTED, message = message ?: AiErrorCode.EVALUATION_REJECTED.defaultMessage)
         is AiSafetyException -> ApiErrorResponse.of(AiErrorCode.SAFETY_ESCALATION, message = message ?: AiErrorCode.SAFETY_ESCALATION.defaultMessage)
         is AiProviderException -> ApiErrorResponse.of(AiErrorCode.PROVIDER_UNAVAILABLE, message = message ?: AiErrorCode.PROVIDER_UNAVAILABLE.defaultMessage)

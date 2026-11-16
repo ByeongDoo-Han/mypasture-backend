@@ -40,7 +40,7 @@ class DailyWordOperationsSummaryTests(
     }
 
     @Test
-    fun `summary reports publishing readiness job health and ai usage`() {
+    fun `운영 요약은 게시 준비 작업 상태와 AI 사용량을 보여준다`() {
         repository.saveAll(
             listOf(
                 word(today, DailyWordStatus.PUBLISHED, 11, 22, 33, "0.0012"),
@@ -67,7 +67,7 @@ class DailyWordOperationsSummaryTests(
     }
 
     @Test
-    fun `admin can read summary but ordinary user cannot`() {
+    fun `운영 요약은 관리자만 조회할 수 있다`() {
         repository.save(word(today, DailyWordStatus.PUBLISHED, 1, 2, 3, "0.0001"))
 
         mockMvc.get("/api/v1/admin/daily-words/operations-summary") {
@@ -88,7 +88,7 @@ class DailyWordOperationsSummaryTests(
     }
 
     @Test
-    fun `summary rejects an unbounded date range`() {
+    fun `운영 요약은 무제한 날짜 범위를 거부한다`() {
         mockMvc.get("/api/v1/admin/daily-words/operations-summary") {
             with(user("admin").roles("ADMIN"))
             param("from", today.toString())

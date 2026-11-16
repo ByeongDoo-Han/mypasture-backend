@@ -91,15 +91,21 @@ class AiRequestReceiptMaintenanceService(
     private val repository: AiRequestReceiptRepository,
     private val usageRepository: AiUsageLogRepository,
     private val properties: AiProperties,
+    private val users: com.example.mypasture.auth.infrastructure.UserRepository,
 ) {
     @Transactional
     fun failStalePendingRequests() {
         val now = Instant.now()
         val cutoff = now.minusMillis(properties.idempotencyPendingTimeoutMs)
         repository.findTop500ByStatusAndUpdatedAtBeforeOrderByUpdatedAtAsc(AiRequestReceiptStatus.PENDING, cutoff)
+            // 여러 worker가 겹친 배치를 처리해도 사용자 잠금은 항상 같은 순서로 획득합니다.
+            .sortedBy { it.userId }
             .forEach { candidate ->
-                // 정상 완료 경로와 같은 잠금 순서를 사용해 usage와 receipt 상태를 함께 확정합니다.
+                // 완료·탈퇴와 같은 user → usage → receipt 순서를 유지합니다.
+                users.findActiveByIdForUpdate(candidate.userId) ?: return@forEach
                 val usage = usageRepository.findLockedById(candidate.usageLogId) ?: return@forEach
+                // 후보 receipt는 잠금 전 읽은 값일 수 있으므로 사용량의 최종 상태를 우선합니다.
+                if (usage.status != com.example.mypasture.ai.domain.AiUsageStatus.PENDING) return@forEach
                 val receipt = repository.findLockedByUsageLogId(candidate.usageLogId) ?: return@forEach
                 if (receipt.status == AiRequestReceiptStatus.PENDING && receipt.updatedAt.isBefore(cutoff)) {
                     if (usage.status == com.example.mypasture.ai.domain.AiUsageStatus.PENDING) {

@@ -14,7 +14,7 @@ import reactor.netty.http.server.HttpServer
 /** 운영 batch 크기의 OpenAI embedding 응답과 전용 메모리 상한을 검증합니다. */
 class OpenAiTextEmbeddingAdapterTests {
     @Test
-    fun `accepts embedding response larger than WebClient default buffer`() {
+    fun `WebClient 기본 버퍼보다 큰 임베딩 응답을 받아들인다`() {
         val inputCount = 20
         val responseBody = embeddingResponse(inputCount)
         check(responseBody.toByteArray().size > 256 * 1024)
@@ -38,7 +38,7 @@ class OpenAiTextEmbeddingAdapterTests {
     }
 
     @Test
-    fun `rejects unsafe response buffer configuration`() {
+    fun `안전하지 않은 응답 버퍼 설정을 거부한다`() {
         assertThrows(IllegalArgumentException::class.java) {
             OpenAiTextEmbeddingAdapter(
                 properties("http://127.0.0.1").copy(embeddingResponseMaxBytes = 128 * 1024),

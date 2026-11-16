@@ -1,5 +1,7 @@
 package com.example.mypasture.faith_profile.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
@@ -28,7 +30,7 @@ class FaithProfileControllerTests(
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"Faith Test"}"""
+            content = """{"email":"$email","password":"$password","displayName":"${uniqueTestNickname()}"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON
@@ -38,7 +40,7 @@ class FaithProfileControllerTests(
     }
 
     @Test
-    fun `current test returns default faith rhythm definition`() {
+    fun `현재 신앙 검사에는 기본 믿음 유형 정의가 반환된다`() {
         mockMvc.get("/api/v1/faith-profile/tests/current")
             .andExpect {
                 status { isOk() }
@@ -50,7 +52,7 @@ class FaithProfileControllerTests(
     }
 
     @Test
-    fun `assessment can be completed and returns faith type result`() {
+    fun `검사를 완료하면 신앙 유형 결과를 반환한다`() {
         val test = getCurrentTest()
         val assessmentId = startAssessment()
 
@@ -95,7 +97,7 @@ class FaithProfileControllerTests(
     }
 
     @Test
-    fun `complete rejects incomplete assessment`() {
+    fun `답변이 빠진 검사는 완료를 거부한다`() {
         val assessmentId = startAssessment()
 
         mockMvc.post("/api/v1/faith-profile/assessments/$assessmentId/complete") {
@@ -107,7 +109,7 @@ class FaithProfileControllerTests(
     }
 
     @Test
-    fun `duplicate answer is rejected`() {
+    fun `중복 답변을 거부한다`() {
         val questionId = UUID.fromString(getCurrentTest()["questions"].first()["id"].asText())
         val assessmentId = startAssessment()
 
@@ -184,7 +186,7 @@ class FaithProfileControllerTests(
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"Other Faith User"}"""
+            content = """{"email":"$email","password":"$password","displayName":"${uniqueTestNickname()}"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON

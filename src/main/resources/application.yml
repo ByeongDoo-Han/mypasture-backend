@@ -100,6 +100,7 @@ app:
       dispatch-batch-size: ${NOTIFICATION_DISPATCH_BATCH_SIZE:100}
       max-batches-per-run: ${NOTIFICATION_MAX_BATCHES_PER_RUN:20}
   daily-word:
+    rotation-enabled: ${DAILY_WORD_ROTATION_ENABLED:true}
     generation-enabled: ${DAILY_WORD_GENERATION_ENABLED:false}
     provider: ${DAILY_WORD_PROVIDER:disabled}
     generation-cron: ${DAILY_WORD_GENERATION_CRON:0 0 18 * * *}
@@ -126,7 +127,7 @@ app:
     qr:
       default-meeting-duration-minutes: ${QUIET_TIME_DEFAULT_MEETING_DURATION_MINUTES:120}
       expiry-grace-minutes: ${QUIET_TIME_QR_EXPIRY_GRACE_MINUTES:30}
-      invite-base-url: ${QUIET_TIME_INVITE_BASE_URL:https://mypasture.app/q/qt}
+      invite-base-url: ${QUIET_TIME_INVITE_BASE_URL:https://app.mypasture.app/q/qt}
     realtime:
       redis-enabled: ${QUIET_TIME_REALTIME_REDIS_ENABLED:false}
       sse-timeout-ms: ${QUIET_TIME_SSE_TIMEOUT_MS:1800000}
@@ -196,3 +197,7 @@ app:
       user-info-uri: ${KAKAO_USER_INFO_URI:https://kapi.kakao.com/v2/user/me}
       token-info-uri: ${KAKAO_TOKEN_INFO_URI:https://kapi.kakao.com/v1/user/access_token_info}
       app-ids: ${KAKAO_APP_IDS:}
+      web:
+        rest-api-key: ${KAKAO_WEB_REST_API_KEY:}
+        client-secret: ${KAKAO_WEB_CLIENT_SECRET:}
+        redirect-uri: ${KAKAO_WEB_REDIRECT_URI:}

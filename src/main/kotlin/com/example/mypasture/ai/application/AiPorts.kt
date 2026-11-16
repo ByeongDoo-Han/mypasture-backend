@@ -70,6 +70,9 @@ interface AiStreamingCompletionPort {
         config: AiRuntimeConfigSnapshot,
         experiencePolicy: AiAssistantExperiencePolicy,
         conversationContext: AiConversationContext? = null,
+        generationInstructions: List<String> = emptyList(),
+        previousAnswer: String? = null,
+        revisionInstructions: List<String> = emptyList(),
         onDelta: suspend (String) -> Unit,
     ): GroundedAnswer
 }
@@ -140,7 +143,18 @@ interface AiUsagePort {
     fun complete(
         reservationId: UUID,
         answer: GroundedAnswer,
+        question: String,
+        modelVersion: Long,
     )
+
+    /** 대화 append와 usage/history/receipt를 사용자 잠금 안에서 함께 확정합니다. */
+    fun completeWithContext(
+        reservationId: UUID,
+        answer: GroundedAnswer,
+        question: String,
+        modelVersion: Long,
+        context: com.example.mypasture.ai.domain.AiTurnCompletionContext,
+    ): GroundedAnswer
 
     fun fail(reservationId: UUID, errorCode: String, consumedAnswer: GroundedAnswer? = null)
 }
@@ -164,4 +178,18 @@ interface AiFeedbackPort {
     fun summary(): AiFeedbackSummary
 
     fun priority(limit: Int): List<AiAnswerFeedback>
+}
+
+/** 현재 질문의 의미를 판단하며 대화 문맥은 짧은 후속 답변 해석에만 사용합니다. */
+interface AiQuestionScopePort {
+    suspend fun assess(
+        currentQuestion: String,
+        conversationContext: AiConversationContext?,
+        config: AiRuntimeConfigSnapshot,
+    ): com.example.mypasture.ai.domain.AiQuestionScopeAssessment
+}
+
+/** 사용자 소유 원 턴의 당시 문맥만 복원하며 최신 대화 텍스트는 조회하지 않습니다. */
+interface AiContextSnapshotPort {
+    fun restore(userId: UUID, turnId: UUID): com.example.mypasture.ai.domain.AiRestoredContextSnapshot?
 }

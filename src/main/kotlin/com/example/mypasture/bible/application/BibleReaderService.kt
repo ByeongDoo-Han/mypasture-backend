@@ -6,13 +6,19 @@ import com.example.mypasture.bible.domain.BibleChapter
 import com.example.mypasture.bible.domain.BibleSearchResult
 import com.example.mypasture.bible.domain.BibleVerse
 import com.example.mypasture.bible.domain.BibleVersion
+import com.example.mypasture.bible.domain.BibleCursorSearchResult
+import com.example.mypasture.bible.domain.BibleSearchHit
+import com.example.mypasture.bible.domain.BibleSearchPosition
 import org.springframework.stereotype.Service
+import java.util.Locale
 
 /** 성경 본문 저장소가 제공해야 하는 읽기/검색 동작을 정의하는 application port입니다. */
 interface BibleContentRepository {
     fun getChapter(version: String, book: BibleBook, chapter: Int): BibleChapter?
 
     fun searchVerses(version: String, keyword: String, page: Int, size: Int): BibleSearchResult
+
+    fun searchVersesAfter(version: String, keyword: String, after: BibleSearchPosition?, limit: Int): List<BibleSearchHit>
 }
 
 /** 성경 번역본, 권, 장, 절 조회 규칙을 조합하는 application service입니다. */
@@ -20,7 +26,10 @@ interface BibleContentRepository {
 class BibleReaderService(
     private val bibleContentRepository: BibleContentRepository,
 ) {
-    fun getVersions(): List<BibleVersion> = BibleCatalog.versions
+    fun getVersions(): List<BibleVersion> = BibleCatalog.versions.filter { version ->
+        version.code != BibleCatalog.KRV_VERSION ||
+            bibleContentRepository.getChapter(BibleCatalog.KRV_VERSION, BibleCatalog.books.first(), 1) != null
+    }
 
     fun getBooks(version: String): List<BibleBook> {
         requireSupportedVersion(version)
@@ -63,6 +72,23 @@ class BibleReaderService(
         require(size in 1..100) { "Size must be between 1 and 100." }
 
         return bibleContentRepository.searchVerses(version.uppercase(), normalizedKeyword, page, size)
+    }
+
+    fun searchCursor(version: String, keyword: String, size: Int, cursor: String?): BibleCursorSearchResult {
+        requireSupportedVersion(version)
+        val normalizedVersion = version.uppercase(Locale.ROOT)
+        val normalizedKeyword = BibleSearchCursorCodec.normalizeKeyword(keyword)
+        require(size in 1..50) { "Size must be between 1 and 50." }
+        val after = cursor?.let { BibleSearchCursorCodec.decode(it, normalizedVersion, normalizedKeyword) }
+        val hits = bibleContentRepository.searchVersesAfter(normalizedVersion, normalizedKeyword, after, size + 1)
+        val hasNext = hits.size > size
+        val page = hits.take(size)
+        return BibleCursorSearchResult(
+            normalizedVersion, normalizedKeyword, size,
+            BibleCatalog.books.filter { it.name.contains(normalizedKeyword, ignoreCase = true) },
+            page.map { it.verse }, hasNext,
+            if (hasNext) BibleSearchCursorCodec.encode(normalizedVersion, normalizedKeyword, page.last().position) else null,
+        )
     }
 
     private fun requireSupportedVersion(version: String) {

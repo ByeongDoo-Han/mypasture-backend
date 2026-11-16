@@ -46,6 +46,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.boot:spring-boot-starter-mail")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14")
     implementation("com.google.firebase:firebase-admin:9.4.3")
     implementation("com.apple.itunes.storekit:app-store-server-library:5.2.0")
     implementation("org.flywaydb:flyway-core")
@@ -81,6 +82,11 @@ tasks.withType<Test> {
 }
 
 tasks.named<Test>("test") {
+    // 활동 통합 검사를 포함한 Spring context들이 기본 512MiB에서 OOM이 발생하지 않게 확보합니다.
+    maxHeapSize = "1g"
+    // 많은 통합 테스트를 연속 실행할 때 컨텍스트와 백그라운드 스레드가 누적되지 않게 JVM을 교체합니다.
+    forkEvery = 20
+    systemProperty("spring.test.context.cache.maxSize", "8")
     // 개발자별 .env.local이 Firebase, OpenAI 등 통합 테스트 설정을 오염시키지 않게 격리합니다.
     systemProperty("spring.profiles.active", "test")
     systemProperty("app.auth.email-verification.required", "false")

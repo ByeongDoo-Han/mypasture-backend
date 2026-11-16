@@ -3,6 +3,7 @@ package com.example.mypasture.bible.domain
 /** 성경 번역본과 66권 메타데이터를 제공하는 고정 카탈로그입니다. */
 object BibleCatalog {
     const val KOR1910_VERSION = "KOR1910"
+    const val KRV_VERSION = "KRV"
 
     val versions: List<BibleVersion> =
         listOf(
@@ -11,6 +12,12 @@ object BibleCatalog {
                 name = "Korean Bible 1910",
                 language = "ko",
                 copyright = "Public Domain",
+            ),
+            BibleVersion(
+                code = KRV_VERSION,
+                name = "개역한글판",
+                language = "ko",
+                copyright = "성경전서 개역한글판, 대한성서공회 1961 (저작재산권 보호기간 만료)",
             ),
         )
 

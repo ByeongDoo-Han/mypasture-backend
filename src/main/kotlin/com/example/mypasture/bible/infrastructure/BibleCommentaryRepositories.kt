@@ -17,6 +17,8 @@ import java.util.UUID
 
 /** 장별 해설 버전과 게시 상태를 영속화하는 Spring Data repository입니다. */
 interface BibleChapterCommentaryRepository : JpaRepository<BibleChapterCommentaryEntity, UUID> {
+    fun findAllByVersionAndBookCode(version: String, bookCode: String): List<BibleChapterCommentaryEntity>
+
     fun findFirstByVersionAndBookCodeAndChapterAndStatusOrderByRevisionDesc(
         version: String,
         bookCode: String,
@@ -80,6 +82,8 @@ interface BibleCommentaryReviewEventRepository : JpaRepository<BibleCommentaryRe
 
 /** 장별 해설 생성 큐를 영속화하고 한 번에 한 워커만 작업을 점유하도록 잠급니다. */
 interface BibleCommentaryGenerationJobRepository : JpaRepository<BibleCommentaryGenerationJobEntity, UUID> {
+    fun findAllByVersionAndBookCode(version: String, bookCode: String): List<BibleCommentaryGenerationJobEntity>
+
     fun existsByVersionAndBookCodeAndChapterAndStatusIn(
         version: String,
         bookCode: String,

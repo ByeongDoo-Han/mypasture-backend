@@ -98,7 +98,7 @@ class NotificationDispatchTests(
     }
 
     @Test
-    fun `concurrent and repeated scheduler execution sends each device once`() = runTest {
+    fun `예약 작업을 동시에 반복 실행해도 각 기기에 한 번만 발송한다`() = runTest {
         val registration = registerDueDevices(1)
         val start = CountDownLatch(1)
         val executor = Executors.newFixedThreadPool(2)
@@ -128,7 +128,7 @@ class NotificationDispatchTests(
     }
 
     @Test
-    fun `paged notification settings reserve every due user`() = runTest {
+    fun `페이지로 나눈 알림 설정에서도 발송 대상 사용자를 모두 선점한다`() = runTest {
         val registrations = List(3) { registerDueDevices(1) }
 
         notificationService.dispatchDueDailyWords()
@@ -140,7 +140,7 @@ class NotificationDispatchTests(
     }
 
     @Test
-    fun `unpublished day does not reserve or send notifications`() = runTest {
+    fun `게시되지 않은 날짜에는 알림을 예약하거나 발송하지 않는다`() = runTest {
         val registration = registerDueDevices(1)
         broadcastRepository.deleteAllInBatch()
         dailyWordRepository.deleteAllInBatch()
@@ -152,7 +152,7 @@ class NotificationDispatchTests(
     }
 
     @Test
-    fun `transient failure retries after backoff and then succeeds`() = runTest {
+    fun `일시적 실패는 지수 대기 뒤 재시도해 성공한다`() = runTest {
         val registration = registerDueDevices(1)
         val firstFailure = AtomicBoolean(true)
         doAnswer {
@@ -181,7 +181,7 @@ class NotificationDispatchTests(
     }
 
     @Test
-    fun `expired processing lease is recovered and stale worker cannot overwrite result`() = runTest {
+    fun `만료된 처리 임대를 복구하고 오래된 작업자는 결과를 덮지 못한다`() = runTest {
         val registration = registerDueDevices(1)
         val word = dailyWordService.getPublished(LOCAL_DATE)
         deliveryCoordinator.reserve(registration.user.id, word, registration.devices.single(), clock.instant())
@@ -211,7 +211,7 @@ class NotificationDispatchTests(
     }
 
     @Test
-    fun `partial device failure retries only the failed device`() = runTest {
+    fun `일부 기기 발송 실패는 실패한 기기만 재시도한다`() = runTest {
         val registration = registerDueDevices(2)
         val failedToken = registration.devices.last().fcmToken
         val firstFailure = AtomicBoolean(true)
@@ -238,7 +238,7 @@ class NotificationDispatchTests(
     }
 
     @Test
-    fun `permanent token failure disables device without retry`() = runTest {
+    fun `영구적인 토큰 오류는 재시도하지 않고 기기를 비활성화한다`() = runTest {
         val registration = registerDueDevices(1)
         doThrow(
             PushDeliveryException(
@@ -260,7 +260,7 @@ class NotificationDispatchTests(
     }
 
     @Test
-    fun `unregister dead letters pending work before deactivating device`() = runTest {
+    fun `기기 등록 해제는 대기 작업을 최종 실패로 옮긴 뒤 기기를 비활성화한다`() = runTest {
         val registration = registerDueDevices(1)
         val device = registration.devices.single()
         val word = dailyWordService.getPublished(LOCAL_DATE)
@@ -277,7 +277,7 @@ class NotificationDispatchTests(
     }
 
     @Test
-    fun `transient failure stops after configured maximum attempts`() = runTest {
+    fun `일시적 실패도 설정한 최대 시도 횟수 뒤에는 멈춘다`() = runTest {
         val registration = registerDueDevices(1)
         doThrow(transientFailure())
             .`when`(pushSender).send(anyString(), anyString(), anyString(), anyMap())

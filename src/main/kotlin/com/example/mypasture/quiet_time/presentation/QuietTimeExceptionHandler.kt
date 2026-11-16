@@ -5,10 +5,19 @@ import com.example.mypasture.quiet_time.application.QuietTimeAdminOperationConfl
 import com.example.mypasture.quiet_time.application.QuietTimeNotFoundException
 import com.example.mypasture.quiet_time.application.QuietTimeParticipationRequiredException
 import com.example.mypasture.quiet_time.application.QuietTimePassageLockedException
+import com.example.mypasture.quiet_time.application.QuietTimeQuestionNotReadyException
+import com.example.mypasture.quiet_time.infrastructure.QuietTimeGenerationLimitException
+import com.example.mypasture.quiet_time.infrastructure.QuietTimeGenerationAttemptLimitException
 import com.example.mypasture.quiet_time.application.QuietTimeQrExpiredException
 import com.example.mypasture.quiet_time.application.QuietTimeQrNotOpenException
 import com.example.mypasture.quiet_time.application.QuietTimeQrRevokedException
 import com.example.mypasture.quiet_time.application.QuietTimeSessionClosedException
+import com.example.mypasture.quiet_time.application.QuietTimePastureConflictException
+import com.example.mypasture.quiet_time.application.QuietTimePastureInviteInvalidException
+import com.example.mypasture.quiet_time.application.QuietTimePastureInviteLimitException
+import com.example.mypasture.quiet_time.application.QuietTimePastureRequestNotFoundException
+import com.example.mypasture.quiet_time.application.QuietTimePastureRequestExpiredException
+import com.example.mypasture.quiet_time.application.QuietTimePastureLeaderRequiredException
 import com.example.mypasture.moderation.application.UserGeneratedContentRejectedException
 import com.example.mypasture.common.error.ErrorCode
 import com.example.mypasture.common.error.toResponse
@@ -21,9 +30,51 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
 
 /** 큐티목장과 QR 정책 예외를 일관된 HTTP 응답으로 변환하는 controller advice입니다. */
-@RestControllerAdvice(assignableTypes = [QuietTimeController::class, QuietTimeAdminController::class])
+@RestControllerAdvice(assignableTypes = [QuietTimeController::class, QuietTimePastureController::class, QuietTimeAdminController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class QuietTimeExceptionHandler {
+    @ExceptionHandler(QuietTimePastureConflictException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handlePastureConflict(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_CONFLICT.toResponse(request)
+
+    @ExceptionHandler(QuietTimePastureInviteInvalidException::class)
+    @ResponseStatus(HttpStatus.GONE)
+    fun handlePastureInviteInvalid(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_INVITE_INVALID.toResponse(request)
+
+    @ExceptionHandler(QuietTimePastureInviteLimitException::class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    fun handlePastureInviteLimit(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_INVITE_LIMIT.toResponse(request)
+
+    @ExceptionHandler(QuietTimePastureRequestNotFoundException::class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    fun handlePastureRequestNotFound(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_REQUEST_NOT_FOUND.toResponse(request)
+
+    @ExceptionHandler(QuietTimePastureRequestExpiredException::class)
+    @ResponseStatus(HttpStatus.GONE)
+    fun handlePastureRequestExpired(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_REQUEST_EXPIRED.toResponse(request)
+
+    @ExceptionHandler(QuietTimePastureLeaderRequiredException::class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    fun handlePastureLeaderRequired(request: HttpServletRequest) =
+        QuietTimeErrorCode.PASTURE_LEADER_REQUIRED.toResponse(request)
+
+    @ExceptionHandler(QuietTimeGenerationLimitException::class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    fun handleGenerationLimit(request: HttpServletRequest) =
+        QuietTimeErrorCode.GENERATION_LIMIT.toResponse(request)
+    @ExceptionHandler(QuietTimeGenerationAttemptLimitException::class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    fun handleGenerationAttemptLimit(request: HttpServletRequest) =
+        QuietTimeErrorCode.GENERATION_ATTEMPT_LIMIT.toResponse(request)
+    @ExceptionHandler(QuietTimeQuestionNotReadyException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handleQuestionNotReady(request: HttpServletRequest) =
+        QuietTimeErrorCode.QUESTION_NOT_READY.toResponse(request)
     @ExceptionHandler(QuietTimeAdminOperationConflictException::class)
     @ResponseStatus(HttpStatus.CONFLICT)
     fun handleAdminOperationConflict(request: HttpServletRequest) =
@@ -85,6 +136,12 @@ enum class QuietTimeErrorCode(
     override val code: String,
     override val defaultMessage: String,
 ) : ErrorCode {
+    PASTURE_CONFLICT("QUIET_TIME_PASTURE_CONFLICT", "이미 고정 목장에 소속되어 있거나 가입 요청이 대기 중입니다."),
+    PASTURE_INVITE_INVALID("QUIET_TIME_PASTURE_INVITE_INVALID", "초대 코드가 없거나 1분 유효 시간이 지났습니다."),
+    PASTURE_INVITE_LIMIT("QUIET_TIME_PASTURE_INVITE_LIMIT", "초대 코드는 1분에 최대 5개까지 발급할 수 있습니다."),
+    PASTURE_REQUEST_NOT_FOUND("QUIET_TIME_PASTURE_REQUEST_NOT_FOUND", "가입 요청을 찾을 수 없습니다."),
+    PASTURE_REQUEST_EXPIRED("QUIET_TIME_PASTURE_REQUEST_EXPIRED", "가입 요청 유효 기간이 지났습니다."),
+    PASTURE_LEADER_REQUIRED("QUIET_TIME_PASTURE_LEADER_REQUIRED", "해당 목장의 목자만 가입을 승인할 수 있습니다."),
     NOT_FOUND("QUIET_TIME_NOT_FOUND", "큐티목장 리소스를 찾을 수 없습니다."),
     LEADER_REQUIRED("QUIET_TIME_LEADER_REQUIRED", "목장 리더만 QR을 관리할 수 있습니다."),
     PARTICIPATION_REQUIRED("QUIET_TIME_PARTICIPATION_REQUIRED", "이 QT 모임에 참여한 목원만 답변을 볼 수 있습니다."),
@@ -93,6 +150,9 @@ enum class QuietTimeErrorCode(
     QR_REVOKED("QUIET_TIME_QR_REVOKED", "폐기되었거나 새 QR로 교체된 코드입니다."),
     SESSION_CLOSED("QUIET_TIME_SESSION_CLOSED", "종료된 큐티 모임입니다."),
     PASSAGE_LOCKED("QUIET_TIME_PASSAGE_LOCKED", "참여·답변·묵상이 시작된 이후에는 주제 말씀을 변경할 수 없습니다."),
+    QUESTION_NOT_READY("QUIET_TIME_QUESTION_NOT_READY", "질문 생성이 완료된 뒤 모임을 만들어 주세요."),
+    GENERATION_LIMIT("QUIET_TIME_GENERATION_LIMIT", "오늘 생성할 수 있는 새 QT 질문은 3개까지입니다."),
+    GENERATION_ATTEMPT_LIMIT("QUIET_TIME_GENERATION_ATTEMPT_LIMIT", "오늘 QT 질문 생성 시도는 10회까지입니다. 내일 다시 시도해 주세요."),
     ADMIN_OPERATION_CONFLICT("QUIET_TIME_ADMIN_OPERATION_CONFLICT", "이미 다른 관리자 작업에 사용된 operationId입니다."),
     CONTENT_REJECTED("QUIET_TIME_CONTENT_REJECTED", "공동체 운영 정책에 따라 게시할 수 없는 표현이 포함되어 있습니다."),
     INVALID_REQUEST("INVALID_QUIET_TIME_REQUEST", "큐티목장 요청이 올바르지 않습니다."),

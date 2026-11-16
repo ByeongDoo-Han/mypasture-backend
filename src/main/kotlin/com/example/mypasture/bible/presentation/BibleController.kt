@@ -21,6 +21,9 @@ class BibleController(
     override fun search(version: String, keyword: String, page: Int, size: Int): BibleSearchResponse =
         bibleReaderService.search(version, keyword, page, size).toResponse()
 
+    override fun searchCursor(version: String, keyword: String, size: Int, cursor: String?): BibleCursorSearchResponse =
+        bibleReaderService.searchCursor(version, keyword, size, cursor).toResponse()
+
     override fun chapter(version: String, bookCode: String, chapter: Int): BibleChapterResponse =
         bibleReaderService.getChapter(version, bookCode, chapter).toResponse()
 

@@ -19,7 +19,7 @@ class BibleDatabaseImportTests(
     @Autowired private val verseRepository: BibleVerseEntityRepository,
 ) {
     @Test
-    fun `imports canonical books chapters verses and empty missing chapter`() {
+    fun `정규 성경 책 장 절을 가져오고 없는 장은 빈 결과를 반환한다`() {
         coordinator.importAll()
         val firstPeter = bookRepository.findByVersionAndCode(BibleCatalog.KOR1910_VERSION, "1PE")!!
         val missingChapter = chapterRepository.findByVersionAndBook_IdAndChapter(
@@ -36,7 +36,7 @@ class BibleDatabaseImportTests(
     }
 
     @Test
-    fun `second import keeps verse ids and writes no duplicate chapters`() {
+    fun `두 번째 가져오기에서도 절 ID를 유지하고 중복 장을 만들지 않는다`() {
         coordinator.importAll()
         val beforeIds = verseRepository.findAll().map { it.id }.toSet()
 

@@ -10,6 +10,7 @@ import com.example.mypasture.quiet_time.application.QuietTimeQuestionAnswerView
 import com.example.mypasture.quiet_time.application.QuietTimeSessionQrView
 import com.example.mypasture.quiet_time.application.QuietTimePassageThemeView
 import com.example.mypasture.quiet_time.application.QuietTimeQuestionSet
+import com.example.mypasture.quiet_time.application.QuietTimeGenerationView
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionCategory
 import com.example.mypasture.quiet_time.domain.QuietTimeQuestionStyle
 import jakarta.validation.constraints.NotBlank
@@ -26,6 +27,28 @@ data class CreateQuietTimePastureRequest(
     val leaderName: String,
 )
 
+/** 목자가 QT에 사용할 실제 성경 절 범위를 선택하는 요청입니다. */
+data class SelectQuietTimePassageRequest(
+    @field:NotBlank val version: String,
+    @field:NotBlank val bookCode: String,
+    val chapter: Int,
+    val startVerse: Int,
+    val endVerse: Int,
+)
+
+/** 직접 고른 말씀의 공용 질문 생성 요청입니다. */
+data class GenerateQuietTimeQuestionsRequest(
+    val style: QuietTimeQuestionStyle = QuietTimeQuestionStyle.BALANCED,
+)
+
+/** 완료·진행 중·실패 상태를 같은 계약으로 전달합니다. */
+data class QuietTimeGenerationResponse(
+    val status: String,
+    val questionSet: QuietTimeQuestionSetResponse?,
+)
+
+fun QuietTimeGenerationView.toResponse() = QuietTimeGenerationResponse(status, questionSet?.toResponse())
+
 /** 오프라인 큐티 세션 생성 요청 DTO입니다. */
 data class CreateQuietTimeSessionRequest(
     val title: String? = null,
@@ -33,11 +56,23 @@ data class CreateQuietTimeSessionRequest(
     val theme: String? = null,
     val focusThemeCode: String? = null,
     val questionStyle: QuietTimeQuestionStyle? = null,
+    val questionOverrides: QuietTimeQuestionOverridesRequest? = null,
     val meetingDate: LocalDate? = null,
     val meetingStartsAt: Instant? = null,
     val meetingEndsAt: Instant? = null,
     val joinStartsAt: Instant? = null,
 )
+
+/** 미리보기에서 목자가 확정한 모임 전용 질문 목록입니다. */
+data class QuietTimeQuestionOverridesRequest(
+    val observationQuestions: List<String>,
+    val meditationQuestions: List<String>,
+    val sharingQuestions: List<String>,
+) {
+    fun toDomain() = com.example.mypasture.quiet_time.application.QuietTimeQuestionOverrides(
+        observationQuestions, meditationQuestions, sharingQuestions,
+    )
+}
 
 /** 생성된 큐티 모임의 본문과 본문별 질문 구성을 변경하는 요청 DTO입니다. */
 data class ChangeQuietTimePassageRequest(

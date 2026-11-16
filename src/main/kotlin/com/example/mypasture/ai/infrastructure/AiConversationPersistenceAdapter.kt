@@ -31,6 +31,10 @@ import javax.crypto.spec.SecretKeySpec
 interface AiConversationRepository : JpaRepository<AiConversationEntity, UUID> {
     fun findByIdAndUserIdAndStatus(id: UUID, userId: UUID, status: AiConversationStatus): AiConversationEntity?
     fun deleteAllByExpiresAtBefore(now: Instant): Long
+    fun deleteAllByUserId(userId: UUID): Long
+
+    @org.springframework.data.jpa.repository.Query("select count(c) > 0 from AiConversationEntity c where c.id = :id and c.userId = :userId")
+    fun existsOwned(id: UUID, userId: UUID): Boolean
 }
 
 /** 상담 문맥을 AES-GCM으로 암호화해 DB 유출 시 평문 노출을 줄입니다. */

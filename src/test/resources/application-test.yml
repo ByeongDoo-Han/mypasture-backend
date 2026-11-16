@@ -1,6 +1,7 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:mypasture;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    # Each Spring test context owns its schema; closing another context cannot drop these tables.
+    url: jdbc:h2:mem:${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
     username: sa
     password:
     driver-class-name: org.h2.Driver
@@ -15,6 +16,9 @@ app:
     allowed-origins:
       - http://localhost:8084
       - http://localhost:3000
+    web-session-allowed-origins:
+      - http://localhost:8084
+      - http://localhost:3000
   worker:
     enabled: false
   firebase:
@@ -26,6 +30,7 @@ app:
     api-key: test
     mock-enabled: true
   daily-word:
+    rotation-enabled: false
     generation-enabled: false
     incident-detection-enabled: false
   security:

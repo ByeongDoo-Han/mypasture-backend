@@ -26,6 +26,8 @@ class AiAnswerFeedbackService(
     private val runtimeConfigService: AiRuntimeConfigService,
     private val experiencePolicyResolver: AiAssistantExperiencePolicyResolver,
     private val accessPolicyResolver: AiAccessPolicyResolver,
+    private val scopeService: AiQuestionScopeService,
+    private val snapshotPort: AiContextSnapshotPort,
 ) {
     fun submit(
         userId: UUID,
@@ -49,9 +51,13 @@ class AiAnswerFeedbackService(
         val source = usagePort.findCompletedTurn(userId, turnId) ?: throw AiFeedbackRegenerationUnavailableException()
         if (!usagePort.questionMatches(userId, turnId, normalized)) throw AiFeedbackRegenerationUnavailableException()
 
+        if (listOf("자살", "죽고 싶", "극단적 선택", "해치고 싶", "살고 싶지").any { normalized.contains(it, ignoreCase = true) }) throw AiSafetyException()
+
         val feedback = feedbackPort.beginRegeneration(userId, turnId)
         var reservationId: UUID? = null
         var consumed: GroundedAnswer? = null
+        var scope: com.example.mypasture.ai.domain.AiQuestionScopeAssessment? = null
+        var consumedRetrieval: com.example.mypasture.ai.domain.BibleRetrievalResult? = null
 
         try {
             val runtimeConfig = runtimeConfigService.current()
@@ -59,10 +65,17 @@ class AiAnswerFeedbackService(
             val experiencePolicy = experiencePolicyResolver.resolve(effectiveTier)
             val activeReservationId = usagePort.reserveRegeneration(userId, normalized, turnId, runtimeConfig)
             reservationId = activeReservationId
-            val understood = questionUnderstandingService.understand(normalized)
+            val restored = snapshotPort.restore(userId, turnId) ?: throw AiQuestionScopeUnclearException()
+            val originalContext = restored.snapshot?.context
+            scope = scopeService.assess(normalized, originalContext, runtimeConfig)
+            scopeService.requireSupported(scope)
+            val understood = questionUnderstandingService.understand(originalContext?.retrievalQuestion(normalized) ?: normalized)
             val retrieval = retrievalPort.searchRelevantVerses(understood, experiencePolicy.scriptureCount + EXTRA_RAG_CANDIDATES)
+            consumedRetrieval = retrieval
             if (retrieval.citations.isEmpty()) throw AiGroundingNotFoundException()
-            val citations = if (feedback.reasons.any(ALTERNATIVE_SCRIPTURE_REASONS::contains)) {
+            val citations = if (understood.reference?.endVerse != null) {
+                retrieval.citations
+            } else if (feedback.reasons.any(ALTERNATIVE_SCRIPTURE_REASONS::contains)) {
                 retrieval.citations.filterNot { it.verseId in source.citationVerseIds }
                     .take(experiencePolicy.scriptureCount)
                     .ifEmpty { retrieval.citations.take(experiencePolicy.scriptureCount) }
@@ -76,8 +89,10 @@ class AiAnswerFeedbackService(
                 citations = citations,
                 config = runtimeConfig,
                 experiencePolicy = experiencePolicy,
+                conversationContext = originalContext,
                 generationInstructions = feedback.reasons.flatMap(::serverInstruction).distinct(),
             )
+            consumed = completion
             val answer = completion.copy(
                 conversationId = null,
                 turnId = activeReservationId,
@@ -87,13 +102,15 @@ class AiAnswerFeedbackService(
                 retrievalStrategy = retrieval.strategy,
                 questionIntent = understood.intent,
                 interactionMode = experiencePolicy.interactionMode,
-            )
-            consumed = answer
-            usagePort.complete(activeReservationId, answer)
+            ).withScopeUsage(scope)
+            val completed = usagePort.completeWithContext(activeReservationId, answer, normalized, runtimeConfig.version,
+                com.example.mypasture.ai.domain.AiTurnCompletionContext(restored.snapshot, restored))
             feedbackPort.completeRegeneration(userId, turnId, activeReservationId)
-            answer
+            completed
         } catch (error: RuntimeException) {
-            reservationId?.let { usagePort.fail(it, error::class.simpleName ?: "AI_REGENERATION_FAILED", consumed) }
+            reservationId?.let { usagePort.fail(it, error.aiFailureCode("AI_REGENERATION_FAILED"),
+                consumedAiUsage((error as? AiAnswerRejectedException)?.rejectedAnswer ?: consumed,
+                    (error as? AiQuestionScopeProviderException)?.assessment ?: scope, consumedRetrieval)) }
             feedbackPort.failRegeneration(userId, turnId)
             throw error
         }

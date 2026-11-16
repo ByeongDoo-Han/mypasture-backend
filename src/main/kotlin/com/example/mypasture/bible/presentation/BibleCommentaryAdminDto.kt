@@ -3,6 +3,8 @@ package com.example.mypasture.bible.presentation
 import com.example.mypasture.bible.application.BibleChapterCommentary
 import com.example.mypasture.bible.application.BibleCommentaryGenerationJob
 import com.example.mypasture.bible.application.BibleCommentaryBookGenerationResult
+import com.example.mypasture.bible.application.BibleCommentaryBookCoverage
+import com.example.mypasture.bible.application.BibleCommentaryRangeGenerationResult
 import com.example.mypasture.bible.application.BibleCommentaryDraftEdit
 import com.example.mypasture.bible.application.BibleCommentaryEvidence
 import com.example.mypasture.bible.application.BibleCommentaryReviewEvent
@@ -30,6 +32,15 @@ data class QueueBibleCommentaryGenerationRequest(
 data class QueueBibleCommentaryBookGenerationRequest(
     @field:NotBlank val version: String,
     @field:NotBlank val bookCode: String,
+    val includePublished: Boolean = false,
+)
+
+/** 관리자가 최대 50개 장을 한 번에 사전 생성 등록할 때 사용하는 요청입니다. */
+data class QueueBibleCommentaryRangeGenerationRequest(
+    @field:NotBlank val version: String,
+    @field:NotBlank val bookCode: String,
+    @field:Min(1) val startChapter: Int,
+    @field:Min(1) val endChapter: Int,
     val includePublished: Boolean = false,
 )
 
@@ -138,6 +149,33 @@ data class BibleCommentaryBookGenerationResponse(
     val unavailableChapters: List<Int>,
 )
 
+/** 장 범위 등록에서 성공·건너뜀·본문 없음 장을 구분합니다. */
+data class BibleCommentaryRangeGenerationResponse(
+    val version: String,
+    val bookCode: String,
+    val startChapter: Int,
+    val endChapter: Int,
+    val queuedChapters: List<Int>,
+    val skippedChapters: List<Int>,
+    val unavailableChapters: List<Int>,
+)
+
+/** 관리자에게 장별 적재·게시 현황을 전달합니다. */
+data class BibleCommentaryBookCoverageResponse(
+    val version: String,
+    val bookCode: String,
+    val chapters: List<BibleCommentaryChapterCoverageResponse>,
+)
+
+/** 한 장의 해설 및 생성 작업 상태를 전달합니다. */
+data class BibleCommentaryChapterCoverageResponse(
+    val chapter: Int,
+    val status: String,
+    val publishedRevision: Int?,
+    val draftRevision: Int?,
+    val latestJobStatus: String?,
+)
+
 /** 관리자에게 출처와 승인 상태를 함께 보여주는 해설 근거 응답입니다. */
 data class BibleCommentaryEvidenceResponse(
     val id: UUID,
@@ -212,6 +250,18 @@ fun BibleChapterCommentary.toAdminResponse(): BibleCommentaryAdminResponse =
 
 fun BibleCommentaryBookGenerationResult.toResponse() = BibleCommentaryBookGenerationResponse(
     version, bookCode, queuedChapters, skippedChapters, unavailableChapters,
+)
+
+fun BibleCommentaryRangeGenerationResult.toResponse() = BibleCommentaryRangeGenerationResponse(
+    version, bookCode, startChapter, endChapter, queuedChapters, skippedChapters, unavailableChapters,
+)
+
+fun BibleCommentaryBookCoverage.toResponse() = BibleCommentaryBookCoverageResponse(
+    version, bookCode, chapters.map {
+        BibleCommentaryChapterCoverageResponse(
+            it.chapter, it.status.name, it.publishedRevision, it.draftRevision, it.latestJobStatus?.name,
+        )
+    },
 )
 
 fun BibleCommentaryEvidence.toResponse() = BibleCommentaryEvidenceResponse(

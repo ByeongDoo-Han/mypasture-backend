@@ -31,7 +31,7 @@ class SmtpAdminEmailLoginSenderTests {
     private val production = MockEnvironment().apply { setActiveProfiles("prod") }
 
     @Test
-    fun `implicit TLS adapter sends through mocked transport with required security settings`() {
+    fun `모의 전송으로 암시적 TLS와 필수 보안 설정을 검증한다`() {
         val transportSettings = Properties()
         mockConstruction(JavaMailSenderImpl::class.java) { mock, _ ->
             `when`(mock.javaMailProperties).thenReturn(transportSettings)
@@ -58,7 +58,7 @@ class SmtpAdminEmailLoginSenderTests {
     }
 
     @Test
-    fun `SMTP provider failure cannot expose recipient code or credential through exception cause`() {
+    fun `SMTP 오류의 예외 원인에 수신자 코드나 인증 정보가 노출되지 않는다`() {
         mockConstruction(JavaMailSenderImpl::class.java) { mock, _ ->
             `when`(mock.javaMailProperties).thenReturn(Properties())
             doThrow(MailSendException("synthetic provider error admin@example.test code=123456 token=test-token"))

@@ -1,0 +1,13 @@
+@baseUrl = http://localhost:8080
+@accessToken = replace-with-access-token
+
+### 내 양 발판 아이템과 현재 선택 조회
+GET {{baseUrl}}/api/v1/avatar/platform
+Authorization: Bearer {{accessToken}}
+
+### 기본 제공 나무 발판으로 변경
+PUT {{baseUrl}}/api/v1/avatar/platform
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{"itemCode":"WOOD"}

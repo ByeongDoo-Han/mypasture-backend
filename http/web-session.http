@@ -1,0 +1,17 @@
+### 브라우저 로그인 뒤 응답의 refreshToken을 서버 보안 쿠키로 교환합니다.
+# @name webSession
+POST {{baseUrl}}/api/v1/auth/web/session
+Origin: http://localhost:8084
+Content-Type: application/json
+
+{"refreshToken":"{{refreshToken}}"}
+
+### HttpOnly 쿠키가 있을 때 새 access token을 받습니다.
+POST {{baseUrl}}/api/v1/auth/web/refresh
+Origin: http://localhost:8084
+Content-Type: application/json
+
+### 서버 세션을 폐기하고 쿠키를 지웁니다.
+POST {{baseUrl}}/api/v1/auth/web/logout
+Origin: http://localhost:8084
+Content-Type: application/json

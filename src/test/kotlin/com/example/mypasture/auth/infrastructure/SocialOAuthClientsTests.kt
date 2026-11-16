@@ -11,21 +11,21 @@ class SocialOAuthClientsTests {
     private val properties = OAuthProperties()
 
     @Test
-    fun `google login requires id token`() {
+    fun `구글 로그인에는 ID 토큰이 필요하다`() {
         assertFailsWith<MissingSocialTokenException> {
             GoogleOidcOAuthClient(properties).fetchProfile(SocialLoginCommand(AuthProvider.GOOGLE, null, null, null))
         }
     }
 
     @Test
-    fun `apple login requires id token`() {
+    fun `애플 로그인에는 ID 토큰이 필요하다`() {
         assertFailsWith<MissingSocialTokenException> {
             AppleOidcOAuthClient(properties).fetchProfile(SocialLoginCommand(AuthProvider.APPLE, null, null, null))
         }
     }
 
     @Test
-    fun `kakao login requires access token`() {
+    fun `카카오 로그인에는 액세스 토큰이 필요하다`() {
         assertFailsWith<MissingSocialTokenException> {
             KakaoOAuthClient(properties).fetchProfile(SocialLoginCommand(AuthProvider.KAKAO, null, null, null))
         }

@@ -2,6 +2,8 @@ package com.example.mypasture.auth.application
 
 import com.example.mypasture.auth.domain.AuthAccountEntity
 import com.example.mypasture.auth.domain.AuthProvider
+import com.example.mypasture.auth.domain.NicknamePolicy
+import com.example.mypasture.auth.domain.SocialNicknameGenerator
 import com.example.mypasture.auth.domain.PasswordResetTokenEntity
 import com.example.mypasture.auth.domain.RefreshTokenEntity
 import com.example.mypasture.auth.domain.SocialLoginChallengeEntity
@@ -12,6 +14,7 @@ import com.example.mypasture.auth.infrastructure.RefreshTokenRepository
 import com.example.mypasture.auth.infrastructure.SocialLoginChallengeRepository
 import com.example.mypasture.auth.infrastructure.UserRepository
 import com.example.mypasture.auth.presentation.dto.DeleteAccountRequest
+import com.example.mypasture.auth.presentation.dto.KakaoWebLoginRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetConfirmRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequest
 import com.example.mypasture.auth.presentation.dto.PasswordResetRequestedResponse
@@ -42,7 +45,6 @@ import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.Duration
 import java.util.Base64
-import java.util.Locale
 import java.util.UUID
 
 /** 회원가입, 로그인, 비밀번호 재설정, 회원탈퇴 같은 인증 use case를 처리하는 application service입니다. */
@@ -56,6 +58,7 @@ class AuthService(
     private val passwordEncoder: PasswordEncoder,
     private val jwtTokenProvider: JwtTokenProvider,
     private val socialOAuthClients: List<SocialOAuthClient>,
+    private val kakaoWebCodeExchange: KakaoWebCodeExchange,
     private val authSecurityProperties: AuthSecurityProperties,
     private val jwtProperties: JwtProperties,
     private val oauthProperties: OAuthProperties,
@@ -75,13 +78,15 @@ class AuthService(
         ) {
             throw EmailAlreadyRegisteredException()
         }
+        val nickname = validAvailableNickname(request.displayName)
         emailVerificationService.consumeForSignup(email, request.verificationToken)
 
         val user =
             userRepository.save(
                 UserEntity(
                     email = email,
-                    displayName = request.displayName.trim(),
+                    displayName = nickname,
+                    nicknameKey = NicknamePolicy.key(nickname),
                 ),
             )
 
@@ -142,6 +147,13 @@ class AuthService(
         )
 
         return issueLoginResponse(user)
+    }
+
+    /** 웹 인가 코드를 서버 시크릿으로 교환한 뒤 기존 카카오 계정 검증과 세션 발급을 재사용합니다. */
+    @Transactional
+    fun webKakaoLogin(request: KakaoWebLoginRequest): UserLoginResponse {
+        val accessToken = kakaoWebCodeExchange.exchange(request.code.trim(), request.codeVerifier)
+        return socialLogin(SocialLoginRequest(provider = AuthProvider.KAKAO, accessToken = accessToken))
     }
 
     /** 서버에서 생성한 nonce를 저장하고 OIDC 로그인 한 번에만 사용할 challenge를 발급합니다. */
@@ -268,15 +280,32 @@ class AuthService(
         return UserDto.from(user)
     }
 
-    /** 연속 공백을 정리한 표시 이름만 변경하고 이메일과 인증 버전은 건드리지 않습니다. */
+    /** 닉네임을 검증하고 변경하며 이메일과 인증 버전은 건드리지 않습니다. */
     @Transactional
     fun updateProfile(userId: UUID, request: UpdateMyProfileRequest): UserDto {
-        val normalizedDisplayName = request.displayName.trim().replace(WHITESPACE, " ")
-        if (normalizedDisplayName.length !in 1..MAX_DISPLAY_NAME_LENGTH) throw InvalidDisplayNameException()
         val user = userRepository.findActiveByIdForUpdate(userId) ?: throw InvalidCredentialsException()
-        user.updateDisplayName(normalizedDisplayName, Instant.now())
+        val nickname = validAvailableNickname(request.displayName, userId)
+        user.updateDisplayName(nickname, NicknamePolicy.key(nickname), Instant.now())
         return UserDto.from(user)
     }
+
+    /** 중복 확인 버튼이 사용하는 현재 닉네임 가용성을 반환합니다. 저장 시에도 다시 확인합니다. */
+    @Transactional(readOnly = true)
+    fun nicknameAvailable(raw: String, excludedId: UUID? = null): Boolean {
+        if (!NicknamePolicy.isValid(raw)) throw InvalidDisplayNameException()
+        return !nicknameExists(NicknamePolicy.key(raw), excludedId)
+    }
+
+    private fun validAvailableNickname(raw: String, excludedId: UUID? = null): String {
+        if (!NicknamePolicy.isValid(raw)) throw InvalidDisplayNameException()
+        val nickname = NicknamePolicy.normalize(raw)
+        if (nicknameExists(NicknamePolicy.key(nickname), excludedId)) throw NicknameAlreadyUsedException()
+        return nickname
+    }
+
+    private fun nicknameExists(key: String, excludedId: UUID?): Boolean =
+        if (excludedId == null) userRepository.existsActiveDisplayName(key)
+        else userRepository.existsActiveDisplayNameExcept(key, excludedId)
 
     /** 현재 비밀번호 재확인 후 개인 데이터 삭제와 공동 기록 익명화를 한 트랜잭션으로 완료합니다. */
     @Transactional
@@ -317,10 +346,14 @@ class AuthService(
             }
         }
 
+        val nickname = SocialNicknameGenerator.candidates().firstOrNull {
+            !userRepository.existsActiveDisplayName(NicknamePolicy.key(it))
+        } ?: throw NicknamePoolExhaustedException()
         return userRepository.save(
             UserEntity(
                 email = normalizedEmail,
-                displayName = profile.displayName?.trim()?.takeIf { it.isNotBlank() } ?: defaultSocialDisplayName(profile.provider),
+                displayName = nickname,
+                nicknameKey = NicknamePolicy.key(nickname),
             ),
         )
     }
@@ -394,14 +427,9 @@ class AuthService(
             .digest(rawToken.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
 
-    private fun defaultSocialDisplayName(provider: AuthProvider): String =
-        "${provider.name.lowercase(Locale.US).replaceFirstChar { it.uppercase(Locale.US) }} User"
-
     private fun normalizeEmail(email: String): String = email.trim().lowercase()
 
     companion object {
-        private val WHITESPACE = Regex("\\s+")
-        private const val MAX_DISPLAY_NAME_LENGTH = 40
         private const val RESET_TOKEN_BYTES = 32
         private const val REFRESH_TOKEN_BYTES = 48
         private const val SOCIAL_NONCE_BYTES = 32
@@ -450,4 +478,10 @@ class AccountDeletionConfirmationException : RuntimeException("Account deletion 
 class AccountDeletionReauthenticationException : RuntimeException("Current password is required or invalid")
 
 /** HTTP 계층 밖에서 호출되더라도 표시 이름 정책 위반을 안정적인 인증 오류로 전달합니다. */
-class InvalidDisplayNameException : RuntimeException("Display name must be between 1 and 40 characters")
+class InvalidDisplayNameException : RuntimeException("Nickname must contain only Korean or English letters within the length limit")
+
+/** 이미 사용 중인 닉네임입니다. */
+class NicknameAlreadyUsedException : RuntimeException("Nickname is already in use")
+
+/** 자동 닉네임 후보가 모두 사용된 경우입니다. */
+class NicknamePoolExhaustedException : RuntimeException("Social nickname pool is exhausted")

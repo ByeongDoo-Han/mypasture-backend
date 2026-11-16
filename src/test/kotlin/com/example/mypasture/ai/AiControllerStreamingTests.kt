@@ -1,5 +1,7 @@
 package com.example.mypasture.ai
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.example.mypasture.config.AiStreamingCoroutineRunner
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.hamcrest.Matchers.containsString
@@ -7,6 +9,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.context.TestPropertySource
@@ -20,9 +23,9 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.util.UUID
 import kotlin.test.assertTrue
 
-/** JWT 인증된 AI SSE 요청이 ASYNC 재-dispatch 뒤에도 정상 완료되는지 검증합니다. */
+/** JWT 인증된 AiStream 요청이 ASYNC 재-dispatch 뒤에도 정상 완료되는지 검증합니다. */
 @SpringBootTest
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 @TestPropertySource(
     properties = [
         "app.bible.kor1910-html-path=src/test/resources/bible/kor_html",
@@ -38,20 +41,16 @@ class AiControllerStreamingTests(
 ) {
     @AfterEach
     fun awaitStreamingCompletion() {
-        val deadline = System.nanoTime() + 5_000_000_000L
-        while (System.nanoTime() < deadline && !streamingRunner.isIdle()) {
-            Thread.sleep(10)
-        }
-        assertTrue(streamingRunner.isIdle(), "AI streaming coroutine did not finish within 5 seconds")
+        AiSseTestSupport.awaitIdle(streamingRunner::isIdle)
     }
 
     @Test
-    fun `authenticated stream completes with delta citations usage and done events`() {
+    fun `인증된 스트림은 변경분 인용 사용량 완료 이벤트를 전송한다`() {
         val email = "ai-sse-${UUID.randomUUID()}@example.com"
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"AI SSE"}"""
+            content = """{"email":"$email","password":"$password","displayName":"${uniqueTestNickname()}"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON
@@ -60,14 +59,13 @@ class AiControllerStreamingTests(
         val token = objectMapper.readTree(login.response.contentAsString).path("token").asText()
         val clientRequestId = UUID.randomUUID()
 
-        val initial = mockMvc.post("/api/v1/ai/chat/stream") {
+        val initial = mockMvc.post("/api/v1/ai/chat/stream?liveDraft=true") {
             header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
             accept = MediaType.TEXT_EVENT_STREAM
             content = """{"question":"창세기 말씀을 설명해주세요","clientRequestId":"$clientRequestId"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
-        initial.getAsyncResult(5_000)
-        awaitStreamContent(initial, "event:done")
+        awaitStreamCompletion(initial, "done")
 
         mockMvc.perform(asyncDispatch(initial))
             .andExpect(status().isOk)
@@ -78,6 +76,7 @@ class AiControllerStreamingTests(
             .andExpect(content().string(containsString("event:citations")))
             .andExpect(content().string(containsString("event:usage")))
             .andExpect(content().string(containsString("event:done")))
+        assertTrue(initial.response.contentAsString.indexOf("event:delta") < initial.response.contentAsString.indexOf("event:response"))
 
         mockMvc.get("/api/v1/ai/requests/$clientRequestId") {
             header("Authorization", "Bearer $token")
@@ -102,8 +101,7 @@ class AiControllerStreamingTests(
             accept = MediaType.TEXT_EVENT_STREAM
             content = """{"question":"창세기 말씀을 설명해주세요","clientRequestId":"$clientRequestId"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
-        replay.getAsyncResult(5_000)
-        awaitStreamContent(replay, "event:done")
+        awaitStreamCompletion(replay, "done")
         mockMvc.perform(asyncDispatch(replay))
             .andExpect(status().isOk)
             .andExpect(content().string(containsString("event:delta")))
@@ -117,7 +115,7 @@ class AiControllerStreamingTests(
     }
 
     @Test
-    fun `authenticated usage endpoint reports server quota`() {
+    fun `인증된 사용량 API는 서버 사용 한도를 반환한다`() {
         val token = issueToken("ai-usage-${UUID.randomUUID()}@example.com")
 
         mockMvc.get("/api/v1/ai/usage/today") {
@@ -132,16 +130,15 @@ class AiControllerStreamingTests(
     }
 
     @Test
-    fun `stream preserves grounding failure code`() {
+    fun `스트림은 근거 실패 코드를 유지한다`() {
         val token = issueToken("ai-grounding-${UUID.randomUUID()}@example.com")
         val initial = mockMvc.post("/api/v1/ai/chat/stream") {
             header("Authorization", "Bearer $token")
             contentType = MediaType.APPLICATION_JSON
             accept = MediaType.TEXT_EVENT_STREAM
-            content = """{"question":"zxqvnoresulttoken"}"""
+            content = """{"question":"요한복음 99장 99절을 설명해주세요"}"""
         }.andExpect { request { asyncStarted() } }.andReturn()
-        initial.getAsyncResult(5_000)
-        awaitStreamContent(initial, "AI_GROUNDING_NOT_FOUND")
+        awaitStreamCompletion(initial, "error", "AI_GROUNDING_NOT_FOUND")
 
         mockMvc.perform(asyncDispatch(initial))
             .andExpect(status().isOk)
@@ -149,11 +146,47 @@ class AiControllerStreamingTests(
             .andExpect(content().string(containsString("AI_GROUNDING_NOT_FOUND")))
     }
 
+    @Test
+    fun `일반 응답의 범위 오류는 답변 없이 422를 반환한다`() {
+        val token = issueToken("ai-scope-http-${UUID.randomUUID()}@example.com")
+        for ((question, code) in listOf("비트코인 시세 알려줘" to "AI_QUESTION_OUT_OF_SCOPE", "그냥" to "AI_QUESTION_SCOPE_UNCLEAR")) {
+            val id = UUID.randomUUID()
+            val initial = mockMvc.post("/api/v1/ai/chat") {
+                header("Authorization", "Bearer $token")
+                contentType = MediaType.APPLICATION_JSON
+                content = objectMapper.writeValueAsString(mapOf("question" to question, "clientRequestId" to id))
+            }.andExpect { request { asyncStarted() } }.andReturn()
+            initial.getAsyncResult(15_000)
+            mockMvc.perform(asyncDispatch(initial)).andExpect(status().isUnprocessableEntity)
+                .andExpect(content().string(containsString(code)))
+            assertTrue(!initial.response.contentAsString.contains("citations"))
+            mockMvc.get("/api/v1/ai/requests/$id") { header("Authorization", "Bearer $token") }.andExpect {
+                status { isOk() }; jsonPath("$.status") { value("FAILED") }; jsonPath("$.errorCode") { value(code) }
+            }
+        }
+    }
+
+    @Test
+    fun `스트림의 범위 오류는 답변 인용 기도문 변경분 없이 종료한다`() {
+        val token = issueToken("ai-scope-sse-${UUID.randomUUID()}@example.com")
+        for ((question, code) in listOf("하나님 불안해요 비트코인 시세 알려줘" to "AI_QUESTION_OUT_OF_SCOPE", "그냥" to "AI_QUESTION_SCOPE_UNCLEAR")) {
+            val initial = mockMvc.post("/api/v1/ai/chat/stream") {
+                header("Authorization", "Bearer $token"); contentType = MediaType.APPLICATION_JSON; accept = MediaType.TEXT_EVENT_STREAM
+                content = objectMapper.writeValueAsString(mapOf("question" to question))
+            }.andExpect { request { asyncStarted() } }.andReturn()
+            awaitStreamCompletion(initial, "error", code)
+            mockMvc.perform(asyncDispatch(initial)).andExpect(status().isOk)
+                .andExpect(content().string(containsString("event:error")))
+            val body = initial.response.contentAsString
+            listOf("event:delta", "event:response", "event:citations", "PRAYER").forEach { assertTrue(!body.contains(it), body) }
+        }
+    }
+
     private fun issueToken(email: String): String {
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"email":"$email","password":"$password","displayName":"AI Test"}"""
+            content = """{"email":"$email","password":"$password","displayName":"${uniqueTestNickname()}"}"""
         }.andExpect { status { isCreated() } }
         val login = mockMvc.post("/api/v1/auth/login") {
             contentType = MediaType.APPLICATION_JSON
@@ -162,13 +195,13 @@ class AiControllerStreamingTests(
         return objectMapper.readTree(login.response.contentAsString).path("token").asText()
     }
 
-    /** SseEmitter 반환과 실제 마지막 event 기록 사이의 race를 제거합니다. */
-    private fun awaitStreamContent(result: MvcResult, marker: String) {
-        val deadline = System.nanoTime() + 5_000_000_000L
-        while (System.nanoTime() < deadline) {
-            if (result.response.contentAsString.contains(marker) && streamingRunner.isIdle()) return
-            Thread.sleep(10)
+    private fun awaitStreamCompletion(result: MvcResult, terminal: String, errorCode: String? = null) {
+        val requiredEvents = if (terminal == "done") setOf("delta", "response", "citations", "usage", "done") else setOf("error")
+        val frames = AiSseTestSupport.awaitCompletion(result, streamingRunner::isIdle, terminal, requiredEvents)
+        if (errorCode != null) {
+            kotlin.test.assertEquals(errorCode, objectMapper.readTree(frames.single { it.event == "error" }.data).path("code").asText())
+        } else {
+            kotlin.test.assertEquals("completed", objectMapper.readTree(frames.single { it.event == "done" }.data).path("status").asText())
         }
-        error("SSE response did not contain '$marker' and finish within 5 seconds")
     }
 }

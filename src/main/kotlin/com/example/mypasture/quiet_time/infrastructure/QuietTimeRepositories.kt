@@ -33,6 +33,8 @@ interface QuietTimePassageRepository : JpaRepository<QuietTimePassageEntity, UUI
     fun findByIdAndActiveTrue(id: UUID): QuietTimePassageEntity?
 
     fun countByActiveTrue(): Long
+
+    fun countByActiveTrueAndOrigin(origin: String): Long
 }
 
 /** 운영에서 관리하는 안정적인 QT 주제 코드를 조회합니다. */

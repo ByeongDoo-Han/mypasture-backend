@@ -37,11 +37,17 @@ class SecurityConfig {
             allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             allowedHeaders = listOf(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE, "X-App-Environment")
             exposedHeaders = listOf(HttpHeaders.LOCATION, RequestCorrelationFilter.TRACE_ID_HEADER)
-            // JWT와 refresh token은 Authorization/body로 전달하므로 cross-origin cookie를 허용하지 않습니다.
+            // 일반 API는 bearer 인증만 사용합니다.
             allowCredentials = false
             maxAge = 3_600
         }
         return UrlBasedCorsConfigurationSource().apply {
+            val webSessionConfiguration = CorsConfiguration(configuration).apply {
+                allowedOrigins = properties.webSessionAllowedOrigins
+                allowedMethods = listOf("POST", "OPTIONS")
+                allowCredentials = true
+            }
+            registerCorsConfiguration("/api/v1/auth/web/**", webSessionConfiguration)
             registerCorsConfiguration("/**", configuration)
         }
     }
@@ -65,7 +71,7 @@ class SecurityConfig {
                 it.accessDeniedHandler(restAccessDeniedHandler)
             }
             .authorizeHttpRequests {
-                // 최초 요청에서 JWT를 확인한 SSE 연결의 ASYNC 재-dispatch만 허용합니다.
+                // 최초 요청에서 JWT를 확인한 비동기 응답의 해당 경로 재-dispatch만 허용합니다.
                 it.requestMatchers(
                     AndRequestMatcher(
                         DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
@@ -79,16 +85,24 @@ class SecurityConfig {
                         DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
                         AntPathRequestMatcher("/api/v1/quiet-time/sessions/*/answers/stream", "GET"),
                     ),
+                    AndRequestMatcher(
+                        DispatcherTypeRequestMatcher(DispatcherType.ASYNC),
+                        AntPathRequestMatcher("/api/v1/quiet-time/passages/*/question-generations", "POST"),
+                    ),
                 ).permitAll()
                 it.requestMatchers(
                     "/actuator/health/**",
-                    "/v3/api-docs/**",
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
                 ).permitAll()
+                it.requestMatchers(
+                    "/v3/api-docs",
+                    "/v3/api-docs.yaml",
+                    "/v3/api-docs/**",
+                    "/swagger-ui.html",
+                    "/swagger-ui/**",
+                ).hasRole("ADMIN")
                 it.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 it.requestMatchers(HttpMethod.POST, "/api/v1/billing/webhooks/apple", "/api/v1/billing/webhooks/google").permitAll()
-                it.requestMatchers(HttpMethod.GET, "/api/v1/auth/health", "/api/v1/auth/social-login/providers").permitAll()
+                it.requestMatchers(HttpMethod.GET, "/api/v1/auth/health", "/api/v1/auth/social-login/providers", "/api/v1/auth/nicknames/availability").permitAll()
                 it.requestMatchers(
                     HttpMethod.POST,
                     "/api/v1/auth/email-verifications",
@@ -98,11 +112,16 @@ class SecurityConfig {
                     "/api/v1/auth/admin-email-login/requests",
                     "/api/v1/auth/admin-email-login/confirm",
                     "/api/v1/auth/social-login",
+                    "/api/v1/auth/social-login/kakao/web",
                     "/api/v1/auth/social-login/challenges",
                     "/api/v1/auth/refresh",
+                    "/api/v1/auth/web/session",
+                    "/api/v1/auth/web/refresh",
+                    "/api/v1/auth/web/logout",
                     "/api/v1/auth/password-reset/requests",
                     "/api/v1/auth/password-reset/confirm",
                 ).permitAll()
+                it.requestMatchers(HttpMethod.GET, "/api/v1/prayer/admob/ssv").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/bibles/**", "/api/v1/today-word").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/policies/current", "/api/v1/policies/*/*").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/quiet-time/passages/**", "/api/v1/quiet-time/offline/**").permitAll()

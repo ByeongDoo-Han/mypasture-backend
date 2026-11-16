@@ -33,7 +33,7 @@ class CouponFlowTests(
     @Autowired private val aiAccessPolicyResolver: AiAccessPolicyResolver,
 ) {
     @Test
-    fun `shared code grants a decoration item without changing AI access`() {
+    fun `공유 쿠폰은 AI 권한을 바꾸지 않고 꾸미기 아이템을 지급한다`() {
         val admin = admin()
         val user = user()
         val code = "TRIAL-${UUID.randomUUID().toString().take(8)}"
@@ -57,7 +57,7 @@ class CouponFlowTests(
     }
 
     @Test
-    fun `concurrent redemption of last shared slot grants exactly one reward`() {
+    fun `마지막 공유 수량을 동시에 사용해도 보상 한 건만 지급한다`() {
         val admin = admin()
         val first = user()
         val second = user()

@@ -28,15 +28,40 @@ class AiAnswerQualityService(
         conversationContext: AiConversationContext? = null,
         generationInstructions: List<String> = emptyList(),
         onReview: () -> Unit = {},
-    ): GroundedAnswer {
-        var generated = completionPort.answerWithCitations(
-            question,
-            citations,
-            config,
-            experiencePolicy,
-            conversationContext,
-            generationInstructions,
+    ): GroundedAnswer = generateInternal(question, citations, config, onReview) { previousAnswer, revisionInstructions ->
+        completionPort.answerWithCitations(
+            question, citations, config, experiencePolicy, conversationContext,
+            generationInstructions, previousAnswer, revisionInstructions,
         )
+    }
+
+    /** 검증 가능한 생성 초안을 전달하고 재작성 시 화면 초안을 초기화합니다. */
+    suspend fun generateStreaming(
+        question: String,
+        citations: List<BibleCitation>,
+        config: AiRuntimeConfigSnapshot,
+        experiencePolicy: AiAssistantExperiencePolicy,
+        conversationContext: AiConversationContext?,
+        streamingPort: AiStreamingCompletionPort,
+        onDelta: suspend (String) -> Unit,
+        onReset: suspend () -> Unit,
+        onReview: () -> Unit = {},
+    ): GroundedAnswer = generateInternal(question, citations, config, onReview) { previousAnswer, revisionInstructions ->
+        if (previousAnswer != null) onReset()
+        streamingPort.answerWithCitations(
+            question, citations, config, experiencePolicy, conversationContext,
+            emptyList(), previousAnswer, revisionInstructions, onDelta,
+        )
+    }
+
+    private suspend fun generateInternal(
+        question: String,
+        citations: List<BibleCitation>,
+        config: AiRuntimeConfigSnapshot,
+        onReview: () -> Unit,
+        generateCandidate: suspend (String?, List<String>) -> GroundedAnswer,
+    ): GroundedAnswer {
+        var generated = generateCandidate(null, emptyList())
         if (!config.evaluationEnabled) return generated.withRuntimeMetadata(config)
 
         var evaluationPromptTokens = 0
@@ -67,15 +92,9 @@ class AiAnswerQualityService(
 
             val previous = generated
             revisionCount++
-            val revised = completionPort.answerWithCitations(
-                question = question,
-                citations = citations,
-                config = config,
-                experiencePolicy = experiencePolicy,
-                conversationContext = conversationContext,
-                generationInstructions = generationInstructions,
-                previousAnswer = previous.answer,
-                revisionInstructions = evaluation.issues.ifEmpty { listOf("모든 평가 항목을 기준 이상으로 개선하세요.") },
+            val revised = generateCandidate(
+                previous.answer,
+                evaluation.issues.ifEmpty { listOf("모든 평가 항목을 기준 이상으로 개선하세요.") },
             )
             generated = revised.copy(
                 promptTokens = previous.promptTokens + revised.promptTokens,

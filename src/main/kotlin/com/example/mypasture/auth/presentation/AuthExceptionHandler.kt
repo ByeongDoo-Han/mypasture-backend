@@ -6,6 +6,8 @@ import com.example.mypasture.auth.application.EmailAlreadyRegisteredException
 import com.example.mypasture.auth.application.EmailVerificationRequiredException
 import com.example.mypasture.auth.application.InvalidEmailVerificationCodeException
 import com.example.mypasture.auth.application.InvalidDisplayNameException
+import com.example.mypasture.auth.application.NicknameAlreadyUsedException
+import com.example.mypasture.auth.application.NicknamePoolExhaustedException
 import com.example.mypasture.auth.application.InvalidCredentialsException
 import com.example.mypasture.auth.application.InvalidPasswordResetTokenException
 import com.example.mypasture.auth.application.InvalidRefreshTokenException
@@ -19,11 +21,15 @@ import com.example.mypasture.auth.infrastructure.InvalidSocialTokenException
 import com.example.mypasture.auth.infrastructure.MissingSocialTokenException
 import com.example.mypasture.auth.infrastructure.SocialOAuthProviderMisconfiguredException
 import com.example.mypasture.common.error.ErrorCode
+import com.example.mypasture.common.error.ApiErrorResponse
 import com.example.mypasture.common.error.toResponse
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.core.Ordered
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.core.annotation.Order
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpHeaders
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -32,6 +38,31 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 @RestControllerAdvice(assignableTypes = [AuthController::class])
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class AuthExceptionHandler {
+    @ExceptionHandler(InvalidWebSessionOriginException::class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    fun handleInvalidWebSessionOrigin(request: HttpServletRequest) =
+        AuthErrorCode.WEB_SESSION_ORIGIN_FORBIDDEN.toResponse(request)
+
+    /** 조회 후 동시 저장 경합에서도 DB 고유 제약을 안정적인 중복 오류로 변환합니다. */
+    @ExceptionHandler(DataIntegrityViolationException::class)
+    fun handleNicknameConstraint(error: DataIntegrityViolationException, request: HttpServletRequest): ResponseEntity<ApiErrorResponse> {
+        val details = generateSequence(error as Throwable) { it.cause }.mapNotNull { it.message }.joinToString(" ")
+        val code = when {
+            details.contains("ux_users_nickname_key", ignoreCase = true) -> AuthErrorCode.NICKNAME_ALREADY_USED
+            details.contains("ux_users_email_active", ignoreCase = true) -> AuthErrorCode.EMAIL_ALREADY_REGISTERED
+            else -> throw error
+        }
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(code.toResponse(request))
+    }
+
+    @ExceptionHandler(NicknameAlreadyUsedException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handleNicknameAlreadyUsed(request: HttpServletRequest) = AuthErrorCode.NICKNAME_ALREADY_USED.toResponse(request)
+
+    @ExceptionHandler(NicknamePoolExhaustedException::class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    fun handleNicknamePoolExhausted(request: HttpServletRequest) = AuthErrorCode.NICKNAME_POOL_EXHAUSTED.toResponse(request)
+
     @ExceptionHandler(InvalidEmailVerificationCodeException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleInvalidEmailVerificationCode(request: HttpServletRequest) =
@@ -78,9 +109,15 @@ class AuthExceptionHandler {
         AuthErrorCode.SOCIAL_ACCOUNT_LINK_REQUIRED.toResponse(request)
 
     @ExceptionHandler(InvalidRefreshTokenException::class)
-    @ResponseStatus(HttpStatus.UNAUTHORIZED)
     fun handleInvalidRefreshToken(request: HttpServletRequest) =
-        AuthErrorCode.INVALID_REFRESH_TOKEN.toResponse(request)
+        ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .apply {
+                if (request.requestURI == "/api/v1/auth/web/refresh") {
+                    header(HttpHeaders.SET_COOKIE, WebSessionCookie.cleared())
+                    header(HttpHeaders.CACHE_CONTROL, "no-store")
+                }
+            }
+            .body(AuthErrorCode.INVALID_REFRESH_TOKEN.toResponse(request))
 
     @ExceptionHandler(MissingSocialLoginChallengeException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
@@ -132,6 +169,7 @@ enum class AuthErrorCode(
     EMAIL_VERIFICATION_REQUIRED("EMAIL_VERIFICATION_REQUIRED", "이메일 인증을 완료한 뒤 회원가입해 주세요."),
     EMAIL_ALREADY_REGISTERED("EMAIL_ALREADY_REGISTERED", "이미 가입된 이메일입니다."),
     INVALID_CREDENTIALS("INVALID_CREDENTIALS", "이메일 또는 비밀번호가 올바르지 않습니다."),
+    WEB_SESSION_ORIGIN_FORBIDDEN("WEB_SESSION_ORIGIN_FORBIDDEN", "허용되지 않은 웹 출처입니다."),
     UNSUPPORTED_SOCIAL_PROVIDER("UNSUPPORTED_SOCIAL_PROVIDER", "지원하지 않는 소셜 로그인 제공자입니다."),
     MISSING_SOCIAL_TOKEN("MISSING_SOCIAL_TOKEN", "소셜 로그인 토큰이 필요합니다."),
     INVALID_SOCIAL_TOKEN("INVALID_SOCIAL_TOKEN", "소셜 로그인 토큰을 검증할 수 없습니다."),
@@ -145,5 +183,7 @@ enum class AuthErrorCode(
     PASSWORD_REUSE_NOT_ALLOWED("PASSWORD_REUSE_NOT_ALLOWED", "기존 비밀번호와 다른 비밀번호를 사용해 주세요."),
     INVALID_DELETION_CONFIRMATION("INVALID_DELETION_CONFIRMATION", "회원탈퇴 확인값이 올바르지 않습니다."),
     REAUTHENTICATION_FAILED("REAUTHENTICATION_FAILED", "회원탈퇴를 위해 현재 비밀번호를 확인해 주세요."),
-    INVALID_DISPLAY_NAME("INVALID_DISPLAY_NAME", "이름은 공백을 제외하고 1자 이상 40자 이하로 입력해 주세요."),
+    INVALID_DISPLAY_NAME("INVALID_DISPLAY_NAME", "닉네임은 공백·특수문자 없이 한글 8자 또는 영문 10자까지 입력해 주세요."),
+    NICKNAME_ALREADY_USED("NICKNAME_ALREADY_USED", "이미 사용 중인 닉네임입니다."),
+    NICKNAME_POOL_EXHAUSTED("NICKNAME_POOL_EXHAUSTED", "새 닉네임을 만들 수 없습니다. 잠시 후 다시 시도해 주세요."),
 }

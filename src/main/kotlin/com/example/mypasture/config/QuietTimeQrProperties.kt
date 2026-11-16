@@ -7,5 +7,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 data class QuietTimeQrProperties(
     val defaultMeetingDurationMinutes: Long = 120,
     val expiryGraceMinutes: Long = 30,
-    val inviteBaseUrl: String = "https://mypasture.app/q/qt",
+    val inviteBaseUrl: String = "https://app.mypasture.app/q/qt",
 )

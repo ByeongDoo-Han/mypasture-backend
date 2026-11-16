@@ -7,6 +7,7 @@ import java.time.LocalTime
 /** 오늘의 말씀 초안 생성 일정, provider와 작업 lease 정책을 바인딩합니다. */
 @ConfigurationProperties("app.daily-word")
 data class DailyWordProperties(
+    val rotationEnabled: Boolean = false,
     val generationEnabled: Boolean = false,
     val provider: String = "disabled",
     val generationCron: String = "0 0 18 * * *",

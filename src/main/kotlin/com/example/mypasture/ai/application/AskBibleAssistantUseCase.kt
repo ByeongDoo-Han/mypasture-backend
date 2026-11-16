@@ -5,7 +5,6 @@ import com.example.mypasture.ai.domain.AiAssistantStage
 import com.example.mypasture.ai.domain.AiRuntimeConfigSnapshot
 import com.example.mypasture.ai.domain.AiAssistantExperiencePolicy
 import com.example.mypasture.ai.domain.AiConversationContext
-import com.example.mypasture.ai.domain.AiConversationTurn
 import com.example.mypasture.ai.domain.AiClientRequest
 import com.example.mypasture.ai.domain.AiClientRequestStatus
 import com.example.mypasture.ai.domain.AiRequestInProgressException
@@ -36,7 +35,14 @@ class AiInputTooLongException : RuntimeException("AI input must be 300 character
 class AiGroundingNotFoundException : RuntimeException("No relevant Bible verses found")
 
 class AiSafetyException : RuntimeException("지금 즉시 자신이나 다른 사람을 해칠 위험이 있다면 112 또는 119에 연락하고, 가까운 사람과 전문 상담기관의 도움을 받으세요.")
-class AiProviderException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+/** 사용자 입력과 공급자 응답을 기록하지 않고 AI 실패 지점을 구분하는 코드입니다. */
+enum class AiProviderFailureKind { UNKNOWN, UPSTREAM_REJECTED, UPSTREAM_UNAVAILABLE, INVALID_OUTPUT, INVALID_CITATION }
+
+open class AiProviderException(
+    message: String,
+    cause: Throwable? = null,
+    val failureKind: AiProviderFailureKind = AiProviderFailureKind.UNKNOWN,
+) : RuntimeException(message, cause)
 
 /** 사용자의 구독 정책을 반영한 당일 AI 사용량입니다. null 한도는 무제한을 의미합니다. */
 data class AiDailyUsage(
@@ -64,6 +70,7 @@ class AskBibleAssistantUseCase(
     private val experiencePolicyResolver: AiAssistantExperiencePolicyResolver,
     private val conversationPort: AiConversationPort,
     private val accessPolicyResolver: AiAccessPolicyResolver,
+    private val scopeService: AiQuestionScopeService,
 ) {
     /** AI 호출 전에도 모바일이 정확한 남은 횟수를 표시할 수 있게 합니다. */
     fun dailyUsage(userId: UUID, subscriptionTier: SubscriptionTier): AiDailyUsage {
@@ -123,6 +130,8 @@ class AskBibleAssistantUseCase(
         conversationId: UUID? = null,
         clientRequestId: UUID? = null,
         onStage: (AiAssistantStage) -> Unit = {},
+        liveDraft: Boolean = false,
+        onReset: suspend () -> Unit = {},
         onDelta: suspend (String) -> Unit,
     ): GroundedAnswer = execute(
         userId = userId,
@@ -133,14 +142,23 @@ class AskBibleAssistantUseCase(
         onStage = onStage,
         onCacheHit = { onDelta(it.answer) },
     ) { normalized, citations, config, policy, context ->
-        if (config.evaluationEnabled) {
-            qualityService.generate(normalized, citations, config, policy, context) {
-                onStage(AiAssistantStage.REVIEWING_ANSWER)
-            }.also { answer ->
-                answer.answer.chunked(24).forEach { onDelta(it) }
-            }
+        if (liveDraft) {
+            qualityService.generateStreaming(
+                normalized, citations, config, policy, context, streamingCompletionPort,
+                onDelta = onDelta,
+                onReset = onReset,
+                onReview = { onStage(AiAssistantStage.REVIEWING_ANSWER) },
+            )
         } else {
-            streamingCompletionPort.answerWithCitations(normalized, citations, config, policy, context, onDelta)
+            val answer = if (config.evaluationEnabled) {
+                qualityService.generate(normalized, citations, config, policy, context) {
+                    onStage(AiAssistantStage.REVIEWING_ANSWER)
+                }
+            } else {
+                streamingCompletionPort.answerWithCitations(normalized, citations, config, policy, context) { }
+            }
+            answer.answer.chunked(24).forEach { onDelta(it) }
+            answer
         }
     }
 
@@ -172,6 +190,7 @@ class AskBibleAssistantUseCase(
             throw com.example.mypasture.ai.domain.AiConversationUnavailableException()
         }
         val conversationContext = conversationId?.let { conversationPort.load(userId, it) }
+        val contextSnapshot = conversationContext?.let { com.example.mypasture.ai.domain.AiContextSnapshot.capture(it) }
 
         val dailyLimit = accessPolicy.reservationDailyLimit
         val runtimeConfig = runtimeConfigService.current()
@@ -188,6 +207,7 @@ class AskBibleAssistantUseCase(
             is AiUsageReservation.Started -> reservation.turnId
             is AiUsageReservation.Existing -> return@withContext replayExisting(reservation.request, onCacheHit)
         }
+        var consumedScope: com.example.mypasture.ai.domain.AiQuestionScopeAssessment? = null
         var consumedRetrieval: BibleRetrievalResult? = null
         var consumedIntent = BibleQuestionIntent.BIBLE_QA
         var consumedCompletion: GroundedAnswer? = null
@@ -195,8 +215,11 @@ class AskBibleAssistantUseCase(
         try {
             onStage(AiAssistantStage.UNDERSTANDING_QUESTION)
 
+            consumedScope = scopeService.assess(normalized, conversationContext, runtimeConfig)
+            scopeService.requireSupported(consumedScope)
+
             // 상담 내용이 다른 사용자에게 재사용되지 않도록 사용자별 HMAC cache를 사용합니다.
-            val cacheScope = "${runtimeConfig.cacheScope}:${experiencePolicy.interactionMode}:$AI_RESPONSE_CACHE_VERSION"
+            val cacheScope = "${runtimeConfig.cacheScope}:${experiencePolicy.interactionMode}:$AI_RESPONSE_CACHE_VERSION:${com.example.mypasture.ai.domain.AI_PASTOR_VERSION}"
             if (conversationContext == null) cachePort.get(userId, normalized, cacheScope)?.let { cached ->
                 val cacheHit = cached.copy(
                     turnId = reservationId,
@@ -206,8 +229,11 @@ class AskBibleAssistantUseCase(
                     cacheHit = true,
                     embeddingTokens = 0,
                     embeddingCostUsd = java.math.BigDecimal.ZERO,
-                )
-                usagePort.complete(reservationId, cacheHit)
+                    evaluationPromptTokens = 0,
+                    evaluationCompletionTokens = 0,
+                    evaluationCostUsd = java.math.BigDecimal.ZERO,
+                ).withScopeUsage(consumedScope)
+                usagePort.complete(reservationId, cacheHit, normalized, runtimeConfig.version)
                 onCacheHit(cacheHit)
                 return@withContext cacheHit
             }
@@ -225,6 +251,7 @@ class AskBibleAssistantUseCase(
             // 일반 응답과 streaming 응답 모두 같은 RAG, 비용 기록, cache 정책을 통과합니다.
             onStage(AiAssistantStage.GENERATING_ANSWER)
             val completion = complete(normalized, retrieval.citations, runtimeConfig, experiencePolicy, conversationContext)
+            consumedCompletion = completion
             var answer = completion.copy(
                 turnId = reservationId,
                 estimatedCostUsd = completion.estimatedCostUsd.add(retrieval.embeddingCostUsd),
@@ -234,21 +261,14 @@ class AskBibleAssistantUseCase(
                 questionIntent = understoodQuestion.intent,
                 interactionMode = experiencePolicy.interactionMode,
             )
-            consumedCompletion = answer
-            if (effectiveTier == SubscriptionTier.PREMIUM) {
-                val savedConversationId = conversationPort.append(
-                    userId = userId,
-                    conversationId = conversationContext?.conversationId,
-                    turn = AiConversationTurn(
-                        userQuestion = normalized,
-                        assistantAnswer = answer.answer,
-                        followUpQuestion = answer.followUpQuestion?.question,
-                    ),
-                    maxContextTurns = experiencePolicy.maxContextTurns,
-                )
-                answer = answer.copy(conversationId = savedConversationId)
-            }
-            usagePort.complete(reservationId, answer)
+            answer = answer.withScopeUsage(consumedScope)
+            answer = usagePort.completeWithContext(
+                reservationId, answer, normalized, runtimeConfig.version,
+                com.example.mypasture.ai.domain.AiTurnCompletionContext(
+                    snapshot = contextSnapshot,
+                    appendPolicy = experiencePolicy.takeIf { effectiveTier == SubscriptionTier.PREMIUM },
+                ),
+            )
             if (conversationContext == null && effectiveTier == SubscriptionTier.FREE) {
                 try {
                     cachePort.put(userId, normalized, cacheScope, answer)
@@ -261,17 +281,10 @@ class AskBibleAssistantUseCase(
             return@withContext answer
         } catch (error: RuntimeException) {
             val rejectedAnswer = (error as? AiAnswerRejectedException)?.rejectedAnswer
-            val consumedAnswer = rejectedAnswer?.let { rejected ->
-                val retrieval = consumedRetrieval
-                if (retrieval == null) rejected else rejected.copy(
-                    estimatedCostUsd = rejected.estimatedCostUsd.add(retrieval.embeddingCostUsd),
-                    embeddingTokens = retrieval.embeddingTokens,
-                    embeddingCostUsd = retrieval.embeddingCostUsd,
-                    retrievalStrategy = retrieval.strategy,
-                    questionIntent = consumedIntent,
-                )
-            } ?: consumedCompletion
-            usagePort.fail(reservationId, error::class.simpleName ?: "AI_REQUEST_FAILED", consumedAnswer)
+            val scope = (error as? AiQuestionScopeProviderException)?.assessment ?: consumedScope
+            val consumedAnswer = consumedAiUsage(rejectedAnswer ?: consumedCompletion, scope, consumedRetrieval)
+                ?.copy(questionIntent = consumedIntent)
+            usagePort.fail(reservationId, error.aiFailureCode("AI_REQUEST_FAILED"), consumedAnswer)
             throw error
         }
     }
@@ -293,6 +306,6 @@ class AskBibleAssistantUseCase(
     companion object {
         private val logger = LoggerFactory.getLogger(AskBibleAssistantUseCase::class.java)
         private val CRISIS_KEYWORDS = listOf("자살", "죽고 싶", "극단적 선택", "해치고 싶", "살고 싶지")
-        private const val AI_RESPONSE_CACHE_VERSION = "assistant-response-v2"
+        private const val AI_RESPONSE_CACHE_VERSION = "assistant-response-v4-passage-range"
     }
 }

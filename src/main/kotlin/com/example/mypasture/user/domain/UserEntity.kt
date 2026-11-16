@@ -4,6 +4,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Id
+import jakarta.persistence.Column
 import jakarta.persistence.Table
 import java.time.Instant
 import java.util.UUID
@@ -30,10 +31,13 @@ class UserEntity(
     var deletedAt: Instant? = null,
     val createdAt: Instant = Instant.now(),
     var updatedAt: Instant = Instant.now(),
+    @Column(name = "nickname_key")
+    var nicknameKey: String? = null,
 ) {
     /** 표시 이름만 변경하며 로그인 식별자와 기존 인증 세션은 유지합니다. */
-    fun updateDisplayName(newDisplayName: String, now: Instant) {
+    fun updateDisplayName(newDisplayName: String, newNicknameKey: String, now: Instant) {
         displayName = newDisplayName
+        nicknameKey = newNicknameKey
         updatedAt = now
     }
 
@@ -48,6 +52,7 @@ class UserEntity(
         invalidateSessions(now)
         email = null
         displayName = "탈퇴한 사용자"
+        nicknameKey = null
         role = UserRole.USER
         subscriptionTier = SubscriptionTier.FREE
         deletedAt = now

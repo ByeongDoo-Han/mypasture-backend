@@ -1,0 +1,13 @@
+@baseUrl = http://localhost:8080
+
+### 사용 가능한 번역본
+GET {{baseUrl}}/api/v1/bibles/versions
+
+### 개역한글판 창세기 1장
+GET {{baseUrl}}/api/v1/bibles/KRV/books/GEN/chapters/1
+
+### 개역한글판 검색
+GET {{baseUrl}}/api/v1/bibles/KRV/search/cursor?keyword=하나님&size=20
+
+### 개역한글판 북마크 (로그인 필요)
+PUT {{baseUrl}}/api/v1/bookmarks/KRV/GEN/1/1

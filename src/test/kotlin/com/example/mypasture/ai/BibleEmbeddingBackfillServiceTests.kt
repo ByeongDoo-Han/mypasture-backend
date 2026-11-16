@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test
 /** 일괄 embedding 작업이 완료, 잠금 충돌, 빈 원문, 배치 한도를 올바르게 처리하는지 검증합니다. */
 class BibleEmbeddingBackfillServiceTests {
     @Test
-    fun `indexes all pending verses and aggregates usage`() = runTest {
+    fun `대기 중인 모든 절을 색인하고 사용량을 합산한다`() = runTest {
         val store = FakeStore((1L..5L).map { source(it) }.toMutableList())
         val properties = properties().copy(embeddingBatchSize = 2)
         val service = BibleEmbeddingBackfillService(
@@ -37,7 +37,7 @@ class BibleEmbeddingBackfillServiceTests {
     }
 
     @Test
-    fun `fails when another process owns the index lock`() {
+    fun `다른 프로세스가 색인 잠금을 소유하면 실패한다`() {
         val properties = properties()
         val service = BibleEmbeddingBackfillService(
             BibleEmbeddingIndexService(properties, FakeEmbeddingPort(), FakeStore(mutableListOf(source(1)), false)),
@@ -48,7 +48,7 @@ class BibleEmbeddingBackfillServiceTests {
     }
 
     @Test
-    fun `fails instead of succeeding when Bible source is empty`() {
+    fun `성경 원본이 비어 있으면 성공으로 처리하지 않고 실패한다`() {
         val properties = properties()
         val service = BibleEmbeddingBackfillService(
             BibleEmbeddingIndexService(properties, FakeEmbeddingPort(), FakeStore(mutableListOf())),
@@ -59,7 +59,7 @@ class BibleEmbeddingBackfillServiceTests {
     }
 
     @Test
-    fun `fails when configured batch limit cannot finish backfill`() {
+    fun `설정한 배치 한도로 전체 색인을 끝낼 수 없으면 실패한다`() {
         val properties = properties().copy(embeddingBatchSize = 1, embeddingBackfillMaxBatches = 1)
         val service = BibleEmbeddingBackfillService(
             BibleEmbeddingIndexService(properties, FakeEmbeddingPort(), FakeStore(mutableListOf(source(1), source(2)))),

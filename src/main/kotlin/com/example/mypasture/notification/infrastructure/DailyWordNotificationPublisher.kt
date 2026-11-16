@@ -24,7 +24,8 @@ class DailyWordNotificationPublisher(
                 eventKey = eventKey,
                 type = NotificationType.DAILY_WORD,
                 title = "오늘의 말씀",
-                body = "${word.bookName} ${word.chapter}:${word.verse}",
+                body = "${word.bookName} ${word.chapter}:${word.verse}" +
+                    (word.endVerse?.takeIf { it != word.verse }?.let { "-$it" } ?: ""),
                 destinationType = NotificationDestinationType.TODAY_WORD,
                 dailyWord = word,
                 publishedAt = databasePublishedAt,

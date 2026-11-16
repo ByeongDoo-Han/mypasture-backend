@@ -41,4 +41,16 @@ data class KakaoProviderProperties(
     val userInfoUri: String = "https://kapi.kakao.com/v2/user/me",
     val tokenInfoUri: String = "https://kapi.kakao.com/v1/user/access_token_info",
     val appIds: List<Long> = emptyList(),
+    val web: KakaoWebProperties = KakaoWebProperties(),
 )
+
+/** 브라우저 인가 코드 교환에만 사용하는 공개 키와 서버 전용 시크릿 설정입니다. */
+data class KakaoWebProperties(
+    val restApiKey: String = "",
+    val clientSecret: String = "",
+    val redirectUri: String = "",
+    val tokenUri: String = "https://kauth.kakao.com/oauth/token",
+) {
+    fun isConfigured(): Boolean =
+        restApiKey.isNotBlank() && clientSecret.isNotBlank() && redirectUri.startsWith("https://")
+}

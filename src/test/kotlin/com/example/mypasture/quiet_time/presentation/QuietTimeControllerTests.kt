@@ -1,5 +1,7 @@
 package com.example.mypasture.quiet_time.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
@@ -28,9 +30,10 @@ class QuietTimeControllerTests(
     @Autowired private val jdbcTemplate: JdbcTemplate,
 ) {
     private var cachedLeaderToken: String? = null
+    private var cachedLeaderDisplayName: String? = null
 
     @Test
-    fun `recommended passages return selection criteria`() {
+    fun `추천 말씀은 선택 기준을 함께 반환한다`() {
         mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
             param("theme", "불안")
             param("beginnerOnly", "true")
@@ -46,7 +49,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `one passage exposes multiple weighted themes and creates different previews`() {
+    fun `한 말씀의 여러 가중 주제로 서로 다른 질문 미리보기를 만든다`() {
         val passageResult = mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
             param("theme", "불안")
             param("size", "1")
@@ -71,7 +74,59 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `session freezes selected theme question set and answers use the snapshot`() {
+    fun `편집한 질문은 생성한 모임의 스냅샷에만 저장한다`() {
+        val passageResult = mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
+            param("theme", "불안")
+            param("size", "1")
+        }.andReturn()
+        val passageId = objectMapper.readTree(passageResult.response.contentAsString)[0]["id"].asText()
+        val pastureId = createPasture()
+        val original = previewQuestionSet(passageId, "PEACE", "SHARING")
+        val payload = """{
+            "title":"편집 질문 모임","passageId":"$passageId","focusThemeCode":"PEACE","questionStyle":"SHARING",
+            "questionOverrides":{
+                "observationQuestions":["  본문에 반복되는 말은 무엇인가요?  "],
+                "meditationQuestions":["말씀이 나에게 전하는 내용은 무엇인가요?"],
+                "sharingQuestions":["서로에게 묻고 싶은 것은 무엇인가요?","함께 실천할 일은 무엇인가요?"]
+            }
+        }""".trimIndent()
+        mockMvc.post("/api/v1/quiet-time/pastures/$pastureId/sessions") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = payload
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.questionSet.observationQuestions[0]") { value("본문에 반복되는 말은 무엇인가요?") }
+            jsonPath("$.questionSet.sharingQuestions.length()") { value(2) }
+        }
+        check(previewQuestionSet(passageId, "PEACE", "SHARING")["observationQuestions"] == original["observationQuestions"])
+
+        mockMvc.post("/api/v1/quiet-time/sessions/standalone") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = payload.replace("편집 질문 모임", "일회성 편집 질문 모임")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.questionSet.meditationQuestions[0]") { value("말씀이 나에게 전하는 내용은 무엇인가요?") }
+        }
+    }
+
+    @Test
+    fun `잘못 편집한 질문은 모임 생성 전에 거부한다`() {
+        val passageId = objectMapper.readTree(mockMvc.get("/api/v1/quiet-time/passages/recommendations").andReturn().response.contentAsString)[0]["id"].asText()
+        mockMvc.post("/api/v1/quiet-time/sessions/standalone") {
+            header("Authorization", "Bearer ${leaderToken()}")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{
+                "passageId":"$passageId","questionOverrides":{
+                    "observationQuestions":["잘못된|질문"],"meditationQuestions":["묵상 질문"],"sharingQuestions":["나눔 질문"]
+                }
+            }""".trimIndent()
+        }.andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `모임은 선택한 주제 질문을 고정하고 답변은 그 스냅샷을 사용한다`() {
         val passageResult = mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
             param("theme", "불안")
             param("size", "1")
@@ -111,7 +166,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `manager changes passage and regenerates questions before writing starts`() {
+    fun `진행자는 나눔 시작 전에 말씀을 바꾸고 질문을 다시 생성한다`() {
         val passages = recommendedPassages()
         val firstPassageId = passages[0]["id"].asText()
         val secondPassageId = passages[1]["id"].asText()
@@ -152,7 +207,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `passage change is rejected after participation starts`() {
+    fun `참여가 시작되면 말씀 변경을 거부한다`() {
         val passages = recommendedPassages()
         val session = createSession(createPasture(), passageId = passages[0]["id"].asText())
         joinSession(session["offlineCode"].asText()).andExpect { status { isOk() } }
@@ -168,7 +223,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `passage change is rejected after an answer is written`() {
+    fun `답변이 작성되면 말씀 변경을 거부한다`() {
         val passages = recommendedPassages()
         val session = createSession(createPasture(), passageId = passages[0]["id"].asText())
 
@@ -189,7 +244,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `question preview rejects a theme not linked to the passage`() {
+    fun `질문 미리보기는 말씀에 연결되지 않은 주제를 거부한다`() {
         val passageResult = mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
             param("theme", "불안")
             param("size", "1")
@@ -207,7 +262,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `pasture session creates expiring invite url for frontend qr`() {
+    fun `목장 모임은 프론트 QR용 만료 초대 주소를 만든다`() {
         val session = createSession(createPasture())
         val offlineCode = session["offlineCode"].asText()
         val joinCode = session["joinCode"].asText()
@@ -223,7 +278,7 @@ class QuietTimeControllerTests(
             .andExpect {
                 status { isOk() }
                 jsonPath("$.offlineCode") { value(offlineCode) }
-                jsonPath("$.inviteUrl") { value("https://mypasture.app/q/qt/$offlineCode") }
+                jsonPath("$.inviteUrl") { value("https://app.mypasture.app/q/qt/$offlineCode") }
                 jsonPath("$.qrStatus") { value("OPEN") }
                 jsonPath("$.joinStartsAt") { exists() }
                 jsonPath("$.expiresAt") { exists() }
@@ -232,7 +287,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `authenticated member resolves a normalized six character join code`() {
+    fun `인증한 목원은 정규화된 여섯 글자 참여 코드를 조회한다`() {
         val session = createSession(createPasture())
         val joinCode = session["joinCode"].asText()
 
@@ -265,7 +320,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `managed pastures only return the authenticated leaders pastures`() {
+    fun `관리 목장 목록은 인증 사용자가 목자인 목장만 반환한다`() {
         val mine = createPasture()
         createPasture(token = createUserToken(), name = "다른 리더 목장")
 
@@ -279,14 +334,14 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `standalone session is created without a pasture and records nullable pasture attendance`() {
+    fun `일회성 모임은 목장 없이 만들고 출석의 목장 ID를 비울 수 있다`() {
         val session = createStandaloneSession()
         val sessionId = session["id"].asText()
         val offlineCode = session["offlineCode"].asText()
 
         check(session["scope"].asText() == "STANDALONE")
         check(session["pasture"].isNull)
-        check(session["hostDisplayName"].asText() == "큐티 리더")
+        check(session["hostDisplayName"].asText() == cachedLeaderDisplayName)
 
         joinSession(offlineCode).andExpect {
             status { isOk() }
@@ -303,7 +358,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `only standalone host can manage its qr`() {
+    fun `일회성 모임의 주최자만 QR을 관리할 수 있다`() {
         val session = createStandaloneSession()
 
         mockMvc.delete("/api/v1/quiet-time/sessions/${session["id"].asText()}/qr") {
@@ -321,7 +376,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `standalone host can answer without joining the qr session`() {
+    fun `일회성 주최자는 QR 참여 없이도 답변할 수 있다`() {
         val session = createStandaloneSession()
 
         mockMvc.put("/api/v1/quiet-time/sessions/${session["id"].asText()}/answers/MEDITATION/0") {
@@ -330,13 +385,13 @@ class QuietTimeControllerTests(
             content = """{"content":"일회성 모임 생성자가 작성한 묵상입니다."}"""
         }.andExpect {
             status { isOk() }
-            jsonPath("$.authorDisplayName") { value("큐티 리더") }
+            jsonPath("$.authorDisplayName") { value(cachedLeaderDisplayName!!) }
             jsonPath("$.content") { value("일회성 모임 생성자가 작성한 묵상입니다.") }
         }
     }
 
     @Test
-    fun `scanned qr code joins offline session idempotently`() {
+    fun `스캔한 QR 코드는 오프라인 모임에 멱등하게 참여시킨다`() {
         val offlineCode = createSession(createPasture())["offlineCode"].asText()
 
         joinSession(offlineCode)
@@ -356,7 +411,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `scheduled qr rejects participation before join start`() {
+    fun `예약된 QR은 참여 시작 전 신청을 거부한다`() {
         val session = createSession(
             pastureId = createPasture(),
             joinStartsAt = Instant.now().plus(1, ChronoUnit.HOURS),
@@ -371,7 +426,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `expired qr remains queryable but rejects participation`() {
+    fun `만료된 QR은 조회할 수 있지만 참여는 거부한다`() {
         val session = createSession(createPasture())
         val offlineCode = session["offlineCode"].asText()
         jdbcTemplate.update(
@@ -394,7 +449,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `reissuing qr revokes previous code and keeps new code open`() {
+    fun `QR 재발급은 이전 코드를 폐기하고 새 코드를 활성화한다`() {
         val original = createSession(createPasture())
         val sessionId = original["id"].asText()
         val oldCode = original["offlineCode"].asText()
@@ -407,6 +462,7 @@ class QuietTimeControllerTests(
         }.andExpect {
             status { isOk() }
             jsonPath("$.qrStatus") { value("OPEN") }
+            jsonPath("$.inviteUrl") { value(org.hamcrest.Matchers.startsWith("https://app.mypasture.app/q/qt/")) }
         }.andReturn()
         val newCode = objectMapper.readTree(result.response.contentAsString)["offlineCode"].asText()
         val newJoinCode = objectMapper.readTree(result.response.contentAsString)["joinCode"].asText()
@@ -441,7 +497,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `leader can revoke qr immediately`() {
+    fun `목자는 QR을 즉시 폐기할 수 있다`() {
         val session = createSession(createPasture())
         val sessionId = session["id"].asText()
         val offlineCode = session["offlineCode"].asText()
@@ -460,7 +516,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `closing session blocks participation`() {
+    fun `모임 종료 후에는 참여를 막는다`() {
         val session = createSession(createPasture())
         val sessionId = session["id"].asText()
         val offlineCode = session["offlineCode"].asText()
@@ -479,7 +535,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `another user cannot manage leader qr`() {
+    fun `다른 사용자는 목자의 QR을 관리할 수 없다`() {
         val session = createSession(createPasture())
         val otherToken = createUserToken()
 
@@ -492,7 +548,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `leader endpoints require authentication`() {
+    fun `목자 API에는 인증이 필요하다`() {
         mockMvc.post("/api/v1/quiet-time/pastures") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"name":"인증 필요 목장","leaderName":"리더"}"""
@@ -502,7 +558,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `joining a qt meeting requires authentication`() {
+    fun `QT 모임 참여에는 인증이 필요하다`() {
         val offlineCode = createSession(createPasture())["offlineCode"].asText()
 
         mockMvc.post("/api/v1/quiet-time/offline/$offlineCode/join") {
@@ -514,7 +570,7 @@ class QuietTimeControllerTests(
     }
 
     @Test
-    fun `invalid recommendation size is rejected`() {
+    fun `잘못된 추천 개수는 거부한다`() {
         mockMvc.get("/api/v1/quiet-time/passages/recommendations") {
             param("size", "100")
         }.andExpect {
@@ -636,9 +692,15 @@ class QuietTimeControllerTests(
     }
 
     private fun leaderToken(): String =
-        cachedLeaderToken ?: createUserToken().also { cachedLeaderToken = it }
+        cachedLeaderToken ?: run {
+            val displayName = uniqueTestNickname("큐티리더")
+            createUserToken(displayName).also {
+                cachedLeaderToken = it
+                cachedLeaderDisplayName = displayName
+            }
+        }
 
-    private fun createUserToken(): String {
+    private fun createUserToken(displayName: String = uniqueTestNickname()): String {
         val email = "quiet-time-${UUID.randomUUID()}@example.com"
         val password = "password123!"
         mockMvc.post("/api/v1/auth/signup") {
@@ -648,7 +710,7 @@ class QuietTimeControllerTests(
                 {
                   "email": "$email",
                   "password": "$password",
-                  "displayName": "큐티 리더"
+                  "displayName": "$displayName"
                 }
                 """.trimIndent()
         }.andExpect {

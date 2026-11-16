@@ -6,4 +6,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 @ConfigurationProperties("app.cors")
 data class CorsProperties(
     val allowedOrigins: List<String> = emptyList(),
+    val webSessionAllowedOrigins: List<String> = emptyList(),
 )

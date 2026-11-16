@@ -1,5 +1,7 @@
 package com.example.mypasture.quiet_time.presentation
 
+import com.example.mypasture.auth.domain.uniqueTestNickname
+
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
@@ -31,7 +33,7 @@ class QuietTimeQuestionAnswerTests(
     @Autowired private val streamRegistry: QuietTimeAnswerStreamRegistry,
 ) {
     @Test
-    fun `participant publishes and updates one answer visible to the leader`() {
+    fun `참여자는 답변 한 건을 게시 수정하고 목자는 이를 볼 수 있다`() {
         val fixture = createJoinedSession()
 
         saveAnswer(fixture.sessionId, fixture.memberToken, "MEDITATION", 0, "처음에는 염려를 내려놓기로 했습니다.")
@@ -60,7 +62,7 @@ class QuietTimeQuestionAnswerTests(
     }
 
     @Test
-    fun `outsider cannot read or publish meeting answers`() {
+    fun `외부인은 모임 답변을 읽거나 게시할 수 없다`() {
         val fixture = createJoinedSession()
         val outsider = createUser("외부인")
 
@@ -79,7 +81,7 @@ class QuietTimeQuestionAnswerTests(
     }
 
     @Test
-    fun `invalid question index is rejected`() {
+    fun `잘못된 질문 번호를 거부한다`() {
         val fixture = createJoinedSession()
 
         saveAnswer(fixture.sessionId, fixture.memberToken, "SHARING", 99, "없는 질문의 답변")
@@ -90,7 +92,7 @@ class QuietTimeQuestionAnswerTests(
     }
 
     @Test
-    fun `answer update is delivered to an authenticated meeting stream`() {
+    fun `답변 수정은 인증된 모임 스트림으로 전달된다`() {
         val fixture = createJoinedSession()
         val stream = mockMvc.get("/api/v1/quiet-time/sessions/${fixture.sessionId}/answers/stream") {
             header("Authorization", "Bearer ${fixture.leaderToken}")
@@ -112,7 +114,7 @@ class QuietTimeQuestionAnswerTests(
     }
 
     @Test
-    fun `closed meeting rejects a new answer stream`() {
+    fun `종료된 모임은 새 답변 스트림을 거부한다`() {
         val fixture = createJoinedSession()
         mockMvc.post("/api/v1/quiet-time/sessions/${fixture.sessionId}/close") {
             header("Authorization", "Bearer ${fixture.leaderToken}")
@@ -140,8 +142,8 @@ class QuietTimeQuestionAnswerTests(
     }
 
     private fun createJoinedSession(): Fixture {
-        val leader = createUser("큐티 리더")
-        val member = createUser("목원 한나")
+        val leader = createUser("큐티리더")
+        val member = createUser("목원한나")
         val pastureResult = mockMvc.post("/api/v1/quiet-time/pastures") {
             header("Authorization", "Bearer ${leader.token}")
             contentType = MediaType.APPLICATION_JSON
@@ -186,7 +188,7 @@ class QuietTimeQuestionAnswerTests(
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(
-                mapOf("email" to email, "password" to password, "displayName" to displayName),
+                mapOf("email" to email, "password" to password, "displayName" to uniqueTestNickname(displayName)),
             )
         }.andExpect { status { isCreated() } }
 

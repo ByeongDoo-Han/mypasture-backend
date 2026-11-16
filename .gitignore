@@ -1,5 +1,6 @@
 HELP.md
 .gradle
+__pycache__/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
@@ -54,3 +55,8 @@ out/
 !*.tfvars.example
 crash.log
 crash.*.log
+
+# Local load-test credentials and reports
+scripts/load/tokens.local.json
+scripts/load/qt-session.local.txt
+scripts/load/results/

@@ -23,7 +23,7 @@ class PolicyControllerTests(
     @Autowired private val objectMapper: ObjectMapper,
 ) {
     @Test
-    fun `current account policies are public and versioned`() {
+    fun `현재 계정 정책은 공개적으로 버전과 함께 조회된다`() {
         mockMvc.get("/api/v1/policies/current") { param("scope", "ACCOUNT") }
             .andExpect {
                 status { isOk() }
@@ -34,7 +34,7 @@ class PolicyControllerTests(
     }
 
     @Test
-    fun `signup rejects a request without current required consent`() {
+    fun `현재 필수 약관에 동의하지 않으면 회원가입을 거부한다`() {
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"email":"missing-policy@example.com","password":"password123","displayName":"목원"}"""
@@ -45,14 +45,69 @@ class PolicyControllerTests(
     }
 
     @Test
-    fun `signup records consent and authenticated status is complete`() {
+    fun `AI 기록 정책은 최신 민감 정보 동의를 요구하고 이전 문서는 계속 조회할 수 있다`() {
+        mockMvc.get("/api/v1/policies/current") { param("scope", "AI") }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$[0].version") { value("1.1.0") }
+                jsonPath("$[0].content") { value(org.hamcrest.Matchers.containsString("원본 질문 생성일로부터 365일")) }
+            }
+        mockMvc.get("/api/v1/policies/AI_SENSITIVE_DATA/1.0.0")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.version") { value("1.0.0") }
+            }
+
+        val suffix = System.nanoTime()
+        val email = "ai-history-policy-$suffix@example.com"
+        mockMvc.post("/api/v1/auth/signup") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"password123","displayName":"정책목원하나","policyConsents":[
+                {"type":"TERMS_OF_SERVICE","version":"1.0.0","agreed":true},
+                {"type":"PRIVACY_COLLECTION","version":"1.0.0","agreed":true}
+            ]}"""
+        }.andExpect { status { isCreated() } }
+        val login = mockMvc.post("/api/v1/auth/login") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"email":"$email","password":"password123"}"""
+        }.andReturn().response
+        val token = objectMapper.readTree(login.contentAsString).path("token").asText()
+
+        mockMvc.post("/api/v1/policies/consents") {
+            header("Authorization", "Bearer $token")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"consents":[{"type":"AI_SENSITIVE_DATA","version":"1.0.0","agreed":true}]}"""
+        }.andExpect { status { isOk() } }
+        mockMvc.get("/api/v1/policies/consent-status") {
+            header("Authorization", "Bearer $token")
+            param("scopes", "AI")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.allRequiredAgreed") { value(false) }
+        }
+        mockMvc.post("/api/v1/policies/consents") {
+            header("Authorization", "Bearer $token")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"consents":[{"type":"AI_SENSITIVE_DATA","version":"1.1.0","agreed":true}]}"""
+        }.andExpect { status { isOk() } }
+        mockMvc.get("/api/v1/policies/consent-status") {
+            header("Authorization", "Bearer $token")
+            param("scopes", "AI")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.allRequiredAgreed") { value(true) }
+        }
+    }
+
+    @Test
+    fun `회원가입은 동의를 저장하고 인증된 동의 상태는 완료로 표시된다`() {
         val suffix = System.nanoTime()
         val email = "policy-$suffix@example.com"
         val signupBody = """
             {
               "email":"$email",
               "password":"password123",
-              "displayName":"정책 목원",
+              "displayName":"정책목원",
               "policyConsents":[
                 {"type":"TERMS_OF_SERVICE","version":"1.0.0","agreed":true},
                 {"type":"PRIVACY_COLLECTION","version":"1.0.0","agreed":true},
@@ -80,13 +135,13 @@ class PolicyControllerTests(
     }
 
     @Test
-    fun `AI chat rejects account user before separate sensitive data consent`() {
+    fun `별도 민감 정보 동의 전에는 계정 사용자의 AI 대화를 거부한다`() {
         val suffix = System.nanoTime()
         val email = "ai-policy-$suffix@example.com"
         mockMvc.post("/api/v1/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content = """
-                {"email":"$email","password":"password123","displayName":"AI 정책 목원","policyConsents":[
+                {"email":"$email","password":"password123","displayName":"정책목원둘","policyConsents":[
                   {"type":"TERMS_OF_SERVICE","version":"1.0.0","agreed":true},
                   {"type":"PRIVACY_COLLECTION","version":"1.0.0","agreed":true}
                 ]}

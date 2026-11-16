@@ -15,7 +15,7 @@ class CorsConfigurationTests(
     @Autowired private val mockMvc: MockMvc,
 ) {
     @Test
-    fun `development mobile origin can call login api`() {
+    fun `개발용 모바일 출처는 로그인 API를 호출할 수 있다`() {
         mockMvc.options("/api/v1/auth/login") {
             header("Origin", "http://localhost:8084")
             header("Access-Control-Request-Method", "POST")
@@ -28,7 +28,7 @@ class CorsConfigurationTests(
     }
 
     @Test
-    fun `unknown browser origin is rejected`() {
+    fun `알 수 없는 브라우저 출처는 거부된다`() {
         mockMvc.options("/api/v1/auth/login") {
             header("Origin", "https://attacker.example")
             header("Access-Control-Request-Method", "POST")
@@ -37,5 +37,29 @@ class CorsConfigurationTests(
             status { isForbidden() }
             header { doesNotExist("Access-Control-Allow-Origin") }
         }
+    }
+
+    @Test
+    fun `쿠키를 쓰는 브라우저 요청은 웹 세션 API에서만 허용된다`() {
+        mockMvc.options("/api/v1/auth/web/refresh") {
+            header("Origin", "http://localhost:8084")
+            header("Access-Control-Request-Method", "POST")
+            header("Access-Control-Request-Headers", "content-type,x-app-environment")
+        }.andExpect {
+            status { isOk() }
+            header { string("Access-Control-Allow-Credentials", "true") }
+        }
+        mockMvc.options("/api/v1/auth/login") {
+            header("Origin", "http://localhost:8084")
+            header("Access-Control-Request-Method", "POST")
+            header("Access-Control-Request-Headers", "content-type")
+        }.andExpect {
+            status { isOk() }
+            header { doesNotExist("Access-Control-Allow-Credentials") }
+        }
+        mockMvc.options("/api/v1/auth/web/refresh") {
+            header("Origin", "https://mypasture.app")
+            header("Access-Control-Request-Method", "POST")
+        }.andExpect { status { isForbidden() } }
     }
 }

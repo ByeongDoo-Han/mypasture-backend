@@ -101,6 +101,7 @@ class SecurityConfig {
                     "/swagger-ui/**",
                 ).hasRole("ADMIN")
                 it.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                it.requestMatchers(HttpMethod.POST, "/api/v1/billing/webhooks/apple", "/api/v1/billing/webhooks/google").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/api/v1/auth/health", "/api/v1/auth/social-login/providers", "/api/v1/auth/nicknames/availability").permitAll()
                 it.requestMatchers(
                     HttpMethod.POST,

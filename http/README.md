@@ -20,6 +20,10 @@ Google/Apple 토큰의 `aud`는 서버 `.env.local`에 등록한 Client ID 중 �
 
 `moderation.http`는 본인이 받은 AI 답변과 참여 가능한 QT 답변에 대해서만 신고가 성공합니다. 테스트용 대상 ID 역시 private 환경 파일에서 관리합니다.
 
+## 스토어 구매 검증
+
+`billing-verification.http`는 구매 계정 식별자 조회 → 구매 증거 접수 → 상태 확인 → 권한 조회 순서입니다. 실제 Sandbox 상품, 테스트 구매 증거, 결제 worker 설정이 필요합니다. `billingRequestId`, `billingStore`, `billingProductId`, `billingProof`는 private 환경 파일에만 입력합니다. 202는 접수 성공이며 구매 확인 완료가 아닙니다. 설정과 미구현 범위는 [구매 검증 가이드](../docs/store-purchase-verification.ko.md)를 확인합니다.
+
 ## QT 실시간 답변
 
 `quiet-time-live-answers.http`를 단독 실행할 때는 로그인 응답의 My Pasture `accessToken`과 생성된 `quietTimeSessionId`를 `http-client.private.env.json`에 입력합니다. 스트림 요청을 먼저 열어 둔 뒤 답변 PUT 요청을 실행하면 `answer-updated` 이벤트를 확인할 수 있습니다.

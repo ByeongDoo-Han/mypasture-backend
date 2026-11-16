@@ -10,6 +10,7 @@ import com.example.mypasture.ai.domain.AiClientRequestStatus
 import com.example.mypasture.ai.domain.AiIdempotencyConflictException
 import com.example.mypasture.ai.domain.AiRequestReceiptEntity
 import com.example.mypasture.ai.domain.AiRequestReceiptStatus
+import com.example.mypasture.ai.domain.AiRequestPreviouslyFailedException
 import com.example.mypasture.ai.domain.AiUsageReservation
 import com.example.mypasture.ai.domain.GroundedAnswer
 import com.example.mypasture.auth.infrastructure.UserRepository
@@ -192,6 +193,7 @@ class JdbcAiUsageAdapter(
         val usage = repository.findLockedById(reservationId)
             ?: error("AI usage reservation not found: $reservationId")
         if (usage.status == AiUsageStatus.COMPLETED) return answer
+        if (usage.status == AiUsageStatus.FAILED) throw AiRequestPreviouslyFailedException()
         check(usage.status == AiUsageStatus.PENDING) { "AI usage reservation is not pending" }
         if (usage.parentTurnId != null && context.restoredSource == null) {
             throw com.example.mypasture.ai.application.AiQuestionScopeUnclearException()
@@ -223,7 +225,7 @@ class JdbcAiUsageAdapter(
         val usage = repository.findLockedById(reservationId) ?: return
         // 완료 뒤 캐시·피드백 후처리 실패가 이미 확정한 답변과 영수증을 덮어쓰지 않습니다.
         if (usage.status != AiUsageStatus.PENDING) return
-        if (consumedAnswer != null) usage.complete(consumedAnswer, properties.embeddingModel)
+        if (consumedAnswer != null) usage.recordConsumption(consumedAnswer, properties.embeddingModel)
         usage.fail(errorCode)
         receiptRepository.findLockedByUsageLogId(reservationId)?.fail(errorCode, Instant.now())
     }

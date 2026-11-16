@@ -1,0 +1,51 @@
+### 1. 로그인 후 구매 계정 식별자 조회. 이 식별자를 앱 SDK 구매 옵션에 전달한 뒤 결제합니다.
+GET {{baseUrl}}/api/v1/billing/account
+Authorization: Bearer {{accessToken}}
+
+### 2. Sandbox 구매 검증/복원 접수. 변수는 http-client.private.env.json에 입력합니다.
+# APPLE proof = transactionId, GOOGLE proof = purchaseToken. 사용자 ID/가격/권한을 직접 보내지 않습니다.
+# 재전송은 같은 billingRequestId를 유지합니다. 202는 접수 성공이며 결제 검증 성공이 아닙니다.
+POST {{baseUrl}}/api/v1/billing/verifications
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "requestId": "{{billingRequestId}}",
+  "store": "{{billingStore}}",
+  "productId": "{{billingProductId}}",
+  "proof": "{{billingProof}}"
+}
+
+> {%
+  client.test("Verification accepted", function () {
+    client.assert(response.status === 202, "Expected 202");
+  });
+  const body = response.body.data || response.body;
+  if (response.status === 202 && body.id) client.global.set("billingVerificationId", body.id);
+%}
+
+### 3. Worker가 처리한 상태 조회. COMPLETE 확인 전 StoreKit finish/UI 성공 표시를 하지 않습니다.
+GET {{baseUrl}}/api/v1/billing/verifications/{{billingVerificationId}}
+Authorization: Bearer {{accessToken}}
+
+### 4. 서버에서 산출한 유효 권한과 이용권 잔량
+GET {{baseUrl}}/api/v1/billing/entitlements
+Authorization: Bearer {{accessToken}}
+
+### 5. 위조 웹훅 거절 확인 (실제 스토어 알림 성공 테스트는 공식 테스트 발송 기능 사용)
+POST {{baseUrl}}/api/v1/billing/webhooks/google
+Authorization: invalid
+Content-Type: application/json
+
+{
+  "message": {
+    "messageId": "forged-webhook-test",
+    "data": "e30="
+  }
+}
+
+> {%
+  client.test("Forged webhook rejected", function () {
+    client.assert(response.status === 401 || response.status === 503, "Must reject without granting rights");
+  });
+%}

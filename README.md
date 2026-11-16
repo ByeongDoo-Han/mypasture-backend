@@ -169,6 +169,7 @@ Terraform 구성은 다음을 관리합니다.
 - API 명세: 관리자 웹에 로그인한 뒤 **API 문서** 메뉴에서 조회합니다. 서버의 `/swagger-ui/**`와 `/v3/api-docs/**`는 활성 `ADMIN` JWT만 허용합니다. 직접 요청할 때는 `Authorization: Bearer <관리자 access token>` 헤더가 필요합니다. 관리자 웹의 문서 화면은 조회 전용입니다.
 - [QT QR policy](docs/quiet-time-qr-policy.ko.md)
 - [Today word operations](docs/daily-word-publishing-operations.ko.md)
+- [Store purchase verification](docs/store-purchase-verification.ko.md)
 
 문서의 `구현`, `부분 구현`, `계획` 표기를 코드 완료 상태와 구분해서 확인합니다.
 

@@ -56,6 +56,8 @@ class AiRequestReceiptEntity(
     var updatedAt: Instant = createdAt,
 ) {
     fun complete(encryptedResponse: String, responseExpiresAt: Instant, now: Instant) {
+        if (status == AiRequestReceiptStatus.COMPLETED) return
+        if (status == AiRequestReceiptStatus.FAILED) throw AiRequestPreviouslyFailedException()
         status = AiRequestReceiptStatus.COMPLETED
         this.encryptedResponse = encryptedResponse
         this.responseExpiresAt = responseExpiresAt
@@ -64,6 +66,7 @@ class AiRequestReceiptEntity(
     }
 
     fun fail(code: String, now: Instant) {
+        if (status != AiRequestReceiptStatus.PENDING) return
         status = AiRequestReceiptStatus.FAILED
         encryptedResponse = null
         responseExpiresAt = null

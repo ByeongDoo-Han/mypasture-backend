@@ -119,12 +119,12 @@
 - 모바일/관리자에 필요한 후속 작업
 - 미해결 위험
 
-## 운영 문서
+## 문서 탐색
 
-- [환경 설정](docs/operations/environment.md)
-- [GCP 배포 절차](docs/operations/gcp-terraform-deployment.ko.md)
-- [운영 설계](docs/product/production-design.md)
-- [보안 기준](docs/verification/security-hardening.ko.md)
-- [실제 배포 워크플로](.github/workflows/deploy-gcp.yml)
+- 계정·AI·QT·알림·보상 규칙을 바꿀 때 [도메인 정책](docs/domain/README.md)에서 관련 문서를 읽습니다.
+- 시스템 경계나 기술 결정을 바꿀 때 [아키텍처](docs/architecture/README.md)를 확인합니다.
+- API 계약을 바꿀 때 [API 명세](docs/reference/api-spec.md)와 해당 `http/` 예제를 확인합니다.
+- 검사를 선택하거나 결과를 보고할 때 [검증 색인](docs/verification/README.md)과 이 파일의 변경 범위별 검증 규칙을 사용합니다.
+- 환경·배포 작업을 준비할 때 [운영 색인](docs/operations/README.md)과 [실제 배포 워크플로](.github/workflows/deploy-gcp.yml)를 확인합니다.
 
-환경별 명령·설정은 기존 운영 문서에서 관리하고 새 절차는 필요에 따라 `docs/runbooks/`에 둡니다. `AGENTS.md`에는 판단 기준과 문서 링크를 유지하며 비밀값이나 변하기 쉬운 설정값을 복제하지 않습니다. `main`의 Server CI 성공 후 자동 배포는 변경 선택 결과가 runtime에 영향을 준 경우에만 시작하므로 병합 직전에 실제 선택 결과와 대상 환경을 확인합니다.
+환경별 명령·설정은 운영 문서에서 관리합니다. `AGENTS.md`에는 판단 기준과 문서 링크만 유지하며 비밀값이나 변하기 쉬운 설정값을 복제하지 않습니다. `main`의 Server CI 성공 후 자동 배포는 변경 선택 결과가 runtime에 영향을 준 경우에만 시작하므로 병합 직전에 실제 선택 결과와 대상 환경을 확인합니다.

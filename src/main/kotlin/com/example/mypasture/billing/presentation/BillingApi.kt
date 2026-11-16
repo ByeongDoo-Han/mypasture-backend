@@ -3,6 +3,9 @@ package com.example.mypasture.billing.presentation
 import com.example.mypasture.auth.infrastructure.JwtPrincipal
 import com.example.mypasture.billing.application.*
 import com.example.mypasture.billing.domain.BillingStore
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
@@ -19,11 +22,16 @@ class VerifyPurchaseRequest(val requestId: UUID, val store: BillingStore,
     @field:NotBlank @field:Size(max = 8192) val proof: String)
 
 /** 구매 검증/복원과 권한 조회의 OpenAPI 계약입니다. 사용자 ID나 지급 수량을 입력받지 않습니다. */
+@Tag(name = "결제", description = "인증 사용자의 구매 검증, 복원 상태와 권한을 조회합니다.")
 interface BillingApi {
+    @Operation(summary = "스토어 계정 식별자 조회", description = "로그인한 사용자에게 연결된 스토어 구매 계정 식별자를 반환합니다.")
     @GetMapping("/account") fun account(@AuthenticationPrincipal principal: JwtPrincipal): BillingAccountResponse
+    @Operation(summary = "구매 검증 요청", description = "구매 증거를 영속 검증 작업으로 접수하고 현재 처리 상태를 반환합니다.")
     @PostMapping("/verifications") @ResponseStatus(HttpStatus.ACCEPTED)
     fun verify(@AuthenticationPrincipal principal: JwtPrincipal, @Valid @RequestBody request: VerifyPurchaseRequest): BillingVerificationView
-    @GetMapping("/verifications/{id}") fun status(@AuthenticationPrincipal principal: JwtPrincipal, @PathVariable id: UUID): BillingVerificationView
+    @Operation(summary = "구매 검증 상태 조회", description = "본인이 접수한 구매 검증 작업의 상태를 조회합니다.")
+    @GetMapping("/verifications/{id}") fun status(@AuthenticationPrincipal principal: JwtPrincipal, @Parameter(description = "구매 검증 작업 UUID.") @PathVariable id: UUID): BillingVerificationView
+    @Operation(summary = "내 구매 권한 조회", description = "검증된 구매를 바탕으로 현재 구독과 이용권 권한을 반환합니다.")
     @GetMapping("/entitlements") fun entitlements(@AuthenticationPrincipal principal: JwtPrincipal): BillingEntitlements
 }
 
@@ -46,11 +54,14 @@ class GoogleNotificationMessage(@field:NotBlank @field:Size(max = 200) val messa
 class GoogleNotificationRequest(@field:Valid val message: GoogleNotificationMessage)
 
 /** 웹훅은 앱 인증 대신 Apple 서명 또는 Pub/Sub OIDC 검증을 반드시 통과해야 합니다. */
+@Tag(name = "결제 알림", description = "서명과 OIDC를 검증한 스토어 알림을 재검증 작업으로 접수합니다.")
 interface BillingWebhookApi {
+    @Operation(summary = "Apple 구매 알림 접수", description = "서명된 Apple 알림을 확인하고 구매 재검증 작업으로 접수합니다.")
     @PostMapping("/apple") @ResponseStatus(HttpStatus.ACCEPTED)
     fun apple(@Valid @RequestBody request: AppleNotificationRequest)
+    @Operation(summary = "Google 구매 알림 접수", description = "Pub/Sub OIDC 인증을 확인하고 구매 재검증 작업으로 접수합니다.")
     @PostMapping("/google") @ResponseStatus(HttpStatus.ACCEPTED)
-    fun google(@RequestHeader("Authorization") authorization: String, @Valid @RequestBody request: GoogleNotificationRequest)
+    fun google(@Parameter(description = "Pub/Sub push OIDC Bearer 토큰.") @RequestHeader("Authorization") authorization: String, @Valid @RequestBody request: GoogleNotificationRequest)
 }
 
 /** HTTP 성공은 알림 재검증 작업의 커밋 성공을 의미하며 구매 권한 지급 성공과 구분됩니다. */

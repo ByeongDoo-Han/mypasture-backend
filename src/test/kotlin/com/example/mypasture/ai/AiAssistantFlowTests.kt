@@ -332,7 +332,7 @@ class AiAssistantFlowTests(
         val first = useCase.ask(user.id, SubscriptionTier.FREE, "창세기 1장 1절을 설명해주세요", clientRequestId = requestId)
         val turnId = first.turnId!!
         usagePort.fail(turnId, "LATE_NETWORK_ERROR")
-        usagePort.complete(turnId, first.copy(answer = "덮어쓰면 안 되는 응답"))
+        usagePort.complete(turnId, first.copy(answer = "덮어쓰면 안 되는 응답"), "창세기 1장 1절을 설명해주세요", 1L)
         assertEquals(1, usagePort.countToday(user.id))
         val receipt = useCase.requestStatus(user.id, requestId)
         assertEquals(AiClientRequestStatus.COMPLETED, receipt.status)
@@ -349,7 +349,7 @@ class AiAssistantFlowTests(
         usagePort.fail(reservation.turnId, "PROVIDER_FAILED", consumed)
         usagePort.fail(reservation.turnId, "SECOND_FAILURE", consumed.copy(promptTokens = 999))
         assertThrows(com.example.mypasture.ai.domain.AiRequestPreviouslyFailedException::class.java) {
-            usagePort.complete(reservation.turnId, validAnswer)
+            usagePort.complete(reservation.turnId, validAnswer, "처리 실패 질문", 1L)
         }
         assertEquals(1, usagePort.countToday(user.id))
         assertEquals(AiClientRequestStatus.FAILED, useCase.requestStatus(user.id, requestId).status)

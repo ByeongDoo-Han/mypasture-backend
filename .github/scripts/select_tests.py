@@ -80,7 +80,8 @@ def select(paths: list[str], force_full: bool = False) -> dict:
             full = True
             reasons.append(path)
             continue
-        if path.startswith(("docs/", "http/", ".github/")) or path in {"AGENTS.md", "README.md", ".gitignore"}:
+        skill_doc = path.startswith(".agents/skills/") and path.endswith((".md", ".yaml", ".yml"))
+        if path.startswith(("docs/", "http/", ".github/")) or skill_doc or path in {"AGENTS.md", "README.md", ".gitignore"}:
             continue
         # An unclassified production path must never silently skip checks.
         full = runtime = container = True

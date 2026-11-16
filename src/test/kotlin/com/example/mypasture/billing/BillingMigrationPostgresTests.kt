@@ -4,6 +4,7 @@ import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
+import java.nio.file.Files
 import java.sql.DriverManager
 import java.sql.SQLException
 import java.util.UUID
@@ -29,11 +30,27 @@ class BillingMigrationPostgresTests {
                     val challengeId = UUID.randomUUID()
                     sql.execute("INSERT INTO users VALUES ('$userId')")
                     sql.execute("INSERT INTO admin_email_login_states (user_id, challenge_id, auth_version) VALUES ('$userId', '$challengeId', 7)")
-                    val flyway = Flyway.configure().dataSource(url, "billing_test", "billing_test_only")
-                        .schemas(schema).defaultSchema(schema).load()
-                    assertEquals(2, flyway.migrate().migrationsExecuted)
-                    assertEquals(0, flyway.migrate().migrationsExecuted)
-                    flyway.validate()
+                    // 최신 main에는 V42.1 이후 다른 도메인의 migration이 있습니다. 이 격리 스키마에는
+                    // 결제 원장이 의존하는 V42와 원본 V43/V44만 적용합니다.
+                    val billingMigrations = Files.createTempDirectory("billing-migrations-")
+                    val migrationNames = listOf("V43__billing_refund_ledger.sql", "V44__store_purchase_verification.sql")
+                    try {
+                        migrationNames.forEach { name ->
+                            requireNotNull(javaClass.classLoader.getResourceAsStream("db/migration/$name")) {
+                                "Missing billing migration: $name"
+                            }.use { source -> Files.copy(source, billingMigrations.resolve(name)) }
+                        }
+                        val flyway = Flyway.configure().dataSource(url, "billing_test", "billing_test_only")
+                            .locations("filesystem:${billingMigrations.toAbsolutePath()}")
+                            .ignoreMigrationPatterns("*:missing")
+                            .schemas(schema).defaultSchema(schema).load()
+                        assertEquals(2, flyway.migrate().migrationsExecuted)
+                        assertEquals(0, flyway.migrate().migrationsExecuted)
+                        flyway.validate()
+                    } finally {
+                        migrationNames.forEach { Files.deleteIfExists(billingMigrations.resolve(it)) }
+                        Files.deleteIfExists(billingMigrations)
+                    }
                     sql.executeQuery("SELECT challenge_id, auth_version FROM admin_email_login_states WHERE user_id = '$userId'").use { row ->
                         assertTrue(row.next())
                         assertEquals(challengeId, row.getObject("challenge_id", UUID::class.java))

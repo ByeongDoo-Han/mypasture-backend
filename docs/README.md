@@ -12,10 +12,10 @@
 | [검증](verification/README.md) | 테스트 방법, 시점별 결과, 점검 기록 | [로컬 부하 테스트](verification/local-load-test.md) |
 | [작업 기록](tasks/README.md) | 이슈별 작업 계약, QA 및 리뷰 | [작업 기록 색인](tasks/README.md) |
 
-## 읽는 순서
+## 작업별 진입점
 
-1. 기능을 찾을 때는 [제품과 기능](product/README.md)에서 해당 문서를 찾고 [도메인 정책](domain/README.md)을 확인합니다.
-2. 구현 경계나 결정 이유는 [아키텍처](architecture/README.md)에서, API 계약은 [참조](reference/README.md)에서 확인합니다.
-3. 실행 절차는 [운영](operations/README.md)을, 과거 작업의 검증 근거는 [검증](verification/README.md)과 [작업 기록](tasks/README.md)을 봅니다.
+- 사용자 흐름을 바꾸면 [제품과 기능](product/README.md)과 관련 [도메인 정책](domain/README.md)을 확인합니다.
+- 시스템 경계나 API를 바꾸면 [아키텍처](architecture/README.md)와 [참조](reference/README.md)를 확인합니다.
+- 실행·배포를 준비하면 [운영](operations/README.md)을, 검사 근거를 찾으면 [검증](verification/README.md)과 해당 [작업 기록](tasks/README.md)을 확인합니다.
 
 `계획`·`부분 구현`·`구현` 같은 상태 표기는 문서별 기준을 따릅니다. 날짜가 있는 결과나 이슈 기록은 해당 시점의 근거이며 최신 운영 상태를 보증하지 않습니다.

@@ -11,9 +11,10 @@ class SelectTestsTests(unittest.TestCase):
         self.assertFalse(any("BibleCursor" in name for name in result["postgres"]))
 
     def test_docs_only_does_not_run_application_tests(self):
-        result = select(["docs/guide.md", "AGENTS.md"])
+        result = select(["docs/guide.md", "AGENTS.md", ".agents/skills/mypasture-api-contract/SKILL.md"])
         self.assertEqual(result["unit"], [])
         self.assertFalse(result["runtime"])
+        self.assertFalse(result["container"])
 
     def test_migration_requires_full_and_postgres(self):
         result = select(["src/main/resources/db/migration/V99__change.sql"])
@@ -24,6 +25,7 @@ class SelectTestsTests(unittest.TestCase):
     def test_unknown_runtime_path_requires_full(self):
         result = select(["unknown-runtime-file"])
         self.assertEqual(result["unit"], ["*"])
+        self.assertEqual(select([".agents/skills/example/scripts/check.py"])["unit"], ["*"])
 
     def test_missing_domain_suite_fails(self):
         with self.assertRaisesRegex(ValueError, "No test suite"):

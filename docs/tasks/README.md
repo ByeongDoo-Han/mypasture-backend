@@ -18,3 +18,4 @@
 | #167 | [독서 성장](167-reading-growth.md) |
 | #169 | [오늘의 말씀 순환](169-daily-word-rotation.md) |
 | #244 | [기능·개선 기록 체계](244-agent-work-records.md) |
+| #247 | [서버 서브에이전트 스킬](247-agent-skills.md) |

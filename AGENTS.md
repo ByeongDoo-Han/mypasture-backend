@@ -60,6 +60,8 @@
 
 모든 변경에서 `git diff --check`를 실행합니다. 로컬과 CI 모두 변경 영향 범위의 테스트만 선택합니다. 선택 기준은 `.github/scripts/select_tests.py`와 아래 정책입니다.
 
+서버 변경의 검사 범위와 결과 인수에는 [변경 검증 스킬](.agents/skills/mypasture-change-verification/SKILL.md)을 사용합니다. API 경로·요청/응답·오류·인증 계약을 바꿀 때는 구현 전에 [API 계약 스킬](.agents/skills/mypasture-api-contract/SKILL.md)로 기존 클라이언트와 모바일·관리자 인수 범위를 확인합니다. 스킬은 아래 정책과 필수 CI를 완화하지 않습니다.
+
 ### 검증 위험도와 로컬 전체 검사
 
 - 작업 규모와 검증 위험도는 별도로 판단합니다. 파일 수나 단순 기능 추가라는 이름만으로 저위험으로 분류하지 않습니다. 영향받는 저장소의 검사 범위를 정합니다.

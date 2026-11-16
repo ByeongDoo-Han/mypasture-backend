@@ -4,6 +4,7 @@
 
 ## 환경과 배포
 
+- [브랜치 통합과 릴리스](branch-release.ko.md)
 - [서버 환경 설정](environment.md)
 - [GCP Terraform 배포 가이드](gcp-terraform-deployment.ko.md)
 - [Admin Cloud Run 인프라 운영](admin-cloud-run-operations.ko.md)

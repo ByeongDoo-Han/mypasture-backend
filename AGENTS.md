@@ -101,6 +101,8 @@
 - 브랜치 이름은 `feat/<domain>-<issue-number>-<feature-slug>` 형식을 사용합니다.
 - 기능 커밋은 `feat(<domain>): <summary> (#<issue-number>)` 형식을 기본으로 합니다. 수정·문서·테스트 작업은 목적에 맞는 타입을 사용합니다.
 - 세부 작업 PR의 base는 `dev`입니다. 검증된 `dev`만 릴리스 PR로 `main`에 병합합니다. 세부 작업 PR에 `Closes #<issue-number>`를 포함하고, 릴리스 PR에는 포함된 변경·CI·배포 계획을 기록합니다.
+- 기능 구현과 기존 기능 개선은 Issue에 계획을, [작업 기록](docs/tasks/README.md)에 실제 변경·검증·인수 결과를 남깁니다. [기록 양식](docs/tasks/TEMPLATE.md)에 구현, 최종 커밋 CI, `dev`·`main` 병합, 운영 배포를 별도 상태로 표시하고 현재 기능·정책이 바뀌면 `docs/product`·`docs/domain` 원본도 갱신합니다.
+- 작업별 서브에이전트를 쓰면 Owner, 허용 경로, 공유 파일의 단일 작성자, 산출물과 인수 조건을 Issue 또는 작업 기록에 지정합니다. Coordinator 또는 단독 작업 Agent가 실제 diff와 검증 근거를 모아 최종 통합합니다.
 - 변경 영향에 맞는 로컬 필수 검증과 최종 커밋의 관련 CI가 통과한 뒤 승인된 범위에서 merge하고 원격 기능 브랜치를 삭제합니다.
 - `main` 병합과 별개로 운영 배포는 사람의 별도 승인이 필요합니다. 자동 배포가 연결된 변경은 `main` 병합 전에 배포 영향과 승인 범위를 확인합니다.
 - 병합 직전 base 변경·충돌·자동 배포 연결을 다시 확인합니다. 병합 뒤 발견한 별도 결함은 후속 Issue/PR로 추적합니다.

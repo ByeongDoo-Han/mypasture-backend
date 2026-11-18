@@ -21,7 +21,7 @@ import java.util.UUID
 /** Google 서명 키로 AdMob SSV 원문 쿼리를 검증하고 보상 정보를 추출합니다. */
 @Component
 class AdmobPrayerRewardVerifier(private val keyProvider: PrayerRewardKeyProvider) {
-    fun verify(rawQuery: String): VerifiedPrayerReward {
+    fun verify(rawQuery: String): VerifiedPrayerCallback {
         val signatureMarker = "&signature="
         val signatureIndex = rawQuery.indexOf(signatureMarker)
         if (signatureIndex <= 0 || rawQuery.indexOf(signatureMarker, signatureIndex + 1) >= 0)
@@ -50,17 +50,22 @@ class AdmobPrayerRewardVerifier(private val keyProvider: PrayerRewardKeyProvider
             if (index <= 0) throw PrayerConflictException("광고 검증 정보가 올바르지 않습니다.")
             part.substring(0, index) to URLDecoder.decode(part.substring(index + 1), StandardCharsets.UTF_8)
         }
-        val intentId = runCatching { UUID.fromString(parameters["custom_data"]) }.getOrNull()
-            ?: throw PrayerConflictException("광고 요청 식별자가 없습니다.")
         val transactionId = parameters["transaction_id"]?.takeIf { it.length in 1..120 }
             ?: throw PrayerConflictException("광고 거래 식별자가 없습니다.")
         val adUnitId = parameters["ad_unit"]?.takeIf { it.length in 1..100 }
             ?: throw PrayerConflictException("광고 단위가 없습니다.")
         val signedAt = parameters["timestamp"]?.toLongOrNull()?.let(Instant::ofEpochMilli)
             ?: throw PrayerConflictException("광고 시각이 없습니다.")
+        if (parameters["custom_data"] == SSV_URL_VERIFICATION_MARKER)
+            return VerifiedPrayerProbe(adUnitId, signedAt)
+        val intentId = runCatching { UUID.fromString(parameters["custom_data"]) }.getOrNull()
+            ?: throw PrayerConflictException("광고 요청 식별자가 없습니다.")
         return VerifiedPrayerReward(intentId, transactionId, adUnitId, signedAt)
     }
 
+    companion object {
+        const val SSV_URL_VERIFICATION_MARKER = "mypasture-prayer-ssv-url-check-v1"
+    }
 }
 
 /** AdMob의 공개 서명 키를 제공하고 알 수 없는 키 ID에는 새 목록을 요청합니다. */
@@ -102,5 +107,11 @@ class GooglePrayerRewardKeyProvider(private val mapper: ObjectMapper) : PrayerRe
     }
 }
 
-/** 서명 검증이 끝난 광고 보상 콜백 값입니다. */
-data class VerifiedPrayerReward(val intentId: UUID, val transactionId: String, val adUnitId: String, val signedAt: Instant)
+/** 서명 검증이 끝난 광고 보상 또는 URL 확인 콜백입니다. */
+sealed interface VerifiedPrayerCallback
+
+/** 실제 광고 보상 요청의 검증된 값입니다. */
+data class VerifiedPrayerReward(val intentId: UUID, val transactionId: String, val adUnitId: String, val signedAt: Instant) : VerifiedPrayerCallback
+
+/** 보상을 지급하지 않는 AdMob 콘솔 URL 확인 요청입니다. */
+data class VerifiedPrayerProbe(val adUnitId: String, val signedAt: Instant) : VerifiedPrayerCallback

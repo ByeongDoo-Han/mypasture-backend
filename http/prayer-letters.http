@@ -109,3 +109,9 @@ Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {"platform":"ANDROID"}
+
+### AdMob SSV callback (AdMob이 서명한 쿼리로 호출합니다. 서명 없는 요청은 409입니다.)
+GET {{baseUrl}}/api/v1/prayer/admob/ssv
+
+### AdMob 콘솔 URL 확인: Custom data에 mypasture-prayer-ssv-url-check-v1 입력
+### URL 확인은 보상 없이 200, 실제 광고 완료는 custom_data에 앱이 만든 reward-intent UUID를 전달합니다.

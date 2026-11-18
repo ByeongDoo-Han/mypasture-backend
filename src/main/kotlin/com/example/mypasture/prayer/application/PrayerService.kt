@@ -304,7 +304,7 @@ class PrayerService(
         }
         if (adIntents.existsByTransactionId(transactionId)) throw PrayerConflictException("이미 반영된 광고입니다.")
         val now = Instant.now(clock)
-        if (intent.adUnitId != adUnitId || signedAt.isBefore(intent.createdAt.minusSeconds(60)) ||
+        if (!ads.matchesUnit(intent.adUnitId, adUnitId) || signedAt.isBefore(intent.createdAt.minusSeconds(60)) ||
             signedAt.isAfter(intent.expiresAt) || now.isAfter(intent.expiresAt.plusSeconds(300)))
             throw PrayerConflictException("광고 보상 요청이 만료되었거나 일치하지 않습니다.")
         if (adIntents.countByUserIdAndRewardDayAndClaimedAtIsNotNull(intent.userId, intent.rewardDay) >= 3)

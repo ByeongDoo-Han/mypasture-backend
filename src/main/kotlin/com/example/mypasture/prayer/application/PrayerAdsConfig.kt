@@ -21,4 +21,11 @@ class PrayerAdsConfig(
         "IOS" -> iosUnitId
         else -> throw IllegalArgumentException("지원하지 않는 광고 플랫폼입니다.")
     }.also { if (it.isBlank()) throw PrayerConflictException("광고가 설정되지 않았습니다.") }
+
+    fun matchesUnit(configuredUnitId: String, callbackUnitId: String): Boolean =
+        configuredUnitId.isNotBlank() && callbackUnitId.isNotBlank() && (configuredUnitId == callbackUnitId ||
+            configuredUnitId.substringAfterLast('/', missingDelimiterValue = "") == callbackUnitId)
+
+    fun isConfiguredUnit(callbackUnitId: String): Boolean =
+        matchesUnit(androidUnitId, callbackUnitId) || matchesUnit(iosUnitId, callbackUnitId)
 }

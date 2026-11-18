@@ -3,6 +3,7 @@ package com.example.mypasture.prayer.infrastructure
 import com.example.mypasture.prayer.application.PrayerConflictException
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Test
 import java.nio.charset.StandardCharsets
 import java.security.KeyPairGenerator
@@ -25,7 +26,7 @@ class AdmobPrayerRewardVerifierTests {
         val intent = UUID.randomUUID()
         val at = Instant.now()
         val message = "ad_unit=ca-app-pub-1234567890123456/1234567890&custom_data=$intent&timestamp=${at.toEpochMilli()}&transaction_id=tx-123"
-        val reward = verifier.verify(signed(message))
+        val reward = assertInstanceOf(VerifiedPrayerReward::class.java, verifier.verify(signed(message)))
         assertEquals(intent, reward.intentId)
         assertEquals("tx-123", reward.transactionId)
         assertEquals("ca-app-pub-1234567890123456/1234567890", reward.adUnitId)
@@ -38,6 +39,18 @@ class AdmobPrayerRewardVerifierTests {
         assertThrows(PrayerConflictException::class.java) { verifier.verify(signed(message).replace("tx-123", "tx-124")) }
         assertThrows(PrayerConflictException::class.java) { verifier.verify("$message&signature=invalid&key_id=7") }
         assertThrows(PrayerConflictException::class.java) { verifier.verify("$message&key_id=7") }
+    }
+
+    @Test
+    fun `서명된 URL 확인 표식은 보상 요청으로 변환하지 않는다`() {
+        val at = Instant.now()
+        val message = "ad_unit=1234567890&custom_data=${AdmobPrayerRewardVerifier.SSV_URL_VERIFICATION_MARKER}&timestamp=${at.toEpochMilli()}&transaction_id=probe-123"
+        val probe = assertInstanceOf(VerifiedPrayerProbe::class.java, verifier.verify(signed(message)))
+        assertEquals("1234567890", probe.adUnitId)
+        assertEquals(at.toEpochMilli(), probe.signedAt.toEpochMilli())
+        assertThrows(PrayerConflictException::class.java) { verifier.verify(signed(message).replace("1234567890", "1234567891")) }
+        assertThrows(PrayerConflictException::class.java) { verifier.verify(signed(message.replace("&transaction_id=probe-123", ""))) }
+        assertThrows(PrayerConflictException::class.java) { verifier.verify(signed(message.replace("custom_data=${AdmobPrayerRewardVerifier.SSV_URL_VERIFICATION_MARKER}", "custom_data=invalid"))) }
     }
 
     private fun signed(message: String): String {

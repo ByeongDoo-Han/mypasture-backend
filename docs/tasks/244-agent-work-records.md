@@ -1,0 +1,37 @@
+# 작업 기록: #244 기능·개선 구현 기록 정리
+
+## 식별과 계획
+
+- 종류: 기존 개발 절차 개선(문서)
+- Issue: [#244](https://github.com/ByeongDoo-Han/mypasture-backend/issues/244)
+- Owner / Reviewer / 통합 담당: 서버 문서 담당 / PR CI / Coordinator
+- 브랜치 / 허용 경로: `feat/docs-244-agent-work-records` / `AGENTS.md`, `docs/tasks/**`
+- 현재 상태: 2026-11-16 기준 `dev` 병합 완료. `main`·운영 배포는 별도 단계
+- 기존 문제: 이슈별 기록은 있으나 기능 구현과 개선의 변경 전후·CI·병합·배포 상태를 일관되게 기입하는 양식이 없었음. 기존 `docs/tasks/README.md`와 각 이슈 문서에서 확인
+- 목표: Issue 계획과 실행 결과를 구분하고, 다음 담당자가 검증·인수 상태를 추적할 수 있게 함
+- 영향 범위: 문서·에이전트 절차만. 실행 코드와 API·DB·환경변수 변경 없음
+
+## 실제 변경
+
+- `docs/tasks/TEMPLATE.md`에 기존 상태·근거, 수용 기준, 실제 변경, 검사 수, 인수 및 릴리스 상태 표를 추가
+- `AGENTS.md`와 작업 기록 색인에서 기능·개선의 기록 위치와 작업별 서브에이전트 인수 기준을 연결
+- 현재 기능·정책 동작은 바뀌지 않으므로 `docs/product`·`docs/domain` 갱신 없음
+
+## 검증과 검토
+
+- 선택 범위: 문서와 링크·규칙 일치, `git diff --check`; 실행 경로 영향이 없어 앱 테스트 0개
+- 명령·결과: `git diff --check` 통과. 추가·변경한 Markdown의 로컬 링크 확인 결과 누락 0개. 서버 애플리케이션 테스트 발견·실행 0개(문서 전용). [PR #245](https://github.com/ByeongDoo-Han/mypasture-backend/pull/245) 최종 커밋 `4f673e7`의 [Server CI](https://github.com/ByeongDoo-Han/mypasture-backend/actions/runs/43808273376) 통과
+- 미실행 검사: 서버 애플리케이션 테스트(문서 전용 변경)
+- 남은 위험: 양식은 이후 작업에서 실제 근거를 작성해야 유효함
+
+## 인수 및 릴리스 상태
+
+| 단계 | 상태·근거 |
+| --- | --- |
+| 로컬 구현 | 문서 변경 및 로컬 검증 완료, `4f673e7` |
+| 최종 커밋 CI | PR #245의 Server CI 통과, run `43808273376` |
+| `dev` PR·병합 | [PR #245](https://github.com/ByeongDoo-Han/mypasture-backend/pull/245) 병합, `e7f667b` |
+| `main` 릴리스 PR·병합 | 미완료 |
+| 운영 배포·실제 확인 | 미실행. 문서 전용 변경 |
+
+다음 담당자는 이 기록의 작성 시점과 최신 PR·CI를 대조한다.

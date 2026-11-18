@@ -131,9 +131,14 @@ class PrayerFlowPostgresTests(
         assertThrows(RuntimeException::class.java) { service.sendLetter(sender.id, additionalTopics.last().id, "한도 초과") }
 
         val intent = service.createAdIntent(sender.id, "ANDROID")
-        service.claimAdReward(intent.id, "txn-${UUID.randomUUID()}", intent.adUnitId, Instant.now())
+        val callbackUnitId = intent.adUnitId.substringAfter('/')
+        assertThrows(RuntimeException::class.java) {
+            service.claimAdReward(intent.id, "wrong-${UUID.randomUUID()}", "9999999999", Instant.now())
+        }
+        assertEquals(0, service.quota(sender.id).bonus)
+        service.claimAdReward(intent.id, "txn-${UUID.randomUUID()}", callbackUnitId, Instant.now())
         val transaction = intents.findById(intent.id).orElseThrow().transactionId!!
-        service.claimAdReward(intent.id, transaction, intent.adUnitId, Instant.now())
+        service.claimAdReward(intent.id, transaction, callbackUnitId, Instant.now())
         assertEquals(1, service.quota(sender.id).bonus)
         service.sendLetter(sender.id, additionalTopics.last().id, "보상 확인 후 기도합니다")
         assertEquals(4, service.quota(sender.id).used)

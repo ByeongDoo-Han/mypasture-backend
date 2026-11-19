@@ -26,6 +26,5 @@ class PrayerAdsConfig(
         configuredUnitId.isNotBlank() && callbackUnitId.isNotBlank() && (configuredUnitId == callbackUnitId ||
             configuredUnitId.substringAfterLast('/', missingDelimiterValue = "") == callbackUnitId)
 
-    fun isConfiguredUnit(callbackUnitId: String): Boolean =
-        matchesUnit(androidUnitId, callbackUnitId) || matchesUnit(iosUnitId, callbackUnitId)
+    fun hasConfiguredUnit(): Boolean = androidUnitId.isNotBlank() || iosUnitId.isNotBlank()
 }

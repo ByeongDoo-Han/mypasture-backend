@@ -19,7 +19,7 @@ class PrayerRewardCallbackController(
 ) : PrayerRewardCallbackApi {
     override fun callback(request: HttpServletRequest) {
         when (val callback = verifier.verify(request.queryString ?: "")) {
-            is VerifiedPrayerProbe -> probes.verify(callback.adUnitId, callback.signedAt)
+            is VerifiedPrayerProbe -> probes.verify(callback.signedAt)
             is VerifiedPrayerReward -> service.claimAdReward(callback.intentId, callback.transactionId, callback.adUnitId, callback.signedAt)
         }
     }

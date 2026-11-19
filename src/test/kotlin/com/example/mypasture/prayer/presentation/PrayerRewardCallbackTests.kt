@@ -24,8 +24,8 @@ import java.util.UUID
 
 /** 실제 HTTP 콜백에서 서명된 확인 요청만 보상 없이 수락하는지 검증합니다. */
 @SpringBootTest(properties = ["app.bible.import-enabled=false", "app.firebase.enabled=false", "app.prayer.ads.enabled=false",
-    "app.prayer.ads.android-unit-id=ca-app-pub-1234567890123456/1234567890",
-    "app.prayer.ads.ios-unit-id=ca-app-pub-1234567890123456/1234567891"])
+    "app.prayer.ads.android-unit-id=ca-app-pub-1234567890123456/4444444444",
+    "app.prayer.ads.ios-unit-id=ca-app-pub-1234567890123456/5555555555"])
 @AutoConfigureMockMvc
 @Import(PrayerRewardCallbackTests.TestKeys::class)
 class PrayerRewardCallbackTests(
@@ -42,12 +42,12 @@ class PrayerRewardCallbackTests(
     }
 
     @Test
-    fun `서명된 URL 확인은 광고가 꺼져도 성공하고 보상 요청을 만들지 않는다`() {
+    fun `콘솔의 시험 광고 단위로 서명된 URL 확인은 광고가 꺼져도 보상 없이 성공한다`() {
         val before = intents.count()
         val message = "ad_unit=1234567890&custom_data=${AdmobPrayerRewardVerifier.SSV_URL_VERIFICATION_MARKER}&timestamp=${Instant.now().toEpochMilli()}&transaction_id=probe-123"
         mvc.get("/api/v1/prayer/admob/ssv?${signed(message)}").andExpect { status { isOk() } }
         assertEquals(before, intents.count())
-        mvc.get("/api/v1/prayer/admob/ssv?${signed(message.replace("ad_unit=1234567890", "ad_unit=1234567892"))}")
+        mvc.get("/api/v1/prayer/admob/ssv?${signed(message.replace("ad_unit=1234567890&", ""))}")
             .andExpect { status { isConflict() } }
         mvc.get("/api/v1/prayer/admob/ssv?${signed(message).replace("probe-123", "probe-124")}")
             .andExpect { status { isConflict() } }

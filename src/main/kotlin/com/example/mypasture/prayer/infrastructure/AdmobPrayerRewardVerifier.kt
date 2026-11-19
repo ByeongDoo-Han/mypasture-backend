@@ -57,7 +57,7 @@ class AdmobPrayerRewardVerifier(private val keyProvider: PrayerRewardKeyProvider
         val signedAt = parameters["timestamp"]?.toLongOrNull()?.let(Instant::ofEpochMilli)
             ?: throw PrayerConflictException("광고 시각이 없습니다.")
         if (parameters["custom_data"] == SSV_URL_VERIFICATION_MARKER)
-            return VerifiedPrayerProbe(adUnitId, signedAt)
+            return VerifiedPrayerProbe(signedAt)
         val intentId = runCatching { UUID.fromString(parameters["custom_data"]) }.getOrNull()
             ?: throw PrayerConflictException("광고 요청 식별자가 없습니다.")
         return VerifiedPrayerReward(intentId, transactionId, adUnitId, signedAt)
@@ -114,4 +114,4 @@ sealed interface VerifiedPrayerCallback
 data class VerifiedPrayerReward(val intentId: UUID, val transactionId: String, val adUnitId: String, val signedAt: Instant) : VerifiedPrayerCallback
 
 /** 보상을 지급하지 않는 AdMob 콘솔 URL 확인 요청입니다. */
-data class VerifiedPrayerProbe(val adUnitId: String, val signedAt: Instant) : VerifiedPrayerCallback
+data class VerifiedPrayerProbe(val signedAt: Instant) : VerifiedPrayerCallback

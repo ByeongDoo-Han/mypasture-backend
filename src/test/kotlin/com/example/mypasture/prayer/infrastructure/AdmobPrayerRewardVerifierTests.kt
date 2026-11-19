@@ -46,9 +46,9 @@ class AdmobPrayerRewardVerifierTests {
         val at = Instant.now()
         val message = "ad_unit=1234567890&custom_data=${AdmobPrayerRewardVerifier.SSV_URL_VERIFICATION_MARKER}&timestamp=${at.toEpochMilli()}&transaction_id=probe-123"
         val probe = assertInstanceOf(VerifiedPrayerProbe::class.java, verifier.verify(signed(message)))
-        assertEquals("1234567890", probe.adUnitId)
         assertEquals(at.toEpochMilli(), probe.signedAt.toEpochMilli())
         assertThrows(PrayerConflictException::class.java) { verifier.verify(signed(message).replace("1234567890", "1234567891")) }
+        assertThrows(PrayerConflictException::class.java) { verifier.verify(signed(message.replace("ad_unit=1234567890&", ""))) }
         assertThrows(PrayerConflictException::class.java) { verifier.verify(signed(message.replace("&transaction_id=probe-123", ""))) }
         assertThrows(PrayerConflictException::class.java) { verifier.verify(signed(message.replace("custom_data=${AdmobPrayerRewardVerifier.SSV_URL_VERIFICATION_MARKER}", "custom_data=invalid"))) }
     }

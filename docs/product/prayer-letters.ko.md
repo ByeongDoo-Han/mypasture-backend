@@ -14,7 +14,7 @@
 3. 각 광고 단위의 고급 설정 → 서버 측 인증(SSV)에서 callback URL을 `https://<API_DOMAIN>/api/v1/prayer/admob/ssv`로 입력합니다. AdMob의 URL 확인용 **Custom data**에는 `mypasture-prayer-ssv-url-check-v1`을 입력하고 User ID는 비웁니다. `Verify URL`에서 서명된 확인 요청에 200이 반환되는지 본 뒤 URL을 저장합니다. 확인 표식은 보상 요청을 만들거나 사용하지 않습니다. Google 서명 키 조회를 위해 서버에서 `www.gstatic.com`으로 HTTPS 요청이 가능해야 합니다.
 4. iOS/Android 앱 빌드에는 공개 식별자인 `EXPO_PUBLIC_ADMOB_IOS_APP_ID`, `EXPO_PUBLIC_ADMOB_ANDROID_APP_ID`를 넣습니다. 개발 빌드는 Google 테스트 App ID를 기본 사용하지만 운영 빌드는 실제 ID를 요구합니다. 두 플랫폼의 URL 확인을 마친 뒤 승인된 시험 환경에서 `APP_PRAYER_ADS_ENABLED=true`로 켜고 실제 광고 콜백·발송권 반영을 확인합니다. 기본값은 `false`입니다. AdMob의 consent form 및 앱 개인정보 고지를 출시 전 점검합니다.
 
-광고 표시 직전 앱이 UMP 동의 상태를 확인합니다. 시청 완료 이벤트만으로 보상하지 않고, Google 서명이 검증된 SSV 콜백의 거래 ID·광고 단위·요청 ID·시각을 확인한 뒤 DB 원장에 한 번 기록합니다. SSV의 `ad_unit`은 전체 ID 또는 광고 단위의 숫자 ID를 허용하되, 설정된 Android/iOS 광고 단위와 일치해야 합니다. URL 확인 표식은 유효한 서명·광고 단위·최근 시각일 때만 수락하며 광고 발송권은 늘리지 않습니다. 콜백 지연 시 앱은 발송권을 재조회하며 중복 시청을 안내하지 않습니다.
+광고 표시 직전 앱이 UMP 동의 상태를 확인합니다. 시청 완료 이벤트만으로 보상하지 않고, Google 서명이 검증된 SSV 콜백의 거래 ID·광고 단위·요청 ID·시각을 확인한 뒤 DB 원장에 한 번 기록합니다. 실제 보상 콜백의 `ad_unit`은 전체 ID 또는 광고 단위의 숫자 ID를 허용하되, 설정된 Android/iOS 광고 단위와 일치해야 합니다. AdMob 콘솔의 URL 확인 요청에는 실제 광고 단위 대신 시험용 `ad_unit`이 올 수 있으므로 이 경로에서는 광고 단위의 존재, 유효한 서명·확인 표식·최근 시각과 광고 단위 환경 설정만 확인하며 발송권은 늘리지 않습니다. 콜백 지연 시 앱은 발송권을 재조회하며 중복 시청을 안내하지 않습니다.
 
 ## 데이터와 호환성
 

@@ -115,3 +115,4 @@ GET {{baseUrl}}/api/v1/prayer/admob/ssv
 
 ### AdMob 콘솔 URL 확인: Custom data에 mypasture-prayer-ssv-url-check-v1 입력
 ### URL 확인은 보상 없이 200, 실제 광고 완료는 custom_data에 앱이 만든 reward-intent UUID를 전달합니다.
+### 콘솔 시험 요청의 ad_unit은 실제 광고 단위 ID와 다를 수 있으며, 실제 보상 콜백에서만 광고 단위 일치를 검사합니다.
